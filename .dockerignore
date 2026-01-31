@@ -1,0 +1,52 @@
+# Dependencies
+/node_modules
+/vendor
+
+# Development files
+.env
+.env.backup
+.env.local
+.phpunit.result.cache
+
+# Build artifacts
+/public/hot
+/public/storage
+/storage/*.key
+
+# Logs
+/storage/logs/*.log
+
+# IDE
+.idea
+.vscode
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Testing
+/coverage
+/tests
+
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Database
+/database/*.sqlite
+/database/*.sqlite-*
+
+# Cache
+/bootstrap/cache/*
+/storage/framework/cache/*
+/storage/framework/sessions/*
+/storage/framework/views/*
+
+# Documentation
+*.md
+!README.md
+

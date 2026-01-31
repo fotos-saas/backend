@@ -1,0 +1,77 @@
+@import '../../../../vendor/filament/filament/resources/css/theme.css';
+
+@source '../../../../app/Filament/**/*';
+@source '../../../../resources/views/filament/**/*';
+@source '../../../../resources/views/livewire/**/*';
+
+/* Custom: New record highlighting */
+.fi-ta-row-new {
+    @apply bg-green-50 dark:bg-green-950/30;
+}
+
+/* Custom: File upload - clean styling without green success background */
+.filepond--item[data-filepond-item-state="processing-complete"] .filepond--panel-root {
+    background-color: #f3f4f6 !important;
+}
+
+.filepond--item[data-filepond-item-state="processing-complete"] {
+    background-color: transparent !important;
+}
+
+.filepond--root .filepond--file {
+    background-color: #f3f4f6 !important;
+    color: #374151 !important;
+    padding-left: 72px !important;
+    border-radius: 0 !important;
+}
+
+.filepond--file .filepond--file-status {
+    color: #10b981 !important;
+}
+
+.filepond--file-info {
+    color: #374151 !important;
+}
+
+.filepond--file-info-main {
+    font-size: 12px !important;
+}
+
+.filepond--image-preview-wrapper {
+    width: 60px !important;
+    height: 60px !important;
+}
+
+.filepond--item {
+    width: calc(50% - 0.5em) !important;
+    margin: 2px !important;
+}
+
+.filepond--list {
+    margin: -2px !important;
+}
+
+.filepond--panel-root {
+    background-color: #f3f4f6 !important;
+}
+
+/* Fix: Image preview absolute position, content shifted right */
+.filepond--image-preview-overlay {
+    display: none !important;
+}
+
+.filepond--file-wrapper {
+    padding-left: 0 !important;
+}
+
+.filepond--panel-bottom .filepond--item-panel {
+    box-shadow: none !important;
+}
+
+.filepond--item-panel {
+    border-radius: 0 !important;
+}
+
+.filepond--image-preview-wrapper {
+    border-radius: 0 !important;
+}
