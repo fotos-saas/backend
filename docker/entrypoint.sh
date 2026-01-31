@@ -2,8 +2,8 @@
 
 set -e
 
-# Change to backend directory
-cd /var/www/html/backend
+# Change to app directory
+cd /var/www/html
 
 # === TIMEOUT CONFIGURATION ===
 MAX_RETRIES=30  # 30 * 2s = 60 seconds max wait
