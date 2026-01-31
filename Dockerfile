@@ -1,5 +1,5 @@
 # ============================================
-# PHP-FPM Production Stage
+# PHP-FPM Production Stage (Coolify compatible)
 # ============================================
 FROM php:8.3-fpm-alpine AS production
 
@@ -99,30 +99,26 @@ COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 # Set working directory
 WORKDIR /var/www/html
 
-# Copy application files
-COPY backend/ ./backend/
+# Copy application files (Coolify clones repo directly, no backend/ prefix)
+COPY . ./
 
-# Install dependencies after copying all files
-RUN cd backend && composer install --no-dev --optimize-autoloader --no-scripts --no-interaction
-
-# Copy pre-built frontend (build locally before docker build)
-COPY frontend/dist ./frontend/dist
+# Install dependencies
+RUN composer install --no-dev --optimize-autoloader --no-scripts --no-interaction
 
 # Set permissions
-RUN chown -R www-data:www-data ./backend/storage ./backend/bootstrap/cache \
-    && chmod -R 775 ./backend/storage ./backend/bootstrap/cache
+RUN chown -R www-data:www-data ./storage ./bootstrap/cache \
+    && chmod -R 775 ./storage ./bootstrap/cache
 
 # Copy PHP debug config (REMOVE IN PRODUCTION)
-COPY backend/docker/php-debug.ini /usr/local/etc/php/conf.d/99-debug.ini
+COPY docker/php-debug.ini /usr/local/etc/php/conf.d/99-debug.ini
 
 # Copy PHP FFI config for libvips (php-vips FFI binding)
-COPY backend/docker/php/php-ffi.ini /usr/local/etc/php/conf.d/ffi.ini
+COPY docker/php/php-ffi.ini /usr/local/etc/php/conf.d/ffi.ini
 
 # Copy entrypoint script
-COPY backend/docker/entrypoint.sh /usr/local/bin/entrypoint.sh
+COPY docker/entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN chmod +x /usr/local/bin/entrypoint.sh
 
 EXPOSE 9000
 
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
-
