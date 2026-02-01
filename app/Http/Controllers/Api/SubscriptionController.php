@@ -451,6 +451,148 @@ class SubscriptionController extends Controller
     }
 
     /**
+     * Pause subscription (switch to reduced paused price)
+     */
+    public function pauseSubscription(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        $partner = Partner::where('user_id', $user->id)->first();
+
+        if (!$partner || !$partner->stripe_subscription_id) {
+            return response()->json([
+                'message' => 'Nincs aktív előfizetésed.',
+            ], 400);
+        }
+
+        if ($partner->subscription_status === 'paused') {
+            return response()->json([
+                'message' => 'Az előfizetésed már szüneteltetve van.',
+            ], 400);
+        }
+
+        // Get the paused price for the current plan
+        $pausedPriceId = config("stripe.prices.{$partner->plan}.paused");
+
+        if (empty($pausedPriceId)) {
+            return response()->json([
+                'message' => 'A szüneteltetés jelenleg nem elérhető ehhez a csomaghoz.',
+            ], 400);
+        }
+
+        try {
+            // Get current subscription to find the subscription item
+            $subscription = Subscription::retrieve($partner->stripe_subscription_id);
+            $subscriptionItemId = $subscription->items->data[0]->id;
+
+            // Update subscription to paused price
+            Subscription::update($partner->stripe_subscription_id, [
+                'items' => [[
+                    'id' => $subscriptionItemId,
+                    'price' => $pausedPriceId,
+                ]],
+                'proration_behavior' => 'create_prorations',
+            ]);
+
+            $partner->update([
+                'subscription_status' => 'paused',
+                'paused_at' => now(),
+            ]);
+
+            $pausedPrice = config("stripe.plans.{$partner->plan}.paused_price");
+
+            Log::info('Subscription paused', [
+                'partner_id' => $partner->id,
+                'subscription_id' => $partner->stripe_subscription_id,
+                'paused_price' => $pausedPrice,
+            ]);
+
+            return response()->json([
+                'message' => 'Az előfizetésed szüneteltetve lett.',
+                'paused_price' => $pausedPrice,
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Failed to pause subscription', [
+                'partner_id' => $partner->id,
+                'error' => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'message' => 'Hiba történt az előfizetés szüneteltetésekor.',
+            ], 500);
+        }
+    }
+
+    /**
+     * Resume a paused subscription (switch back to original price)
+     */
+    public function unpauseSubscription(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        $partner = Partner::where('user_id', $user->id)->first();
+
+        if (!$partner || !$partner->stripe_subscription_id) {
+            return response()->json([
+                'message' => 'Nincs aktív előfizetésed.',
+            ], 400);
+        }
+
+        if ($partner->subscription_status !== 'paused') {
+            return response()->json([
+                'message' => 'Az előfizetésed nincs szüneteltetve.',
+            ], 400);
+        }
+
+        // Get the original price based on billing cycle
+        $originalPriceId = config("stripe.prices.{$partner->plan}.{$partner->billing_cycle}");
+
+        if (empty($originalPriceId)) {
+            return response()->json([
+                'message' => 'Hiba történt az eredeti ár visszaállításakor.',
+            ], 400);
+        }
+
+        try {
+            // Get current subscription to find the subscription item
+            $subscription = Subscription::retrieve($partner->stripe_subscription_id);
+            $subscriptionItemId = $subscription->items->data[0]->id;
+
+            // Update subscription back to original price
+            Subscription::update($partner->stripe_subscription_id, [
+                'items' => [[
+                    'id' => $subscriptionItemId,
+                    'price' => $originalPriceId,
+                ]],
+                'proration_behavior' => 'create_prorations',
+            ]);
+
+            $partner->update([
+                'subscription_status' => 'active',
+                'paused_at' => null,
+            ]);
+
+            Log::info('Subscription unpaused', [
+                'partner_id' => $partner->id,
+                'subscription_id' => $partner->stripe_subscription_id,
+            ]);
+
+            return response()->json([
+                'message' => 'Az előfizetésed újra aktív!',
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Failed to unpause subscription', [
+                'partner_id' => $partner->id,
+                'error' => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'message' => 'Hiba történt az előfizetés újraaktiválásakor.',
+            ], 500);
+        }
+    }
+
+    /**
      * Verify checkout session status
      */
     public function verifySession(Request $request): JsonResponse

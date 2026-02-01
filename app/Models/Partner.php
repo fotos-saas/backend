@@ -27,6 +27,7 @@ class Partner extends Model
         'subscription_status',
         'subscription_started_at',
         'subscription_ends_at',
+        'paused_at',
         'storage_limit_gb',
         'max_classes',
         'features',
@@ -35,6 +36,7 @@ class Partner extends Model
     protected $casts = [
         'subscription_started_at' => 'datetime',
         'subscription_ends_at' => 'datetime',
+        'paused_at' => 'datetime',
         'features' => 'array',
         'storage_limit_gb' => 'integer',
         'max_classes' => 'integer',

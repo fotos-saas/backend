@@ -201,6 +201,8 @@ Route::prefix('subscription')->middleware(['auth:sanctum', 'role:partner'])->gro
     Route::post('/portal', [\App\Http\Controllers\Api\SubscriptionController::class, 'createPortalSession']);
     Route::post('/cancel', [\App\Http\Controllers\Api\SubscriptionController::class, 'cancelSubscription']);
     Route::post('/resume', [\App\Http\Controllers\Api\SubscriptionController::class, 'resumeSubscription']);
+    Route::post('/pause', [\App\Http\Controllers\Api\SubscriptionController::class, 'pauseSubscription']);
+    Route::post('/unpause', [\App\Http\Controllers\Api\SubscriptionController::class, 'unpauseSubscription']);
 });
 
 // Orders (public - supports both guest and authenticated checkout)

@@ -32,14 +32,17 @@ return [
         'alap' => [
             'monthly' => env('STRIPE_PRICE_ALAP_MONTHLY', ''),
             'yearly' => env('STRIPE_PRICE_ALAP_YEARLY', ''),
+            'paused' => env('STRIPE_PRICE_ALAP_PAUSED', ''),
         ],
         'iskola' => [
             'monthly' => env('STRIPE_PRICE_ISKOLA_MONTHLY', ''),
             'yearly' => env('STRIPE_PRICE_ISKOLA_YEARLY', ''),
+            'paused' => env('STRIPE_PRICE_ISKOLA_PAUSED', ''),
         ],
         'studio' => [
             'monthly' => env('STRIPE_PRICE_STUDIO_MONTHLY', ''),
             'yearly' => env('STRIPE_PRICE_STUDIO_YEARLY', ''),
+            'paused' => env('STRIPE_PRICE_STUDIO_PAUSED', ''),
         ],
     ],
 
@@ -54,6 +57,7 @@ return [
             'description' => 'Kezdő fotósoknak',
             'monthly_price' => 4990,
             'yearly_price' => 49900,
+            'paused_price' => 1500,
             'features' => [
                 '20 GB tárhely',
                 'Max. 3 osztály',
@@ -72,6 +76,7 @@ return [
             'description' => 'Legtöbb fotósnak ideális',
             'monthly_price' => 14990,
             'yearly_price' => 149900,
+            'paused_price' => 2500,
             'popular' => true,
             'features' => [
                 '100 GB tárhely',
@@ -91,6 +96,7 @@ return [
             'description' => 'Nagyobb stúdióknak',
             'monthly_price' => 29990,
             'yearly_price' => 299900,
+            'paused_price' => 9000,
             'features' => [
                 '500 GB tárhely',
                 'Korlátlan osztály',
