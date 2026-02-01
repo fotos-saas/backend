@@ -45,6 +45,10 @@ class StripeWebhookController extends Controller
                 'checkout.session.completed' => $this->handleCheckoutSessionCompleted($event),
                 'payment_intent.succeeded' => $this->handlePaymentIntentSucceeded($event),
                 'payment_intent.payment_failed' => $this->handlePaymentIntentFailed($event),
+                'customer.subscription.created' => $this->handleSubscriptionCreated($event),
+                'customer.subscription.updated' => $this->handleSubscriptionUpdated($event),
+                'customer.subscription.deleted' => $this->handleSubscriptionDeleted($event),
+                'invoice.paid' => $this->handleInvoicePaid($event),
                 default => Log::info('Unhandled Stripe event type', ['type' => $event->type]),
             };
 
@@ -111,5 +115,93 @@ class StripeWebhookController extends Controller
             'payment_intent_id' => $paymentIntent->id,
             'failure_message' => $paymentIntent->last_payment_error?->message,
         ]);
+    }
+
+    /**
+     * Handle customer.subscription.created event
+     *
+     * @param  \Stripe\Event  $event
+     */
+    private function handleSubscriptionCreated($event): void
+    {
+        $subscription = $event->data->object;
+
+        Log::info('Subscription created', [
+            'subscription_id' => $subscription->id,
+            'customer_id' => $subscription->customer,
+            'status' => $subscription->status,
+        ]);
+    }
+
+    /**
+     * Handle customer.subscription.updated event
+     *
+     * @param  \Stripe\Event  $event
+     */
+    private function handleSubscriptionUpdated($event): void
+    {
+        $subscription = $event->data->object;
+
+        Log::info('Subscription updated', [
+            'subscription_id' => $subscription->id,
+            'status' => $subscription->status,
+        ]);
+
+        // Update partner subscription status if exists
+        $partner = \App\Models\Partner::where('stripe_subscription_id', $subscription->id)->first();
+
+        if ($partner) {
+            $partner->update([
+                'subscription_status' => $subscription->status,
+                'subscription_ends_at' => $subscription->current_period_end
+                    ? \Carbon\Carbon::createFromTimestamp($subscription->current_period_end)
+                    : null,
+            ]);
+        }
+    }
+
+    /**
+     * Handle customer.subscription.deleted event
+     *
+     * @param  \Stripe\Event  $event
+     */
+    private function handleSubscriptionDeleted($event): void
+    {
+        $subscription = $event->data->object;
+
+        Log::info('Subscription deleted', [
+            'subscription_id' => $subscription->id,
+        ]);
+
+        // Update partner subscription status if exists
+        $partner = \App\Models\Partner::where('stripe_subscription_id', $subscription->id)->first();
+
+        if ($partner) {
+            $partner->update([
+                'subscription_status' => 'canceled',
+            ]);
+        }
+    }
+
+    /**
+     * Handle invoice.paid event
+     *
+     * @param  \Stripe\Event  $event
+     */
+    private function handleInvoicePaid($event): void
+    {
+        $invoice = $event->data->object;
+
+        Log::info('Invoice paid', [
+            'invoice_id' => $invoice->id,
+            'customer_id' => $invoice->customer,
+            'amount_paid' => $invoice->amount_paid,
+        ]);
+
+        // Check if this is a registration checkout
+        if (isset($invoice->metadata->registration_token)) {
+            $controller = app(\App\Http\Controllers\Api\SubscriptionController::class);
+            $controller->handleSuccessfulPayment($invoice->id);
+        }
     }
 }

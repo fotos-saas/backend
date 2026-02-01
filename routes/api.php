@@ -188,6 +188,13 @@ Route::get('/downloads/zip/ready', [WorkSessionController::class, 'downloadReady
 // Stripe Webhook (must be public and without CSRF protection)
 Route::post('/stripe/webhook', [StripeWebhookController::class, 'handle']);
 
+// Subscription / Partner Registration (public)
+Route::prefix('subscription')->group(function () {
+    Route::post('/checkout', [\App\Http\Controllers\Api\SubscriptionController::class, 'createCheckoutSession']);
+    Route::post('/verify', [\App\Http\Controllers\Api\SubscriptionController::class, 'verifySession']);
+    Route::post('/complete', [\App\Http\Controllers\Api\SubscriptionController::class, 'handleSuccessfulPayment']);
+});
+
 // Orders (public - supports both guest and authenticated checkout)
 Route::post('/orders', [OrderController::class, 'store']);
 Route::get('/orders/{order}', [OrderController::class, 'show']);
