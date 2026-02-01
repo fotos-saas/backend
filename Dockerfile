@@ -19,7 +19,9 @@ RUN apk add --no-cache \
     libwebp-dev \
     # libvips for image processing
     vips-dev \
-    vips-tools
+    vips-tools \
+    # FFI extension dependencies (required by jcupitt/vips)
+    libffi-dev
 
 # Install PHP extensions
 RUN docker-php-ext-configure gd --with-freetype --with-jpeg --with-webp \
@@ -33,7 +35,8 @@ RUN docker-php-ext-configure gd --with-freetype --with-jpeg --with-webp \
         mbstring \
         exif \
         pcntl \
-        bcmath
+        bcmath \
+        ffi
 
 # Install Redis extension
 RUN apk add --no-cache --virtual .build-deps $PHPIZE_DEPS \
