@@ -13,6 +13,8 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Stripe\Checkout\Session;
 use Stripe\Stripe;
+use Stripe\Subscription;
+use Stripe\Customer;
 
 class SubscriptionController extends Controller
 {
@@ -22,7 +24,7 @@ class SubscriptionController extends Controller
     }
 
     /**
-     * Create Stripe Checkout Session for partner registration
+     * Create Stripe Checkout Session for partner registration (subscription)
      */
     public function createCheckoutSession(Request $request): JsonResponse
     {
@@ -44,43 +46,34 @@ class SubscriptionController extends Controller
             'billing_cycle' => ['required', 'string', 'in:monthly,yearly'],
         ]);
 
-        // Plan prices (in HUF)
-        $plans = [
-            'alap' => [
-                'name' => 'Alap csomag',
-                'monthly' => 4990,
-                'yearly' => 49900,
-                'features' => ['20 GB tárhely', 'Max. 3 osztály', 'Email támogatás'],
-            ],
-            'iskola' => [
-                'name' => 'Iskola csomag',
-                'monthly' => 14990,
-                'yearly' => 149900,
-                'features' => ['100 GB tárhely', 'Max. 20 osztály', 'Prioritás támogatás'],
-            ],
-            'studio' => [
-                'name' => 'Stúdió csomag',
-                'monthly' => 29990,
-                'yearly' => 299900,
-                'features' => ['500 GB tárhely', 'Korlátlan osztály', 'Dedikált support'],
-            ],
-        ];
+        $plan = $validated['plan'];
+        $billingCycle = $validated['billing_cycle'];
 
-        $plan = $plans[$validated['plan']];
-        $isYearly = $validated['billing_cycle'] === 'yearly';
-        $price = $isYearly ? $plan['yearly'] : $plan['monthly'];
+        // Get the Stripe Price ID from config
+        $priceId = config("stripe.prices.{$plan}.{$billingCycle}");
+
+        if (empty($priceId)) {
+            Log::error('Stripe Price ID not configured', [
+                'plan' => $plan,
+                'billing_cycle' => $billingCycle,
+            ]);
+
+            return response()->json([
+                'message' => 'A kiválasztott csomag jelenleg nem elérhető.',
+            ], 400);
+        }
 
         try {
-            // Store pending registration data in session/cache
+            // Store pending registration data in cache
             $registrationToken = Str::uuid()->toString();
 
             $registrationData = [
                 'name' => $validated['name'],
                 'email' => $validated['email'],
-                'password' => $validated['password'], // Will be hashed when user is created
+                'password' => $validated['password'],
                 'billing' => $validated['billing'],
-                'plan' => $validated['plan'],
-                'billing_cycle' => $validated['billing_cycle'],
+                'plan' => $plan,
+                'billing_cycle' => $billingCycle,
                 'created_at' => now()->toIso8601String(),
             ];
 
@@ -91,49 +84,45 @@ class SubscriptionController extends Controller
                 now()->addHour()
             );
 
-            // Create Stripe Checkout Session
-            $frontendUrl = config('app.frontend_url', 'https://app.tablostudio.hu');
+            $planConfig = config("stripe.plans.{$plan}");
 
-            $sessionParams = [
+            // Create Stripe Checkout Session for SUBSCRIPTION
+            $session = Session::create([
                 'payment_method_types' => ['card'],
-                'mode' => $isYearly ? 'payment' : 'subscription',
+                'mode' => 'subscription',
                 'line_items' => [[
-                    'price_data' => [
-                        'currency' => 'huf',
-                        'product_data' => [
-                            'name' => $plan['name'],
-                            'description' => implode(', ', $plan['features']),
-                        ],
-                        'unit_amount' => $price * 100, // Convert to fillér
-                        'recurring' => $isYearly ? null : [
-                            'interval' => 'month',
-                        ],
-                    ],
+                    'price' => $priceId,
                     'quantity' => 1,
                 ]],
-                'success_url' => $frontendUrl . '/register-success?session_id={CHECKOUT_SESSION_ID}',
-                'cancel_url' => $frontendUrl . '/register-app?cancelled=true',
+                'success_url' => config('stripe.success_url') . '?session_id={CHECKOUT_SESSION_ID}',
+                'cancel_url' => config('stripe.cancel_url'),
                 'customer_email' => $validated['email'],
                 'metadata' => [
                     'registration_token' => $registrationToken,
-                    'plan' => $validated['plan'],
-                    'billing_cycle' => $validated['billing_cycle'],
+                    'plan' => $plan,
+                    'billing_cycle' => $billingCycle,
+                ],
+                'subscription_data' => [
+                    'metadata' => [
+                        'registration_token' => $registrationToken,
+                        'plan' => $plan,
+                        'billing_cycle' => $billingCycle,
+                    ],
                 ],
                 'locale' => 'hu',
-            ];
+                'allow_promotion_codes' => true,
+                'billing_address_collection' => 'auto',
+                'tax_id_collection' => [
+                    'enabled' => true,
+                ],
+            ]);
 
-            // For yearly, it's a one-time payment
-            if ($isYearly) {
-                unset($sessionParams['line_items'][0]['price_data']['recurring']);
-            }
-
-            $session = Session::create($sessionParams);
-
-            Log::info('Stripe Checkout Session created for registration', [
+            Log::info('Stripe Checkout Session created for subscription', [
                 'session_id' => $session->id,
                 'email' => $validated['email'],
-                'plan' => $validated['plan'],
-                'billing_cycle' => $validated['billing_cycle'],
+                'plan' => $plan,
+                'billing_cycle' => $billingCycle,
+                'price_id' => $priceId,
             ]);
 
             return response()->json([
@@ -155,14 +144,24 @@ class SubscriptionController extends Controller
     }
 
     /**
-     * Handle successful registration payment (called from webhook or success page)
+     * Complete registration after successful subscription payment
      */
-    public function handleSuccessfulPayment(string $sessionId): JsonResponse
+    public function completeRegistration(Request $request): JsonResponse
     {
-        try {
-            $session = Session::retrieve($sessionId);
+        $request->validate([
+            'session_id' => ['required', 'string'],
+        ]);
 
-            if ($session->payment_status !== 'paid' && $session->status !== 'complete') {
+        $sessionId = $request->input('session_id');
+
+        try {
+            $session = Session::retrieve([
+                'id' => $sessionId,
+                'expand' => ['subscription', 'customer'],
+            ]);
+
+            // Check if subscription is active
+            if ($session->status !== 'complete') {
                 return response()->json([
                     'message' => 'A fizetés még nem fejeződött be.',
                 ], 400);
@@ -190,10 +189,19 @@ class SubscriptionController extends Controller
                 cache()->forget("registration:{$registrationToken}");
 
                 return response()->json([
-                    'message' => 'Ez az email cím már regisztrálva van. Jelentkezz be!',
+                    'message' => 'A regisztráció már megtörtént. Jelentkezz be!',
                     'already_registered' => true,
-                ], 400);
+                ]);
             }
+
+            // Get subscription details
+            $subscription = $session->subscription;
+            $customerId = $session->customer;
+
+            // Calculate subscription end date based on billing cycle
+            $subscriptionEndsAt = $registrationData['billing_cycle'] === 'yearly'
+                ? now()->addYear()
+                : now()->addMonth();
 
             // Create user and partner in transaction
             DB::beginTransaction();
@@ -204,14 +212,14 @@ class SubscriptionController extends Controller
                     'email' => $registrationData['email'],
                     'password' => Hash::make($registrationData['password']),
                     'phone' => $registrationData['billing']['phone'] ?? null,
-                    'email_verified_at' => now(), // Auto-verify since they paid
+                    'email_verified_at' => now(),
                     'password_set' => true,
                 ]);
 
                 // Assign partner role
                 $user->assignRole('partner');
 
-                // Create partner profile
+                // Create partner profile with subscription info
                 $partner = Partner::create([
                     'user_id' => $user->id,
                     'company_name' => $registrationData['billing']['company_name'],
@@ -223,13 +231,11 @@ class SubscriptionController extends Controller
                     'phone' => $registrationData['billing']['phone'],
                     'plan' => $registrationData['plan'],
                     'billing_cycle' => $registrationData['billing_cycle'],
-                    'stripe_customer_id' => $session->customer,
-                    'stripe_subscription_id' => $session->subscription,
+                    'stripe_customer_id' => is_string($customerId) ? $customerId : $customerId->id,
+                    'stripe_subscription_id' => is_string($subscription) ? $subscription : $subscription->id,
                     'subscription_status' => 'active',
                     'subscription_started_at' => now(),
-                    'subscription_ends_at' => $registrationData['billing_cycle'] === 'yearly'
-                        ? now()->addYear()
-                        : now()->addMonth(),
+                    'subscription_ends_at' => $subscriptionEndsAt,
                 ]);
 
                 DB::commit();
@@ -237,10 +243,11 @@ class SubscriptionController extends Controller
                 // Clear registration cache
                 cache()->forget("registration:{$registrationToken}");
 
-                Log::info('Partner registration completed', [
+                Log::info('Partner registration completed with subscription', [
                     'user_id' => $user->id,
                     'partner_id' => $partner->id,
                     'plan' => $registrationData['plan'],
+                    'stripe_subscription_id' => $partner->stripe_subscription_id,
                 ]);
 
                 return response()->json([
@@ -258,7 +265,7 @@ class SubscriptionController extends Controller
             }
 
         } catch (\Exception $e) {
-            Log::error('Failed to handle registration payment', [
+            Log::error('Failed to complete registration', [
                 'session_id' => $sessionId,
                 'error' => $e->getMessage(),
             ]);
@@ -271,7 +278,179 @@ class SubscriptionController extends Controller
     }
 
     /**
-     * Verify checkout session status (for frontend polling)
+     * Get subscription details for the current partner
+     */
+    public function getSubscription(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        $partner = Partner::where('user_id', $user->id)->first();
+
+        if (!$partner) {
+            return response()->json([
+                'message' => 'Partner profil nem található.',
+            ], 404);
+        }
+
+        $planConfig = config("stripe.plans.{$partner->plan}");
+
+        $response = [
+            'plan' => $partner->plan,
+            'plan_name' => $planConfig['name'] ?? $partner->plan,
+            'billing_cycle' => $partner->billing_cycle,
+            'status' => $partner->subscription_status,
+            'started_at' => $partner->subscription_started_at,
+            'ends_at' => $partner->subscription_ends_at,
+            'features' => $planConfig['features'] ?? [],
+            'limits' => $planConfig['limits'] ?? [],
+        ];
+
+        // Get more details from Stripe if subscription ID exists
+        if ($partner->stripe_subscription_id) {
+            try {
+                $subscription = Subscription::retrieve($partner->stripe_subscription_id);
+                $response['stripe_status'] = $subscription->status;
+                $response['current_period_end'] = date('Y-m-d H:i:s', $subscription->current_period_end);
+                $response['cancel_at_period_end'] = $subscription->cancel_at_period_end;
+            } catch (\Exception $e) {
+                Log::warning('Failed to retrieve Stripe subscription', [
+                    'subscription_id' => $partner->stripe_subscription_id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+
+        return response()->json($response);
+    }
+
+    /**
+     * Create a Stripe Customer Portal session for managing subscription
+     */
+    public function createPortalSession(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        $partner = Partner::where('user_id', $user->id)->first();
+
+        if (!$partner || !$partner->stripe_customer_id) {
+            return response()->json([
+                'message' => 'Nincs aktív előfizetésed.',
+            ], 400);
+        }
+
+        try {
+            $portalSession = \Stripe\BillingPortal\Session::create([
+                'customer' => $partner->stripe_customer_id,
+                'return_url' => config('stripe.success_url'),
+            ]);
+
+            return response()->json([
+                'portal_url' => $portalSession->url,
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Failed to create Stripe Portal session', [
+                'partner_id' => $partner->id,
+                'error' => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'message' => 'Hiba történt a fiókkezelő megnyitásakor.',
+            ], 500);
+        }
+    }
+
+    /**
+     * Cancel subscription (at period end)
+     */
+    public function cancelSubscription(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        $partner = Partner::where('user_id', $user->id)->first();
+
+        if (!$partner || !$partner->stripe_subscription_id) {
+            return response()->json([
+                'message' => 'Nincs aktív előfizetésed.',
+            ], 400);
+        }
+
+        try {
+            // Cancel at period end (not immediately)
+            $subscription = Subscription::update($partner->stripe_subscription_id, [
+                'cancel_at_period_end' => true,
+            ]);
+
+            $partner->update([
+                'subscription_status' => 'canceling',
+            ]);
+
+            Log::info('Subscription cancellation scheduled', [
+                'partner_id' => $partner->id,
+                'subscription_id' => $partner->stripe_subscription_id,
+                'cancel_at' => date('Y-m-d H:i:s', $subscription->current_period_end),
+            ]);
+
+            return response()->json([
+                'message' => 'Az előfizetésed le lesz mondva a jelenlegi időszak végén.',
+                'cancel_at' => date('Y-m-d H:i:s', $subscription->current_period_end),
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Failed to cancel subscription', [
+                'partner_id' => $partner->id,
+                'error' => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'message' => 'Hiba történt az előfizetés lemondásakor.',
+            ], 500);
+        }
+    }
+
+    /**
+     * Resume a canceled subscription (before period ends)
+     */
+    public function resumeSubscription(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        $partner = Partner::where('user_id', $user->id)->first();
+
+        if (!$partner || !$partner->stripe_subscription_id) {
+            return response()->json([
+                'message' => 'Nincs aktív előfizetésed.',
+            ], 400);
+        }
+
+        try {
+            $subscription = Subscription::update($partner->stripe_subscription_id, [
+                'cancel_at_period_end' => false,
+            ]);
+
+            $partner->update([
+                'subscription_status' => 'active',
+            ]);
+
+            Log::info('Subscription resumed', [
+                'partner_id' => $partner->id,
+                'subscription_id' => $partner->stripe_subscription_id,
+            ]);
+
+            return response()->json([
+                'message' => 'Az előfizetésed újra aktív!',
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Failed to resume subscription', [
+                'partner_id' => $partner->id,
+                'error' => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'message' => 'Hiba történt az előfizetés újraaktiválásakor.',
+            ], 500);
+        }
+    }
+
+    /**
+     * Verify checkout session status
      */
     public function verifySession(Request $request): JsonResponse
     {

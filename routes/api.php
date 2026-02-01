@@ -192,7 +192,15 @@ Route::post('/stripe/webhook', [StripeWebhookController::class, 'handle']);
 Route::prefix('subscription')->group(function () {
     Route::post('/checkout', [\App\Http\Controllers\Api\SubscriptionController::class, 'createCheckoutSession']);
     Route::post('/verify', [\App\Http\Controllers\Api\SubscriptionController::class, 'verifySession']);
-    Route::post('/complete', [\App\Http\Controllers\Api\SubscriptionController::class, 'handleSuccessfulPayment']);
+    Route::post('/complete', [\App\Http\Controllers\Api\SubscriptionController::class, 'completeRegistration']);
+});
+
+// Subscription Management (authenticated partners)
+Route::prefix('subscription')->middleware(['auth:sanctum', 'role:partner'])->group(function () {
+    Route::get('/', [\App\Http\Controllers\Api\SubscriptionController::class, 'getSubscription']);
+    Route::post('/portal', [\App\Http\Controllers\Api\SubscriptionController::class, 'createPortalSession']);
+    Route::post('/cancel', [\App\Http\Controllers\Api\SubscriptionController::class, 'cancelSubscription']);
+    Route::post('/resume', [\App\Http\Controllers\Api\SubscriptionController::class, 'resumeSubscription']);
 });
 
 // Orders (public - supports both guest and authenticated checkout)
