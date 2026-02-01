@@ -103,6 +103,7 @@ class SubscriptionController extends Controller
                     'billing_cycle' => $billingCycle,
                 ],
                 'subscription_data' => [
+                    'trial_period_days' => 14,
                     'metadata' => [
                         'registration_token' => $registrationToken,
                         'plan' => $plan,
