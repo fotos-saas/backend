@@ -340,6 +340,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::prefix('super-admin')->middleware('role:super_admin')->group(function () {
         Route::get('/stats', [SuperAdminController::class, 'stats']);
         Route::get('/partners', [SuperAdminController::class, 'partners']);
+        Route::get('/subscribers', [SuperAdminController::class, 'subscribers']);
+        Route::get('/settings', [SuperAdminController::class, 'getSettings']);
+        Route::put('/settings', [SuperAdminController::class, 'updateSettings']);
     });
 
     // ============================================
