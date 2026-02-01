@@ -29,6 +29,7 @@ use App\Http\Controllers\Api\TabloWorkflowController;
 use App\Http\Controllers\Api\WorkSessionController;
 use App\Http\Controllers\Api\MarketerController;
 use App\Http\Controllers\Api\PartnerController;
+use App\Http\Controllers\Api\SuperAdminController;
 use App\Http\Controllers\Api\PartnerClientController;
 use App\Http\Controllers\Api\PartnerOrderAlbumController;
 use App\Http\Controllers\Api\ClientAlbumController;
@@ -331,6 +332,14 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/{workSession}/send-email', [WorkSessionController::class, 'sendManualEmail']);
         Route::post('/{workSession}/download-manager-zip-async', [WorkSessionController::class, 'downloadManagerZipAsync']);
         Route::get('/download-progress/{downloadId}', [WorkSessionController::class, 'downloadProgressCheck']);
+    });
+
+    // ============================================
+    // SUPER ADMIN ROUTES (Rendszer adminisztráció)
+    // ============================================
+    Route::prefix('super-admin')->middleware('role:super_admin')->group(function () {
+        Route::get('/stats', [SuperAdminController::class, 'stats']);
+        Route::get('/partners', [SuperAdminController::class, 'partners']);
     });
 
     // ============================================
