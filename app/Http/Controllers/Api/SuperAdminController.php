@@ -2,16 +2,20 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\DTOs\CreateDiscountData;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Api\SuperAdmin\SetDiscountRequest;
 use App\Models\AdminAuditLog;
 use App\Models\Partner;
 use App\Models\QrRegistrationCode;
 use App\Models\TabloPartner;
 use App\Models\TabloProject;
+use App\Services\Subscription\SubscriptionDiscountService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Stripe\Exception\ApiErrorException;
 use Stripe\Invoice;
 use Stripe\InvoiceItem;
 use Stripe\Stripe;
@@ -256,7 +260,7 @@ class SuperAdminController extends Controller
      */
     public function getSubscriber(Request $request, int $id): JsonResponse
     {
-        $partner = Partner::with('user')->find($id);
+        $partner = Partner::with(['user', 'activeDiscount'])->find($id);
 
         if (! $partner) {
             return response()->json([
@@ -315,6 +319,12 @@ class SuperAdminController extends Controller
             'maxClasses' => $partner->max_classes,
             'features' => $partner->features,
             'createdAt' => $partner->created_at?->toIso8601String(),
+            'activeDiscount' => $partner->activeDiscount ? [
+                'percent' => $partner->activeDiscount->percent,
+                'validUntil' => $partner->activeDiscount->valid_until?->toIso8601String(),
+                'note' => $partner->activeDiscount->note,
+                'createdAt' => $partner->activeDiscount->created_at?->toIso8601String(),
+            ] : null,
         ]);
     }
 
@@ -630,5 +640,114 @@ class SuperAdminController extends Controller
             'per_page' => $logs->perPage(),
             'total' => $logs->total(),
         ]);
+    }
+
+    /**
+     * Set discount for subscriber.
+     */
+    public function setDiscount(
+        SetDiscountRequest $request,
+        int $id,
+        SubscriptionDiscountService $discountService,
+    ): JsonResponse {
+        $partner = Partner::find($id);
+
+        if (! $partner) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Előfizető nem található.',
+            ], 404);
+        }
+
+        try {
+            $data = CreateDiscountData::fromRequest($request, $id);
+            $discount = $discountService->apply($data);
+
+            AdminAuditLog::log(
+                $request->user()->id,
+                $partner->id,
+                AdminAuditLog::ACTION_SET_DISCOUNT,
+                [
+                    'percent' => $data->percent,
+                    'duration_months' => $data->durationMonths,
+                    'note' => $data->note,
+                ],
+                $request->ip()
+            );
+
+            return response()->json([
+                'success' => true,
+                'message' => "{$data->percent}% kedvezmény beállítva.",
+                'discount' => [
+                    'percent' => $discount->percent,
+                    'validUntil' => $discount->valid_until?->toIso8601String(),
+                    'note' => $discount->note,
+                    'createdAt' => $discount->created_at?->toIso8601String(),
+                ],
+            ]);
+        } catch (ApiErrorException $e) {
+            Log::error('Stripe discount error', [
+                'partner_id' => $id,
+                'error' => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Stripe hiba történt.',
+            ], 502);
+        }
+    }
+
+    /**
+     * Remove discount from subscriber.
+     */
+    public function removeDiscount(
+        Request $request,
+        int $id,
+        SubscriptionDiscountService $discountService,
+    ): JsonResponse {
+        $partner = Partner::with('activeDiscount')->find($id);
+
+        if (! $partner) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Előfizető nem található.',
+            ], 404);
+        }
+
+        if (! $partner->activeDiscount) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Nincs aktív kedvezmény.',
+            ], 400);
+        }
+
+        try {
+            $oldPercent = $partner->activeDiscount->percent;
+            $discountService->remove($partner);
+
+            AdminAuditLog::log(
+                $request->user()->id,
+                $partner->id,
+                AdminAuditLog::ACTION_REMOVE_DISCOUNT,
+                ['old_percent' => $oldPercent],
+                $request->ip()
+            );
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Kedvezmény eltávolítva.',
+            ]);
+        } catch (ApiErrorException $e) {
+            Log::error('Stripe remove discount error', [
+                'partner_id' => $id,
+                'error' => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Stripe hiba történt.',
+            ], 502);
+        }
     }
 }

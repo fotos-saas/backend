@@ -345,11 +345,24 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::put('/settings', [SuperAdminController::class, 'updateSettings']);
 
         // Subscriber management
-        Route::get('/subscribers/{id}', [SuperAdminController::class, 'getSubscriber']);
-        Route::post('/subscribers/{id}/charge', [SuperAdminController::class, 'chargeSubscriber']);
-        Route::put('/subscribers/{id}/change-plan', [SuperAdminController::class, 'changePlan']);
-        Route::delete('/subscribers/{id}/subscription', [SuperAdminController::class, 'cancelSubscription']);
-        Route::get('/subscribers/{id}/audit-logs', [SuperAdminController::class, 'getAuditLogs']);
+        Route::get('/subscribers/{id}', [SuperAdminController::class, 'getSubscriber'])
+            ->where('id', '[0-9]+');
+        Route::post('/subscribers/{id}/charge', [SuperAdminController::class, 'chargeSubscriber'])
+            ->where('id', '[0-9]+');
+        Route::put('/subscribers/{id}/change-plan', [SuperAdminController::class, 'changePlan'])
+            ->where('id', '[0-9]+');
+        Route::delete('/subscribers/{id}/subscription', [SuperAdminController::class, 'cancelSubscription'])
+            ->where('id', '[0-9]+');
+        Route::get('/subscribers/{id}/audit-logs', [SuperAdminController::class, 'getAuditLogs'])
+            ->where('id', '[0-9]+');
+
+        // Discount management
+        Route::post('/subscribers/{id}/discount', [SuperAdminController::class, 'setDiscount'])
+            ->where('id', '[0-9]+')
+            ->middleware('throttle:10,1');
+        Route::delete('/subscribers/{id}/discount', [SuperAdminController::class, 'removeDiscount'])
+            ->where('id', '[0-9]+')
+            ->middleware('throttle:10,1');
     });
 
     // ============================================

@@ -29,6 +29,8 @@ class AdminAuditLog extends Model
     public const ACTION_CHARGE = 'charge';
     public const ACTION_CHANGE_PLAN = 'change_plan';
     public const ACTION_CANCEL_SUBSCRIPTION = 'cancel_subscription';
+    public const ACTION_SET_DISCOUNT = 'set_discount';
+    public const ACTION_REMOVE_DISCOUNT = 'remove_discount';
 
     /**
      * Get the admin user who performed the action
@@ -75,6 +77,8 @@ class AdminAuditLog extends Model
             self::ACTION_CHARGE => 'Manuális terhelés',
             self::ACTION_CHANGE_PLAN => 'Csomag váltás',
             self::ACTION_CANCEL_SUBSCRIPTION => 'Előfizetés törlése',
+            self::ACTION_SET_DISCOUNT => 'Kedvezmény beállítás',
+            self::ACTION_REMOVE_DISCOUNT => 'Kedvezmény törlés',
             default => $this->action,
         };
     }

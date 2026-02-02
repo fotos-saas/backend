@@ -27,3 +27,10 @@ Schedule::command('drafts:cleanup')
     ->at('03:00')
     ->withoutOverlapping()
     ->onOneServer();
+
+// Lejárt előfizetési kedvezmények törlése naponta
+Schedule::command('discounts:cleanup-expired')
+    ->daily()
+    ->at('04:00')
+    ->withoutOverlapping()
+    ->onOneServer();
