@@ -29,6 +29,7 @@ use App\Http\Controllers\Api\TabloWorkflowController;
 use App\Http\Controllers\Api\WorkSessionController;
 use App\Http\Controllers\Api\MarketerController;
 use App\Http\Controllers\Api\PartnerController;
+use App\Http\Controllers\Api\StorageController;
 use App\Http\Controllers\Api\SuperAdminController;
 use App\Http\Controllers\Api\PartnerClientController;
 use App\Http\Controllers\Api\PartnerOrderAlbumController;
@@ -211,6 +212,13 @@ Route::prefix('account')->middleware(['auth:sanctum', 'role:partner'])->group(fu
     Route::get('/status', [\App\Http\Controllers\Api\AccountController::class, 'getStatus']);
     Route::delete('/', [\App\Http\Controllers\Api\AccountController::class, 'deleteAccount']);
     Route::post('/cancel-deletion', [\App\Http\Controllers\Api\AccountController::class, 'cancelDeletion']);
+});
+
+// Storage Management (authenticated partners) - Extra tárhely
+Route::prefix('storage')->middleware(['auth:sanctum', 'role:partner'])->group(function () {
+    Route::get('/usage', [StorageController::class, 'usage']);
+    Route::post('/addon', [StorageController::class, 'setAddon']);
+    Route::delete('/addon', [StorageController::class, 'removeAddon']);
 });
 
 // Orders (public - supports both guest and authenticated checkout)

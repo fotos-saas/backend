@@ -114,6 +114,26 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Storage Addon
+    |--------------------------------------------------------------------------
+    | Extra tárhely vásárlás - quantity-based subscription addon.
+    | Minden GB külön egység, havi vagy éves számlázással.
+    |
+    | Stripe beállítás:
+    | 1. Stripe Dashboard → Products → Create Product ("Extra tárhely")
+    | 2. Add Price (Monthly): 150 HUF, recurring monthly, metered/licensed
+    | 3. Add Price (Yearly): 1620 HUF, recurring yearly
+    | 4. Price ID-kat .env-be
+    */
+    'storage_addon' => [
+        'price_id_monthly' => env('STRIPE_STORAGE_ADDON_MONTHLY'),
+        'price_id_yearly' => env('STRIPE_STORAGE_ADDON_YEARLY'),
+        'unit_price_monthly' => 150,  // Ft/GB/hó
+        'unit_price_yearly' => 1620,  // Ft/GB/év (10% kedvezmény)
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | URLs
     |--------------------------------------------------------------------------
     */

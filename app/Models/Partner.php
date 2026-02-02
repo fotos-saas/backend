@@ -26,11 +26,13 @@ class Partner extends Model
         'billing_cycle',
         'stripe_customer_id',
         'stripe_subscription_id',
+        'stripe_storage_addon_item_id',
         'subscription_status',
         'subscription_started_at',
         'subscription_ends_at',
         'paused_at',
         'storage_limit_gb',
+        'additional_storage_gb',
         'max_classes',
         'features',
         'deletion_scheduled_at',
@@ -43,6 +45,7 @@ class Partner extends Model
         'deletion_scheduled_at' => 'datetime',
         'features' => 'array',
         'storage_limit_gb' => 'integer',
+        'additional_storage_gb' => 'integer',
         'max_classes' => 'integer',
     ];
 
@@ -119,13 +122,30 @@ class Partner extends Model
     }
 
     /**
-     * Get storage limit in bytes
+     * Get storage limit in GB (plan only, without addon)
+     */
+    public function getPlanStorageLimitGb(): int
+    {
+        return $this->storage_limit_gb ?? self::PLANS[$this->plan]['storage_limit_gb'] ?? 20;
+    }
+
+    /**
+     * Get total storage limit in GB (plan + addon)
+     */
+    public function getTotalStorageLimitGb(): int
+    {
+        $planLimit = $this->getPlanStorageLimitGb();
+        $addonGb = $this->additional_storage_gb ?? 0;
+
+        return $planLimit + $addonGb;
+    }
+
+    /**
+     * Get storage limit in bytes (total: plan + addon)
      */
     public function getStorageLimitBytes(): int
     {
-        $limitGb = $this->storage_limit_gb ?? self::PLANS[$this->plan]['storage_limit_gb'] ?? 20;
-
-        return $limitGb * 1024 * 1024 * 1024;
+        return $this->getTotalStorageLimitGb() * 1024 * 1024 * 1024;
     }
 
     /**
