@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\DTOs\CreateDiscountData;
+use App\Helpers\QueryHelper;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\SuperAdmin\SetDiscountRequest;
 use App\Models\AdminAuditLog;
@@ -81,9 +82,10 @@ class SuperAdminController extends Controller
             ->withCount('projects');
 
         if ($search) {
-            $query->where(function ($q) use ($search) {
-                $q->where('name', 'ilike', "%{$search}%")
-                    ->orWhere('email', 'ilike', "%{$search}%");
+            $safePattern = QueryHelper::safeLikePattern($search);
+            $query->where(function ($q) use ($safePattern) {
+                $q->where('name', 'ilike', $safePattern)
+                    ->orWhere('email', 'ilike', $safePattern);
             });
         }
 
@@ -131,12 +133,13 @@ class SuperAdminController extends Controller
                 'users.email as user_email',
             ]);
 
-        // Search
+        // Search - ILIKE pattern escape-eléssel a DoS támadás ellen
         if ($search) {
-            $query->where(function ($q) use ($search) {
-                $q->where('users.name', 'ilike', "%{$search}%")
-                    ->orWhere('users.email', 'ilike', "%{$search}%")
-                    ->orWhere('partners.company_name', 'ilike', "%{$search}%");
+            $safePattern = QueryHelper::safeLikePattern($search);
+            $query->where(function ($q) use ($safePattern) {
+                $q->where('users.name', 'ilike', $safePattern)
+                    ->orWhere('users.email', 'ilike', $safePattern)
+                    ->orWhere('partners.company_name', 'ilike', $safePattern);
             });
         }
 
@@ -354,6 +357,19 @@ class SuperAdminController extends Controller
             ], 400);
         }
 
+        // SECURITY: Stripe Customer ID formátum validáció
+        if (! preg_match('/^cus_[a-zA-Z0-9]+$/', $partner->stripe_customer_id)) {
+            Log::warning('Invalid Stripe customer ID format', [
+                'partner_id' => $partner->id,
+                'stripe_customer_id' => $partner->stripe_customer_id,
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Érvénytelen Stripe customer ID formátum.',
+            ], 400);
+        }
+
         try {
             Stripe::setApiKey(config('stripe.secret_key'));
 
@@ -444,54 +460,58 @@ class SuperAdminController extends Controller
         }
 
         try {
-            // Update Stripe subscription if exists
-            if ($partner->stripe_subscription_id) {
-                Stripe::setApiKey(config('stripe.secret_key'));
+            // SECURITY: Tranzakcióban kezeljük a Stripe + DB műveleteket
+            // Ha bármelyik fail-el, rollback történik
+            return DB::transaction(function () use ($request, $partner, $newPlan, $newBillingCycle, $newPriceId, $oldPlan, $oldBillingCycle) {
+                // 1. ELŐSZÖR a Stripe-ot frissítjük (ha van subscription)
+                if ($partner->stripe_subscription_id) {
+                    Stripe::setApiKey(config('stripe.secret_key'));
 
-                $subscription = Subscription::retrieve($partner->stripe_subscription_id);
+                    $subscription = Subscription::retrieve($partner->stripe_subscription_id);
 
-                Subscription::update($partner->stripe_subscription_id, [
-                    'items' => [
-                        [
-                            'id' => $subscription->items->data[0]->id,
-                            'price' => $newPriceId,
+                    Subscription::update($partner->stripe_subscription_id, [
+                        'items' => [
+                            [
+                                'id' => $subscription->items->data[0]->id,
+                                'price' => $newPriceId,
+                            ],
                         ],
-                    ],
-                    'proration_behavior' => 'create_prorations',
+                        'proration_behavior' => 'create_prorations',
+                    ]);
+                }
+
+                // 2. AZUTÁN a DB-t frissítjük
+                $planConfig = Partner::PLANS[$newPlan];
+                $partner->update([
+                    'plan' => $newPlan,
+                    'billing_cycle' => $newBillingCycle,
+                    'storage_limit_gb' => $planConfig['storage_limit_gb'],
+                    'max_classes' => $planConfig['max_classes'],
+                    'features' => $planConfig['features'],
                 ]);
-            }
 
-            // Update partner record
-            $planConfig = Partner::PLANS[$newPlan];
-            $partner->update([
-                'plan' => $newPlan,
-                'billing_cycle' => $newBillingCycle,
-                'storage_limit_gb' => $planConfig['storage_limit_gb'],
-                'max_classes' => $planConfig['max_classes'],
-                'features' => $planConfig['features'],
-            ]);
+                // 3. Audit log
+                AdminAuditLog::log(
+                    $request->user()->id,
+                    $partner->id,
+                    AdminAuditLog::ACTION_CHANGE_PLAN,
+                    [
+                        'old_plan' => $oldPlan,
+                        'old_billing_cycle' => $oldBillingCycle,
+                        'new_plan' => $newPlan,
+                        'new_billing_cycle' => $newBillingCycle,
+                    ],
+                    $request->ip()
+                );
 
-            // Log audit
-            AdminAuditLog::log(
-                $request->user()->id,
-                $partner->id,
-                AdminAuditLog::ACTION_CHANGE_PLAN,
-                [
-                    'old_plan' => $oldPlan,
-                    'old_billing_cycle' => $oldBillingCycle,
-                    'new_plan' => $newPlan,
-                    'new_billing_cycle' => $newBillingCycle,
-                ],
-                $request->ip()
-            );
+                $newPrice = self::PLAN_PRICES[$newPlan][$newBillingCycle] ?? 0;
 
-            $newPrice = self::PLAN_PRICES[$newPlan][$newBillingCycle] ?? 0;
-
-            return response()->json([
-                'success' => true,
-                'message' => 'Csomag sikeresen módosítva.',
-                'newPrice' => $newPrice,
-            ]);
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Csomag sikeresen módosítva.',
+                    'newPrice' => $newPrice,
+                ]);
+            });
         } catch (\Stripe\Exception\ApiErrorException $e) {
             Log::error('Stripe plan change error', [
                 'partner_id' => $partner->id,
@@ -501,6 +521,16 @@ class SuperAdminController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Stripe hiba: '.$e->getMessage(),
+            ], 500);
+        } catch (\Exception $e) {
+            Log::error('Plan change DB error', [
+                'partner_id' => $partner->id,
+                'error' => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Hiba történt a csomag módosításakor.',
             ], 500);
         }
     }
@@ -607,10 +637,11 @@ class SuperAdminController extends Controller
         $query = AdminAuditLog::with('adminUser')
             ->where('target_partner_id', $id);
 
-        // Keresés admin név alapján
+        // Keresés admin név alapján - ILIKE pattern escape-eléssel
         if ($search = $request->input('search')) {
-            $query->whereHas('adminUser', function ($q) use ($search) {
-                $q->where('name', 'ilike', "%{$search}%");
+            $safePattern = QueryHelper::safeLikePattern($search);
+            $query->whereHas('adminUser', function ($q) use ($safePattern) {
+                $q->where('name', 'ilike', $safePattern);
             });
         }
 

@@ -68,10 +68,11 @@ class SubscriptionController extends Controller
             // Store pending registration data in cache
             $registrationToken = Str::uuid()->toString();
 
+            // SECURITY: A jelszót hash-elve tároljuk a cache-ben is
             $registrationData = [
                 'name' => $validated['name'],
                 'email' => $validated['email'],
-                'password' => $validated['password'],
+                'password' => Hash::make($validated['password']),
                 'billing' => $validated['billing'],
                 'plan' => $plan,
                 'billing_cycle' => $billingCycle,
@@ -208,11 +209,11 @@ class SubscriptionController extends Controller
             // Create user and partner in transaction
             DB::beginTransaction();
             try {
-                // Create user
+                // Create user (a jelszó már hash-elve van a cache-ben)
                 $user = User::create([
                     'name' => $registrationData['name'],
                     'email' => $registrationData['email'],
-                    'password' => Hash::make($registrationData['password']),
+                    'password' => $registrationData['password'],
                     'phone' => $registrationData['billing']['phone'] ?? null,
                     'email_verified_at' => now(),
                     'password_set' => true,
