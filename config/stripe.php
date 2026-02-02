@@ -48,76 +48,11 @@ return [
 
     /*
     |--------------------------------------------------------------------------
-    | Plan Details (for display & limits)
-    |--------------------------------------------------------------------------
-    */
-    'plans' => [
-        'alap' => [
-            'name' => 'TablóStúdió Alap',
-            'description' => 'Kezdő fotósoknak',
-            'monthly_price' => 4990,
-            'yearly_price' => 49900,
-            'paused_price' => 1500,
-            'features' => [
-                '20 GB tárhely',
-                'Max. 3 osztály',
-                'Online képválasztás',
-                'Sablon szerkesztő',
-                'QR kódos megosztás',
-                'Email támogatás',
-            ],
-            'limits' => [
-                'storage_gb' => 20,
-                'max_classes' => 3,
-            ],
-        ],
-        'iskola' => [
-            'name' => 'TablóStúdió Iskola',
-            'description' => 'Legtöbb fotósnak ideális',
-            'monthly_price' => 14990,
-            'yearly_price' => 149900,
-            'paused_price' => 2500,
-            'popular' => true,
-            'features' => [
-                '100 GB tárhely',
-                'Max. 20 osztály',
-                'Saját subdomain',
-                'Online fizetés (Stripe)',
-                'SMS értesítések',
-                'Prioritás támogatás',
-            ],
-            'limits' => [
-                'storage_gb' => 100,
-                'max_classes' => 20,
-            ],
-        ],
-        'studio' => [
-            'name' => 'TablóStúdió Stúdió',
-            'description' => 'Nagyobb stúdióknak',
-            'monthly_price' => 29990,
-            'yearly_price' => 299900,
-            'paused_price' => 9000,
-            'features' => [
-                '500 GB tárhely',
-                'Korlátlan osztály',
-                'Custom domain',
-                'White-label (saját márka)',
-                'API hozzáférés',
-                'Dedikált support',
-            ],
-            'limits' => [
-                'storage_gb' => 500,
-                'max_classes' => null, // unlimited
-            ],
-        ],
-    ],
-
-    /*
-    |--------------------------------------------------------------------------
-    | Storage Addon
+    | Storage Addon - Stripe Price IDs
     |--------------------------------------------------------------------------
     | Extra tárhely vásárlás - quantity-based subscription addon.
-    | Minden GB külön egység, havi vagy éves számlázással.
+    |
+    | Árak: config/plans.php → storage_addon
     |
     | Stripe beállítás:
     | 1. Stripe Dashboard → Products → Create Product ("Extra tárhely")
@@ -128,15 +63,15 @@ return [
     'storage_addon' => [
         'price_id_monthly' => env('STRIPE_STORAGE_ADDON_MONTHLY'),
         'price_id_yearly' => env('STRIPE_STORAGE_ADDON_YEARLY'),
-        'unit_price_monthly' => 150,  // Ft/GB/hó
-        'unit_price_yearly' => 1620,  // Ft/GB/év (10% kedvezmény)
     ],
 
     /*
     |--------------------------------------------------------------------------
-    | Feature Addons
+    | Feature Addons - Stripe Price IDs
     |--------------------------------------------------------------------------
     | Funkció csomagok - Alap előfizetéshez vásárolható kiegészítők.
+    |
+    | Addon definíciók és árak: config/plans.php → addons
     |
     | Stripe beállítás:
     | 1. Stripe Dashboard → Products → Create Product ("Közösségi csomag")
@@ -146,12 +81,8 @@ return [
     */
     'addons' => [
         'community_pack' => [
-            'name' => 'Közösségi csomag',
-            'description' => 'Fórum + Szavazás funkciók',
             'monthly' => env('STRIPE_ADDON_COMMUNITY_MONTHLY'),
             'yearly' => env('STRIPE_ADDON_COMMUNITY_YEARLY'),
-            'monthly_price' => 1490,   // Ft/hó
-            'yearly_price' => 14900,   // Ft/év
         ],
     ],
 

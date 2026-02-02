@@ -50,47 +50,43 @@ class Partner extends Model
     ];
 
     /**
-     * Plan definitions with limits
+     * Get all plan definitions from central config
+     *
+     * @see config/plans.php
      */
-    public const PLANS = [
-        'alap' => [
-            'name' => 'Alap',
-            'storage_limit_gb' => 5,       // 20 → 5
-            'max_classes' => 10,           // 3 → 10
-            'max_schools' => 30,           // ÚJ
-            'max_templates' => 10,         // ÚJ
-            'features' => ['online_selection', 'templates', 'qr_sharing', 'email_support'],
-        ],
-        'iskola' => [
-            'name' => 'Iskola',
-            'storage_limit_gb' => 100,
-            'max_classes' => 20,
-            'max_schools' => null,         // Korlátlan
-            'max_templates' => null,       // Korlátlan
-            'features' => ['online_selection', 'templates', 'qr_sharing', 'subdomain', 'stripe_payments', 'sms_notifications', 'priority_support', 'forum', 'polls'],
-        ],
-        'studio' => [
-            'name' => 'Stúdió',
-            'storage_limit_gb' => 500,
-            'max_classes' => null,         // Korlátlan
-            'max_schools' => null,         // Korlátlan
-            'max_templates' => null,       // Korlátlan
-            'features' => ['online_selection', 'templates', 'qr_sharing', 'custom_domain', 'white_label', 'api_access', 'dedicated_support', 'stripe_payments', 'sms_notifications', 'forum', 'polls'],
-        ],
-    ];
+    public static function getPlansConfig(): array
+    {
+        return config('plans.plans', []);
+    }
 
     /**
-     * Addon definitions (csak Alap csomaghoz vásárolható)
+     * Get all addon definitions from central config
+     *
+     * @see config/plans.php
      */
-    public const ADDONS = [
-        'community_pack' => [
-            'name' => 'Közösségi csomag',
-            'description' => 'Fórum + Szavazás',
-            'includes' => ['forum', 'polls'],
-            'monthly_price' => 1490,   // Ft/hó
-            'yearly_price' => 14900,   // Ft/év (~17% kedvezmény)
-        ],
-    ];
+    public static function getAddonsConfig(): array
+    {
+        return config('plans.addons', []);
+    }
+
+    /**
+     * Get a specific plan's configuration
+     */
+    public function getPlanConfig(): array
+    {
+        return config("plans.plans.{$this->plan}", []);
+    }
+
+    /**
+     * Get a specific limit value for this partner's plan
+     *
+     * @param string $key One of: storage_gb, max_classes, max_schools, max_templates
+     * @return int|null Null means unlimited
+     */
+    public function getPlanLimit(string $key): ?int
+    {
+        return $this->getPlanConfig()['limits'][$key] ?? null;
+    }
 
     /**
      * Get the user that owns the partner account
@@ -154,7 +150,8 @@ class Partner extends Model
      */
     public function hasFeature(string $feature): bool
     {
-        $planFeatures = self::PLANS[$this->plan]['features'] ?? [];
+        $planConfig = $this->getPlanConfig();
+        $planFeatures = $planConfig['feature_keys'] ?? [];
 
         // 1. Ha a plan tartalmazza → OK (Iskola/Stúdió esetén forum/polls benne van)
         if (in_array($feature, $planFeatures)) {
@@ -162,7 +159,7 @@ class Partner extends Model
         }
 
         // 2. Ha addon által elérhető (community_pack → forum, polls)
-        foreach (self::ADDONS as $addonKey => $addon) {
+        foreach (self::getAddonsConfig() as $addonKey => $addon) {
             if (in_array($feature, $addon['includes'] ?? []) && $this->hasAddon($addonKey)) {
                 return true;
             }
@@ -177,7 +174,7 @@ class Partner extends Model
      */
     public function getPlanStorageLimitGb(): int
     {
-        return $this->storage_limit_gb ?? self::PLANS[$this->plan]['storage_limit_gb'] ?? 20;
+        return $this->storage_limit_gb ?? $this->getPlanLimit('storage_gb') ?? 5;
     }
 
     /**
@@ -204,7 +201,7 @@ class Partner extends Model
      */
     public function getMaxClasses(): ?int
     {
-        return $this->max_classes ?? self::PLANS[$this->plan]['max_classes'] ?? 10;
+        return $this->max_classes ?? $this->getPlanLimit('max_classes') ?? 10;
     }
 
     /**
@@ -212,7 +209,7 @@ class Partner extends Model
      */
     public function getMaxSchools(): ?int
     {
-        return self::PLANS[$this->plan]['max_schools'] ?? 30;
+        return $this->getPlanLimit('max_schools') ?? 30;
     }
 
     /**
@@ -220,7 +217,7 @@ class Partner extends Model
      */
     public function getMaxTemplates(): ?int
     {
-        return self::PLANS[$this->plan]['max_templates'] ?? 10;
+        return $this->getPlanLimit('max_templates') ?? 10;
     }
 
     /**
@@ -231,11 +228,12 @@ class Partner extends Model
         parent::boot();
 
         static::creating(function ($partner) {
-            if ($partner->plan && isset(self::PLANS[$partner->plan])) {
-                $planConfig = self::PLANS[$partner->plan];
-                $partner->storage_limit_gb = $partner->storage_limit_gb ?? $planConfig['storage_limit_gb'];
-                $partner->max_classes = $partner->max_classes ?? $planConfig['max_classes'];
-                $partner->features = $partner->features ?? $planConfig['features'];
+            $planConfig = config("plans.plans.{$partner->plan}");
+            if ($partner->plan && $planConfig) {
+                $limits = $planConfig['limits'] ?? [];
+                $partner->storage_limit_gb = $partner->storage_limit_gb ?? ($limits['storage_gb'] ?? 5);
+                $partner->max_classes = $partner->max_classes ?? ($limits['max_classes'] ?? 10);
+                $partner->features = $partner->features ?? ($planConfig['feature_keys'] ?? []);
             }
         });
     }

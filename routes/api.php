@@ -29,6 +29,7 @@ use App\Http\Controllers\Api\TabloWorkflowController;
 use App\Http\Controllers\Api\WorkSessionController;
 use App\Http\Controllers\Api\MarketerController;
 use App\Http\Controllers\Api\PartnerController;
+use App\Http\Controllers\Api\PlansController;
 use App\Http\Controllers\Api\StorageController;
 use App\Http\Controllers\Api\SuperAdminController;
 use App\Http\Controllers\Api\PartnerClientController;
@@ -166,6 +167,9 @@ Route::get('/package-points/search', [PackagePointController::class, 'searchNear
 
 // Map Configuration (public)
 Route::get('/map-config', [MapConfigController::class, 'getConfig']);
+
+// Plans Configuration (public) - Single source of truth for plan pricing & features
+Route::get('/plans', [PlansController::class, 'index']);
 
 // Cart (public - supports both authenticated and guest users)
 Route::prefix('cart')->group(function () {

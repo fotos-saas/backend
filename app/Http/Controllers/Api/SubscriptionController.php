@@ -84,7 +84,7 @@ class SubscriptionController extends Controller
                 now()->addHour()
             );
 
-            $planConfig = config("stripe.plans.{$plan}");
+            $planConfig = config("plans.plans.{$plan}");
 
             // Create Stripe Checkout Session for SUBSCRIPTION
             $session = Session::create([
@@ -292,13 +292,27 @@ class SubscriptionController extends Controller
             ], 404);
         }
 
-        $planConfig = config("stripe.plans.{$partner->plan}");
+        $planConfig = config("plans.plans.{$partner->plan}");
+        $storageAddonConfig = config('plans.storage_addon');
+        $addonsConfig = config('plans.addons');
 
         // Ellenőrizzük, hogy van-e módosítás (extra tárhely vagy addon)
         $hasExtraStorage = ($partner->extra_storage_gb ?? 0) > 0;
         $activeAddons = $partner->addons()->where('status', 'active')->get();
         $hasAddons = $activeAddons->count() > 0;
         $isModified = $hasExtraStorage || $hasAddons;
+
+        // Addon árak lekérése
+        $addonPrices = [];
+        foreach ($activeAddons as $addon) {
+            $addonConfig = $addonsConfig[$addon->addon_key] ?? null;
+            if ($addonConfig) {
+                $addonPrices[$addon->addon_key] = [
+                    'monthly' => $addonConfig['monthly_price'] ?? 0,
+                    'yearly' => $addonConfig['yearly_price'] ?? 0,
+                ];
+            }
+        }
 
         $response = [
             'plan' => $partner->plan,
@@ -307,7 +321,7 @@ class SubscriptionController extends Controller
             'status' => $partner->subscription_status,
             'started_at' => $partner->subscription_started_at,
             'ends_at' => $partner->subscription_ends_at,
-            'features' => $planConfig['features'] ?? [],
+            'features' => $planConfig['feature_labels'] ?? [],
             'limits' => $planConfig['limits'] ?? [],
             // Módosítás jelzők
             'is_modified' => $isModified,
@@ -315,15 +329,44 @@ class SubscriptionController extends Controller
             'extra_storage_gb' => $partner->extra_storage_gb ?? 0,
             'has_addons' => $hasAddons,
             'active_addons' => $activeAddons->pluck('addon_key')->toArray(),
+            // Árak (config-ból)
+            'prices' => [
+                'plan_monthly' => $planConfig['monthly_price'] ?? 0,
+                'plan_yearly' => $planConfig['yearly_price'] ?? 0,
+                'storage_monthly' => $storageAddonConfig['unit_price_monthly'] ?? 150,
+                'storage_yearly' => $storageAddonConfig['unit_price_yearly'] ?? 1620,
+                'addons' => $addonPrices,
+            ],
         ];
 
         // Get more details from Stripe if subscription ID exists
         if ($partner->stripe_subscription_id) {
             try {
-                $subscription = Subscription::retrieve($partner->stripe_subscription_id);
+                $subscription = Subscription::retrieve([
+                    'id' => $partner->stripe_subscription_id,
+                    'expand' => ['items.data.price'],
+                ]);
                 $response['stripe_status'] = $subscription->status;
                 $response['current_period_end'] = date('Y-m-d H:i:s', $subscription->current_period_end);
                 $response['cancel_at_period_end'] = $subscription->cancel_at_period_end;
+
+                // Számoljuk ki a teljes havi költséget a Stripe-ból
+                $totalMonthlyAmount = 0;
+                foreach ($subscription->items->data as $item) {
+                    $price = $item->price;
+                    $amount = $price->unit_amount * $item->quantity;
+
+                    // Ha éves, oszd 12-vel a havi egyenértékhez
+                    if ($price->recurring && $price->recurring->interval === 'year') {
+                        $amount = (int) round($amount / 12);
+                    }
+
+                    $totalMonthlyAmount += $amount;
+                }
+
+                // Stripe fillérben tárolja, konvertáld Ft-ra
+                $response['monthly_cost'] = $totalMonthlyAmount;
+                $response['currency'] = $subscription->currency;
             } catch (\Exception $e) {
                 Log::warning('Failed to retrieve Stripe subscription', [
                     'subscription_id' => $partner->stripe_subscription_id,
@@ -510,7 +553,7 @@ class SubscriptionController extends Controller
                 'paused_at' => now(),
             ]);
 
-            $pausedPrice = config("stripe.plans.{$partner->plan}.paused_price");
+            $pausedPrice = config("plans.plans.{$partner->plan}.paused_price");
 
             Log::info('Subscription paused', [
                 'partner_id' => $partner->id,

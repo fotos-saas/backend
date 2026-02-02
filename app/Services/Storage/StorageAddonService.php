@@ -66,7 +66,7 @@ final class StorageAddonService
      */
     public function getMonthlyPrice(): int
     {
-        return (int) config('stripe.storage_addon.unit_price_monthly', 150);
+        return (int) config('plans.storage_addon.unit_price_monthly', 150);
     }
 
     /**
@@ -74,7 +74,7 @@ final class StorageAddonService
      */
     public function getYearlyPrice(): int
     {
-        return (int) config('stripe.storage_addon.unit_price_yearly', 1620);
+        return (int) config('plans.storage_addon.unit_price_yearly', 1620);
     }
 
     /**

@@ -32,8 +32,9 @@ class AddonService
     {
         $addons = [];
         $activeAddons = $partner->addons()->where('status', 'active')->pluck('addon_key')->toArray();
+        $addonsConfig = config('plans.addons', []);
 
-        foreach (Partner::ADDONS as $key => $addon) {
+        foreach ($addonsConfig as $key => $addon) {
             // Addon csak Alap csomaghoz vásárolható
             $canPurchase = $partner->plan === 'alap' && ! in_array($key, $activeAddons);
 
@@ -82,7 +83,8 @@ class AddonService
     public function subscribe(Partner $partner, string $addonKey): string
     {
         // Validáció
-        if (! isset(Partner::ADDONS[$addonKey])) {
+        $addonsConfig = config('plans.addons', []);
+        if (! isset($addonsConfig[$addonKey])) {
             throw new \Exception('Ismeretlen addon: ' . $addonKey);
         }
 
