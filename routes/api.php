@@ -205,11 +205,17 @@ Route::prefix('subscription')->group(function () {
 Route::prefix('subscription')->middleware(['auth:sanctum', 'role:partner'])->group(function () {
     Route::get('/', [\App\Http\Controllers\Api\SubscriptionController::class, 'getSubscription']);
     Route::get('/invoices', [\App\Http\Controllers\Api\SubscriptionController::class, 'getInvoices']);
-    Route::post('/portal', [\App\Http\Controllers\Api\SubscriptionController::class, 'createPortalSession']);
-    Route::post('/cancel', [\App\Http\Controllers\Api\SubscriptionController::class, 'cancelSubscription']);
-    Route::post('/resume', [\App\Http\Controllers\Api\SubscriptionController::class, 'resumeSubscription']);
-    Route::post('/pause', [\App\Http\Controllers\Api\SubscriptionController::class, 'pauseSubscription']);
-    Route::post('/unpause', [\App\Http\Controllers\Api\SubscriptionController::class, 'unpauseSubscription']);
+    Route::post('/portal', [\App\Http\Controllers\Api\SubscriptionController::class, 'createPortalSession'])
+        ->middleware('throttle:10,1');
+    // SECURITY: Rate limiting subscription lifecycle műveleteknél (3/perc)
+    Route::post('/cancel', [\App\Http\Controllers\Api\SubscriptionController::class, 'cancelSubscription'])
+        ->middleware('throttle:3,1');
+    Route::post('/resume', [\App\Http\Controllers\Api\SubscriptionController::class, 'resumeSubscription'])
+        ->middleware('throttle:3,1');
+    Route::post('/pause', [\App\Http\Controllers\Api\SubscriptionController::class, 'pauseSubscription'])
+        ->middleware('throttle:3,1');
+    Route::post('/unpause', [\App\Http\Controllers\Api\SubscriptionController::class, 'unpauseSubscription'])
+        ->middleware('throttle:3,1');
 });
 
 // Account Management (authenticated partners)

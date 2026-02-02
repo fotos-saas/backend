@@ -30,42 +30,54 @@ use Stripe\Subscription;
 class SuperAdminController extends Controller
 {
     /**
-     * Csomag árak (Ft)
+     * Csomag ár lekérése config-ból (Single Source of Truth)
      */
-    private const PLAN_PRICES = [
-        'alap' => ['monthly' => 4990, 'yearly' => 49900],
-        'iskola' => ['monthly' => 14990, 'yearly' => 149900],
-        'studio' => ['monthly' => 29990, 'yearly' => 299900],
-    ];
+    private function getPlanPrice(string $plan, string $cycle): int
+    {
+        $priceKey = $cycle === 'yearly' ? 'yearly_price' : 'monthly_price';
+
+        return (int) config("plans.plans.{$plan}.{$priceKey}", 0);
+    }
+
+    /**
+     * Csomag név lekérése config-ból (Single Source of Truth)
+     */
+    private function getPlanName(string $plan): string
+    {
+        // A teljes nevet lerövidítjük (pl. "TablóStúdió Alap" -> "Alap")
+        $fullName = config("plans.plans.{$plan}.name", ucfirst($plan));
+
+        return str_replace('TablóStúdió ', '', $fullName);
+    }
 
     /**
      * Dashboard statistics.
+     *
+     * OPTIMALIZÁCIÓ: 5 perces cache + kombinált query-k
      */
     public function stats(): JsonResponse
     {
-        $totalPartners = TabloPartner::count();
-        $totalProjects = TabloProject::count();
+        return response()->json(
+            cache()->remember('super-admin:stats', now()->addMinutes(5), function () {
+                // Partner stats egyetlen query-ben
+                $partnerStats = Partner::selectRaw("
+                    COUNT(*) as total,
+                    SUM(CASE WHEN subscription_status = 'active' THEN 1 ELSE 0 END) as active
+                ")->first();
 
-        $activeQrCodes = QrRegistrationCode::active()->count();
-
-        // Projects by status
-        $projectsByStatus = TabloProject::selectRaw('status, COUNT(*) as count')
-            ->groupBy('status')
-            ->pluck('count', 'status')
-            ->toArray();
-
-        // Subscribers count (Partner model)
-        $totalSubscribers = Partner::count();
-        $activeSubscribers = Partner::where('subscription_status', 'active')->count();
-
-        return response()->json([
-            'totalPartners' => $totalPartners,
-            'totalProjects' => $totalProjects,
-            'activeQrCodes' => $activeQrCodes,
-            'projectsByStatus' => $projectsByStatus,
-            'totalSubscribers' => $totalSubscribers,
-            'activeSubscribers' => $activeSubscribers,
-        ]);
+                return [
+                    'totalPartners' => TabloPartner::count(),
+                    'totalProjects' => TabloProject::count(),
+                    'activeQrCodes' => QrRegistrationCode::active()->count(),
+                    'projectsByStatus' => TabloProject::selectRaw('status, COUNT(*) as count')
+                        ->groupBy('status')
+                        ->pluck('count', 'status')
+                        ->toArray(),
+                    'totalSubscribers' => (int) $partnerStats->total,
+                    'activeSubscribers' => (int) $partnerStats->active,
+                ];
+            })
+        );
     }
 
     /**
@@ -183,15 +195,10 @@ class SuperAdminController extends Controller
      */
     private function formatSubscriber(Partner $partner): array
     {
-        $planNames = [
-            'alap' => 'Alap',
-            'iskola' => 'Iskola',
-            'studio' => 'Stúdió',
-        ];
-
         $billingCycle = $partner->billing_cycle ?? 'monthly';
         $plan = $partner->plan ?? 'alap';
-        $price = self::PLAN_PRICES[$plan][$billingCycle] ?? 0;
+        $price = $this->getPlanPrice($plan, $billingCycle);
+        $planName = $this->getPlanName($plan);
 
         return [
             'id' => $partner->id,
@@ -199,7 +206,7 @@ class SuperAdminController extends Controller
             'email' => $partner->user_email,
             'companyName' => $partner->company_name,
             'plan' => $plan,
-            'planName' => $planNames[$plan] ?? $plan,
+            'planName' => $planName,
             'billingCycle' => $billingCycle,
             'price' => $price,
             'subscriptionStatus' => $partner->subscription_status ?? 'trial',
@@ -281,15 +288,10 @@ class SuperAdminController extends Controller
             $request->ip()
         );
 
-        $planNames = [
-            'alap' => 'Alap',
-            'iskola' => 'Iskola',
-            'studio' => 'Stúdió',
-        ];
-
         $billingCycle = $partner->billing_cycle ?? 'monthly';
         $plan = $partner->plan ?? 'alap';
-        $price = self::PLAN_PRICES[$plan][$billingCycle] ?? 0;
+        $price = $this->getPlanPrice($plan, $billingCycle);
+        $planName = $this->getPlanName($plan);
 
         // Calculate trial days remaining
         $trialDaysRemaining = null;
@@ -309,7 +311,7 @@ class SuperAdminController extends Controller
             'billingAddress' => $partner->billing_address,
             'phone' => $partner->phone,
             'plan' => $plan,
-            'planName' => $planNames[$plan] ?? $plan,
+            'planName' => $planName,
             'billingCycle' => $billingCycle,
             'price' => $price,
             'subscriptionStatus' => $partner->subscription_status ?? 'trial',
@@ -504,7 +506,7 @@ class SuperAdminController extends Controller
                     $request->ip()
                 );
 
-                $newPrice = self::PLAN_PRICES[$newPlan][$newBillingCycle] ?? 0;
+                $newPrice = $this->getPlanPrice($newPlan, $newBillingCycle);
 
                 return response()->json([
                     'success' => true,
