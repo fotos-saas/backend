@@ -594,10 +594,26 @@ class SuperAdminController extends Controller
 
         $perPage = $request->input('per_page', 20);
 
-        $logs = AdminAuditLog::with('adminUser')
-            ->where('target_partner_id', $id)
-            ->orderBy('created_at', 'desc')
-            ->paginate($perPage);
+        $query = AdminAuditLog::with('adminUser')
+            ->where('target_partner_id', $id);
+
+        // Keresés admin név alapján
+        if ($search = $request->input('search')) {
+            $query->whereHas('adminUser', function ($q) use ($search) {
+                $q->where('name', 'ilike', "%{$search}%");
+            });
+        }
+
+        // Művelet típus szűrő
+        if ($action = $request->input('action')) {
+            $query->where('action', $action);
+        }
+
+        // Rendezés
+        $sortDir = $request->input('sort_dir', 'desc');
+        $query->orderBy('created_at', $sortDir === 'asc' ? 'asc' : 'desc');
+
+        $logs = $query->paginate($perPage);
 
         return response()->json([
             'data' => $logs->map(fn ($log) => [
