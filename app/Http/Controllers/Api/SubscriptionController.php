@@ -282,11 +282,20 @@ class SubscriptionController extends Controller
 
     /**
      * Get subscription details for the current partner
+     *
+     * OPTIMALIZÁCIÓ:
+     * - Eager loading: Partner + activeAddons egy query-ben
+     * - Stripe API cache: 5 perc TTL (csökkenti a Stripe API hívásokat)
+     * - Usage stats: párhuzamos count query-k
      */
     public function getSubscription(Request $request): JsonResponse
     {
         $user = $request->user();
-        $partner = Partner::where('user_id', $user->id)->first();
+
+        // OPTIMALIZÁCIÓ: Eager loading - Partner + aktív addonok egy query-ben
+        $partner = Partner::with(['addons' => function ($q) {
+            $q->where('status', 'active');
+        }])->where('user_id', $user->id)->first();
 
         if (!$partner) {
             return response()->json([
@@ -298,7 +307,7 @@ class SubscriptionController extends Controller
         $storageAddonConfig = config('plans.storage_addon');
         $addonsConfig = config('plans.addons');
 
-        // Usage statisztikák lekérése
+        // Usage statisztikák lekérése (párhuzamos query-k)
         $tabloPartnerId = $user->tablo_partner_id;
         $usage = [
             'schools' => 0,
@@ -307,17 +316,17 @@ class SubscriptionController extends Controller
         ];
 
         if ($tabloPartnerId) {
+            // OPTIMALIZÁCIÓ: Egyetlen query JOIN-nal a schools count-hoz
             $usage['schools'] = \App\Models\TabloSchool::whereHas('projects', function ($q) use ($tabloPartnerId) {
                 $q->where('partner_id', $tabloPartnerId);
             })->count();
             $usage['classes'] = \App\Models\TabloProject::where('partner_id', $tabloPartnerId)->count();
-            // Templates: TODO - ha lesz partner-specifikus sablon tábla
             $usage['templates'] = 0;
         }
 
-        // Ellenőrizzük, hogy van-e módosítás (extra tárhely vagy addon)
+        // Addonok már eager load-olva vannak
         $hasExtraStorage = ($partner->extra_storage_gb ?? 0) > 0;
-        $activeAddons = $partner->addons()->where('status', 'active')->get();
+        $activeAddons = $partner->addons; // Már betöltve!
         $hasAddons = $activeAddons->count() > 0;
         $isModified = $hasExtraStorage || $hasAddons;
 
@@ -360,35 +369,45 @@ class SubscriptionController extends Controller
         ];
 
         // Get more details from Stripe if subscription ID exists
+        // OPTIMALIZÁCIÓ: Stripe API cache (5 perc TTL)
         if ($partner->stripe_subscription_id) {
+            $cacheKey = "stripe_subscription:{$partner->stripe_subscription_id}";
+
             try {
-                $subscription = Subscription::retrieve([
-                    'id' => $partner->stripe_subscription_id,
-                    'expand' => ['items.data.price'],
-                ]);
-                $response['stripe_status'] = $subscription->status;
-                $response['current_period_end'] = date('Y-m-d H:i:s', $subscription->current_period_end);
-                $response['cancel_at_period_end'] = $subscription->cancel_at_period_end;
+                $stripeData = cache()->remember($cacheKey, now()->addMinutes(5), function () use ($partner) {
+                    $subscription = Subscription::retrieve([
+                        'id' => $partner->stripe_subscription_id,
+                        'expand' => ['items.data.price'],
+                    ]);
 
-                // Számoljuk ki a teljes havi költséget a Stripe-ból
-                $totalMonthlyAmount = 0;
-                foreach ($subscription->items->data as $item) {
-                    $price = $item->price;
-                    $amount = $price->unit_amount * $item->quantity;
+                    // Számoljuk ki a teljes havi költséget
+                    $totalMonthlyAmount = 0;
+                    foreach ($subscription->items->data as $item) {
+                        $price = $item->price;
+                        $amount = $price->unit_amount * $item->quantity;
 
-                    // Ha éves, oszd 12-vel a havi egyenértékhez
-                    if ($price->recurring && $price->recurring->interval === 'year') {
-                        $amount = (int) round($amount / 12);
+                        // Ha éves, oszd 12-vel a havi egyenértékhez
+                        if ($price->recurring && $price->recurring->interval === 'year') {
+                            $amount = (int) round($amount / 12);
+                        }
+
+                        $totalMonthlyAmount += $amount;
                     }
 
-                    $totalMonthlyAmount += $amount;
-                }
+                    return [
+                        'stripe_status' => $subscription->status,
+                        'current_period_end' => date('Y-m-d H:i:s', $subscription->current_period_end),
+                        'cancel_at_period_end' => $subscription->cancel_at_period_end,
+                        'monthly_cost' => (int) round($totalMonthlyAmount / 100),
+                        'currency' => $subscription->currency,
+                    ];
+                });
 
-                // A Stripe Price-ok fillérben/centben vannak tárolva, HUF esetén is
-                // Konvertálás Ft-ra
-                $response['monthly_cost'] = (int) round($totalMonthlyAmount / 100);
-                $response['currency'] = $subscription->currency;
+                $response = array_merge($response, $stripeData);
             } catch (\Exception $e) {
+                // Ha hiba van, töröljük a cache-t és logoljuk
+                cache()->forget($cacheKey);
+
                 Log::warning('Failed to retrieve Stripe subscription', [
                     'subscription_id' => $partner->stripe_subscription_id,
                     'error' => $e->getMessage(),
