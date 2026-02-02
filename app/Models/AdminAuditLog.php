@@ -49,6 +49,11 @@ class AdminAuditLog extends Model
     }
 
     /**
+     * Throttle duration in minutes for view actions
+     */
+    public const VIEW_THROTTLE_MINUTES = 5;
+
+    /**
      * Create an audit log entry
      */
     public static function log(
@@ -57,7 +62,20 @@ class AdminAuditLog extends Model
         string $action,
         ?array $details = null,
         ?string $ipAddress = null
-    ): self {
+    ): ?self {
+        // Throttle view actions - don't log if same admin viewed same partner within 5 minutes
+        if ($action === self::ACTION_VIEW && $targetPartnerId !== null) {
+            $recentView = self::where('admin_user_id', $adminUserId)
+                ->where('target_partner_id', $targetPartnerId)
+                ->where('action', self::ACTION_VIEW)
+                ->where('created_at', '>=', now()->subMinutes(self::VIEW_THROTTLE_MINUTES))
+                ->exists();
+
+            if ($recentView) {
+                return null; // Skip logging
+            }
+        }
+
         return self::create([
             'admin_user_id' => $adminUserId,
             'target_partner_id' => $targetPartnerId,

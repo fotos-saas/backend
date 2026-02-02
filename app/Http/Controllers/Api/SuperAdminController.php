@@ -619,6 +619,11 @@ class SuperAdminController extends Controller
             $query->where('action', $action);
         }
 
+        // Hide view actions by default (unless explicitly requested)
+        if (! $request->boolean('show_views', false)) {
+            $query->where('action', '!=', AdminAuditLog::ACTION_VIEW);
+        }
+
         // Rendezés
         $sortDir = $request->input('sort_dir', 'desc');
         $query->orderBy('created_at', $sortDir === 'asc' ? 'asc' : 'desc');
