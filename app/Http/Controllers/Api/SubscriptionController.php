@@ -12,6 +12,7 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Stripe\Checkout\Session;
+use Stripe\Invoice;
 use Stripe\Stripe;
 use Stripe\Subscription;
 use Stripe\Customer;
@@ -662,6 +663,68 @@ class SubscriptionController extends Controller
 
             return response()->json([
                 'message' => 'Hiba történt az előfizetés újraaktiválásakor.',
+            ], 500);
+        }
+    }
+
+    /**
+     * Get invoices from Stripe for the current partner
+     */
+    public function getInvoices(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        $partner = Partner::where('user_id', $user->id)->first();
+
+        if (!$partner || !$partner->stripe_customer_id) {
+            return response()->json([
+                'invoices' => [],
+                'has_more' => false,
+            ]);
+        }
+
+        try {
+            $params = [
+                'customer' => $partner->stripe_customer_id,
+                'limit' => min((int) $request->input('per_page', 20), 100),
+            ];
+
+            // Cursor-based pagination
+            if ($startingAfter = $request->input('starting_after')) {
+                $params['starting_after'] = $startingAfter;
+            }
+
+            // Status filter (paid, open, void, uncollectible)
+            if ($status = $request->input('status')) {
+                $params['status'] = $status;
+            }
+
+            $stripeInvoices = Invoice::all($params);
+
+            $invoices = collect($stripeInvoices->data)->map(fn($inv) => [
+                'id' => $inv->id,
+                'number' => $inv->number,
+                'amount' => $inv->amount_paid,
+                'currency' => strtoupper($inv->currency),
+                'status' => $inv->status,
+                'created_at' => date('Y-m-d H:i:s', $inv->created),
+                'pdf_url' => $inv->invoice_pdf,
+                'hosted_url' => $inv->hosted_invoice_url,
+            ]);
+
+            return response()->json([
+                'invoices' => $invoices,
+                'has_more' => $stripeInvoices->has_more,
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Failed to retrieve Stripe invoices', [
+                'partner_id' => $partner->id,
+                'error' => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'message' => 'Hiba történt a számlák lekérésekor.',
+                'error' => config('app.debug') ? $e->getMessage() : null,
             ], 500);
         }
     }

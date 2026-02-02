@@ -204,6 +204,7 @@ Route::prefix('subscription')->group(function () {
 // Subscription Management (authenticated partners)
 Route::prefix('subscription')->middleware(['auth:sanctum', 'role:partner'])->group(function () {
     Route::get('/', [\App\Http\Controllers\Api\SubscriptionController::class, 'getSubscription']);
+    Route::get('/invoices', [\App\Http\Controllers\Api\SubscriptionController::class, 'getInvoices']);
     Route::post('/portal', [\App\Http\Controllers\Api\SubscriptionController::class, 'createPortalSession']);
     Route::post('/cancel', [\App\Http\Controllers\Api\SubscriptionController::class, 'cancelSubscription']);
     Route::post('/resume', [\App\Http\Controllers\Api\SubscriptionController::class, 'resumeSubscription']);
