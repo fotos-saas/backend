@@ -34,3 +34,10 @@ Schedule::command('discounts:cleanup-expired')
     ->at('04:00')
     ->withoutOverlapping()
     ->onOneServer();
+
+// Törölt fiókok végleges törlése (30+ nap után)
+Schedule::command('accounts:cleanup-deleted')
+    ->daily()
+    ->at('05:00')
+    ->withoutOverlapping()
+    ->onOneServer();

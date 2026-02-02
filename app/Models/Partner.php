@@ -7,10 +7,11 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Partner extends Model
 {
-    use HasFactory;
+    use HasFactory, SoftDeletes;
 
     protected $fillable = [
         'user_id',
@@ -32,12 +33,14 @@ class Partner extends Model
         'storage_limit_gb',
         'max_classes',
         'features',
+        'deletion_scheduled_at',
     ];
 
     protected $casts = [
         'subscription_started_at' => 'datetime',
         'subscription_ends_at' => 'datetime',
         'paused_at' => 'datetime',
+        'deletion_scheduled_at' => 'datetime',
         'features' => 'array',
         'storage_limit_gb' => 'integer',
         'max_classes' => 'integer',

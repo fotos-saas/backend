@@ -206,6 +206,13 @@ Route::prefix('subscription')->middleware(['auth:sanctum', 'role:partner'])->gro
     Route::post('/unpause', [\App\Http\Controllers\Api\SubscriptionController::class, 'unpauseSubscription']);
 });
 
+// Account Management (authenticated partners)
+Route::prefix('account')->middleware(['auth:sanctum', 'role:partner'])->group(function () {
+    Route::get('/status', [\App\Http\Controllers\Api\AccountController::class, 'getStatus']);
+    Route::delete('/', [\App\Http\Controllers\Api\AccountController::class, 'deleteAccount']);
+    Route::post('/cancel-deletion', [\App\Http\Controllers\Api\AccountController::class, 'cancelDeletion']);
+});
+
 // Orders (public - supports both guest and authenticated checkout)
 Route::post('/orders', [OrderController::class, 'store']);
 Route::get('/orders/{order}', [OrderController::class, 'show']);

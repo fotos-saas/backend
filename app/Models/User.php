@@ -13,9 +13,11 @@ use Laravel\Sanctum\HasApiTokens;
 use Spatie\Permission\Traits\HasRoles;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class User extends Authenticatable implements FilamentUser
 {
+    use SoftDeletes;
     public const ROLE_SUPER_ADMIN = 'super_admin';
 
     public const ROLE_PHOTO_ADMIN = 'photo_admin';
@@ -193,6 +195,14 @@ class User extends Authenticatable implements FilamentUser
     public function tabloPartner(): BelongsTo
     {
         return $this->belongsTo(TabloPartner::class, 'tablo_partner_id');
+    }
+
+    /**
+     * Get the partner account for this user.
+     */
+    public function partner(): HasOne
+    {
+        return $this->hasOne(Partner::class);
     }
 
     /**
