@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\AdminAuditLog;
 use App\Models\Partner;
 use App\Models\QrRegistrationCode;
 use App\Models\TabloPartner;
@@ -10,6 +11,11 @@ use App\Models\TabloProject;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Stripe\Invoice;
+use Stripe\InvoiceItem;
+use Stripe\Stripe;
+use Stripe\Subscription;
 
 /**
  * Super Admin Controller for frontend-tablo super admin dashboard.
@@ -242,6 +248,371 @@ class SuperAdminController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Beállítások mentve.',
+        ]);
+    }
+
+    /**
+     * Get single subscriber details.
+     */
+    public function getSubscriber(Request $request, int $id): JsonResponse
+    {
+        $partner = Partner::with('user')->find($id);
+
+        if (! $partner) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Előfizető nem található.',
+            ], 404);
+        }
+
+        // Log view action
+        AdminAuditLog::log(
+            $request->user()->id,
+            $partner->id,
+            AdminAuditLog::ACTION_VIEW,
+            null,
+            $request->ip()
+        );
+
+        $planNames = [
+            'alap' => 'Alap',
+            'iskola' => 'Iskola',
+            'studio' => 'Stúdió',
+        ];
+
+        $billingCycle = $partner->billing_cycle ?? 'monthly';
+        $plan = $partner->plan ?? 'alap';
+        $price = self::PLAN_PRICES[$plan][$billingCycle] ?? 0;
+
+        // Calculate trial days remaining
+        $trialDaysRemaining = null;
+        if ($partner->subscription_status === 'trial' && $partner->subscription_ends_at) {
+            $trialDaysRemaining = max(0, now()->diffInDays($partner->subscription_ends_at, false));
+        }
+
+        return response()->json([
+            'id' => $partner->id,
+            'name' => $partner->user->name,
+            'email' => $partner->user->email,
+            'companyName' => $partner->company_name,
+            'taxNumber' => $partner->tax_number,
+            'billingCountry' => $partner->billing_country,
+            'billingPostalCode' => $partner->billing_postal_code,
+            'billingCity' => $partner->billing_city,
+            'billingAddress' => $partner->billing_address,
+            'phone' => $partner->phone,
+            'plan' => $plan,
+            'planName' => $planNames[$plan] ?? $plan,
+            'billingCycle' => $billingCycle,
+            'price' => $price,
+            'subscriptionStatus' => $partner->subscription_status ?? 'trial',
+            'subscriptionStartedAt' => $partner->subscription_started_at?->toIso8601String(),
+            'subscriptionEndsAt' => $partner->subscription_ends_at?->toIso8601String(),
+            'trialDaysRemaining' => $trialDaysRemaining,
+            'stripeCustomerId' => $partner->stripe_customer_id,
+            'stripeSubscriptionId' => $partner->stripe_subscription_id,
+            'storageLimitGb' => $partner->storage_limit_gb,
+            'maxClasses' => $partner->max_classes,
+            'features' => $partner->features,
+            'createdAt' => $partner->created_at?->toIso8601String(),
+        ]);
+    }
+
+    /**
+     * Charge subscriber with Stripe Invoice.
+     */
+    public function chargeSubscriber(Request $request, int $id): JsonResponse
+    {
+        $validated = $request->validate([
+            'amount' => 'required|integer|min:1',
+            'description' => 'required|string|max:255',
+        ]);
+
+        $partner = Partner::find($id);
+
+        if (! $partner) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Előfizető nem található.',
+            ], 404);
+        }
+
+        if (! $partner->stripe_customer_id) {
+            return response()->json([
+                'success' => false,
+                'message' => 'A partnernek nincs Stripe customer ID-ja.',
+            ], 400);
+        }
+
+        try {
+            Stripe::setApiKey(config('stripe.secret_key'));
+
+            // Create invoice item
+            InvoiceItem::create([
+                'customer' => $partner->stripe_customer_id,
+                'amount' => $validated['amount'], // Amount in HUF (smallest currency unit)
+                'currency' => config('stripe.currency', 'huf'),
+                'description' => $validated['description'],
+            ]);
+
+            // Create and finalize invoice
+            $invoice = Invoice::create([
+                'customer' => $partner->stripe_customer_id,
+                'auto_advance' => true,
+                'collection_method' => 'charge_automatically',
+            ]);
+
+            // Finalize the invoice
+            $invoice->finalizeInvoice();
+
+            // Pay the invoice immediately
+            $invoice->pay();
+
+            // Log audit
+            AdminAuditLog::log(
+                $request->user()->id,
+                $partner->id,
+                AdminAuditLog::ACTION_CHARGE,
+                [
+                    'amount' => $validated['amount'],
+                    'description' => $validated['description'],
+                    'stripe_invoice_id' => $invoice->id,
+                ],
+                $request->ip()
+            );
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Számla sikeresen létrehozva és terhelve.',
+                'invoiceId' => $invoice->id,
+            ]);
+        } catch (\Stripe\Exception\ApiErrorException $e) {
+            Log::error('Stripe charge error', [
+                'partner_id' => $partner->id,
+                'error' => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Stripe hiba: '.$e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Change subscriber plan.
+     */
+    public function changePlan(Request $request, int $id): JsonResponse
+    {
+        $validated = $request->validate([
+            'plan' => 'required|string|in:alap,iskola,studio',
+            'billing_cycle' => 'sometimes|string|in:monthly,yearly',
+        ]);
+
+        $partner = Partner::find($id);
+
+        if (! $partner) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Előfizető nem található.',
+            ], 404);
+        }
+
+        $oldPlan = $partner->plan;
+        $oldBillingCycle = $partner->billing_cycle;
+        $newPlan = $validated['plan'];
+        $newBillingCycle = $validated['billing_cycle'] ?? $partner->billing_cycle ?? 'monthly';
+
+        // Get new Stripe price ID
+        $newPriceId = config("stripe.prices.{$newPlan}.{$newBillingCycle}");
+
+        if (empty($newPriceId)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Érvénytelen csomag vagy számlázási ciklus.',
+            ], 400);
+        }
+
+        try {
+            // Update Stripe subscription if exists
+            if ($partner->stripe_subscription_id) {
+                Stripe::setApiKey(config('stripe.secret_key'));
+
+                $subscription = Subscription::retrieve($partner->stripe_subscription_id);
+
+                Subscription::update($partner->stripe_subscription_id, [
+                    'items' => [
+                        [
+                            'id' => $subscription->items->data[0]->id,
+                            'price' => $newPriceId,
+                        ],
+                    ],
+                    'proration_behavior' => 'create_prorations',
+                ]);
+            }
+
+            // Update partner record
+            $planConfig = Partner::PLANS[$newPlan];
+            $partner->update([
+                'plan' => $newPlan,
+                'billing_cycle' => $newBillingCycle,
+                'storage_limit_gb' => $planConfig['storage_limit_gb'],
+                'max_classes' => $planConfig['max_classes'],
+                'features' => $planConfig['features'],
+            ]);
+
+            // Log audit
+            AdminAuditLog::log(
+                $request->user()->id,
+                $partner->id,
+                AdminAuditLog::ACTION_CHANGE_PLAN,
+                [
+                    'old_plan' => $oldPlan,
+                    'old_billing_cycle' => $oldBillingCycle,
+                    'new_plan' => $newPlan,
+                    'new_billing_cycle' => $newBillingCycle,
+                ],
+                $request->ip()
+            );
+
+            $newPrice = self::PLAN_PRICES[$newPlan][$newBillingCycle] ?? 0;
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Csomag sikeresen módosítva.',
+                'newPrice' => $newPrice,
+            ]);
+        } catch (\Stripe\Exception\ApiErrorException $e) {
+            Log::error('Stripe plan change error', [
+                'partner_id' => $partner->id,
+                'error' => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Stripe hiba: '.$e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Cancel subscriber subscription.
+     */
+    public function cancelSubscription(Request $request, int $id): JsonResponse
+    {
+        $validated = $request->validate([
+            'immediate' => 'required|boolean',
+        ]);
+
+        $partner = Partner::find($id);
+
+        if (! $partner) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Előfizető nem található.',
+            ], 404);
+        }
+
+        try {
+            if ($partner->stripe_subscription_id) {
+                Stripe::setApiKey(config('stripe.secret_key'));
+
+                if ($validated['immediate']) {
+                    // Cancel immediately
+                    Subscription::update($partner->stripe_subscription_id, [
+                        'cancel_at_period_end' => false,
+                    ]);
+                    $subscription = Subscription::retrieve($partner->stripe_subscription_id);
+                    $subscription->cancel();
+
+                    $partner->update([
+                        'subscription_status' => 'canceled',
+                        'stripe_subscription_id' => null,
+                    ]);
+                } else {
+                    // Cancel at period end
+                    Subscription::update($partner->stripe_subscription_id, [
+                        'cancel_at_period_end' => true,
+                    ]);
+
+                    $partner->update([
+                        'subscription_status' => 'canceling',
+                    ]);
+                }
+            } else {
+                // No Stripe subscription, just update status
+                $partner->update([
+                    'subscription_status' => 'canceled',
+                ]);
+            }
+
+            // Log audit
+            AdminAuditLog::log(
+                $request->user()->id,
+                $partner->id,
+                AdminAuditLog::ACTION_CANCEL_SUBSCRIPTION,
+                [
+                    'immediate' => $validated['immediate'],
+                ],
+                $request->ip()
+            );
+
+            $message = $validated['immediate']
+                ? 'Előfizetés azonnal törölve.'
+                : 'Előfizetés törölve a periódus végén.';
+
+            return response()->json([
+                'success' => true,
+                'message' => $message,
+            ]);
+        } catch (\Stripe\Exception\ApiErrorException $e) {
+            Log::error('Stripe cancel error', [
+                'partner_id' => $partner->id,
+                'error' => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Stripe hiba: '.$e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Get audit logs for a subscriber.
+     */
+    public function getAuditLogs(Request $request, int $id): JsonResponse
+    {
+        $partner = Partner::find($id);
+
+        if (! $partner) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Előfizető nem található.',
+            ], 404);
+        }
+
+        $perPage = $request->input('per_page', 20);
+
+        $logs = AdminAuditLog::with('adminUser')
+            ->where('target_partner_id', $id)
+            ->orderBy('created_at', 'desc')
+            ->paginate($perPage);
+
+        return response()->json([
+            'data' => $logs->map(fn ($log) => [
+                'id' => $log->id,
+                'adminName' => $log->adminUser->name ?? 'Ismeretlen',
+                'action' => $log->action,
+                'actionLabel' => $log->action_label,
+                'details' => $log->details,
+                'ipAddress' => $log->ip_address,
+                'createdAt' => $log->created_at->toIso8601String(),
+            ]),
+            'current_page' => $logs->currentPage(),
+            'last_page' => $logs->lastPage(),
+            'per_page' => $logs->perPage(),
+            'total' => $logs->total(),
         ]);
     }
 }

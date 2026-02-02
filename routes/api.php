@@ -343,6 +343,13 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/subscribers', [SuperAdminController::class, 'subscribers']);
         Route::get('/settings', [SuperAdminController::class, 'getSettings']);
         Route::put('/settings', [SuperAdminController::class, 'updateSettings']);
+
+        // Subscriber management
+        Route::get('/subscribers/{id}', [SuperAdminController::class, 'getSubscriber']);
+        Route::post('/subscribers/{id}/charge', [SuperAdminController::class, 'chargeSubscriber']);
+        Route::put('/subscribers/{id}/change-plan', [SuperAdminController::class, 'changePlan']);
+        Route::delete('/subscribers/{id}/subscription', [SuperAdminController::class, 'cancelSubscription']);
+        Route::get('/subscribers/{id}/audit-logs', [SuperAdminController::class, 'getAuditLogs']);
     });
 
     // ============================================
