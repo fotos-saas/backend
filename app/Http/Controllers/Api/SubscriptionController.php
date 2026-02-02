@@ -296,6 +296,23 @@ class SubscriptionController extends Controller
         $storageAddonConfig = config('plans.storage_addon');
         $addonsConfig = config('plans.addons');
 
+        // Usage statisztikák lekérése
+        $tabloPartnerId = $user->tablo_partner_id;
+        $usage = [
+            'schools' => 0,
+            'classes' => 0,
+            'templates' => 0,
+        ];
+
+        if ($tabloPartnerId) {
+            $usage['schools'] = \App\Models\TabloSchool::whereHas('projects', function ($q) use ($tabloPartnerId) {
+                $q->where('partner_id', $tabloPartnerId);
+            })->count();
+            $usage['classes'] = \App\Models\TabloProject::where('partner_id', $tabloPartnerId)->count();
+            // Templates: TODO - ha lesz partner-specifikus sablon tábla
+            $usage['templates'] = 0;
+        }
+
         // Ellenőrizzük, hogy van-e módosítás (extra tárhely vagy addon)
         $hasExtraStorage = ($partner->extra_storage_gb ?? 0) > 0;
         $activeAddons = $partner->addons()->where('status', 'active')->get();
@@ -323,6 +340,7 @@ class SubscriptionController extends Controller
             'ends_at' => $partner->subscription_ends_at,
             'features' => $planConfig['feature_labels'] ?? [],
             'limits' => $planConfig['limits'] ?? [],
+            'usage' => $usage,
             // Módosítás jelzők
             'is_modified' => $isModified,
             'has_extra_storage' => $hasExtraStorage,
