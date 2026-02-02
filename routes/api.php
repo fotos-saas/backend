@@ -221,6 +221,14 @@ Route::prefix('storage')->middleware(['auth:sanctum', 'role:partner'])->group(fu
     Route::delete('/addon', [StorageController::class, 'removeAddon']);
 });
 
+// Addon Management (authenticated partners) - Funkció csomagok
+Route::prefix('addons')->middleware(['auth:sanctum', 'role:partner'])->group(function () {
+    Route::get('/', [\App\Http\Controllers\Api\AddonController::class, 'index']);
+    Route::get('/active', [\App\Http\Controllers\Api\AddonController::class, 'active']);
+    Route::post('/{key}/subscribe', [\App\Http\Controllers\Api\AddonController::class, 'subscribe']);
+    Route::delete('/{key}', [\App\Http\Controllers\Api\AddonController::class, 'cancel']);
+});
+
 // Orders (public - supports both guest and authenticated checkout)
 Route::post('/orders', [OrderController::class, 'store']);
 Route::get('/orders/{order}', [OrderController::class, 'show']);
@@ -860,60 +868,69 @@ Route::prefix('tablo-frontend')
         // SZAVAZÁSOK (POLLS)
         // ============================================
         // Sablon szavazás - vendégek és kapcsolattartók
-        Route::prefix('polls')->group(function () {
-            // Olvasás - vendég is elérheti
-            Route::get('/', [PollController::class, 'index']);
-            Route::get('/{id}', [PollController::class, 'show']);
-            Route::get('/{id}/results', [PollController::class, 'results']);
+        // MEGJEGYZÉS: Partner addon szükséges (polls feature) - Alap csomagnál vásárolható
+        Route::prefix('polls')
+            ->middleware('partner.feature:polls')
+            ->group(function () {
+                // Olvasás - vendég is elérheti
+                Route::get('/', [PollController::class, 'index']);
+                Route::get('/{id}', [PollController::class, 'show']);
+                Route::get('/{id}/results', [PollController::class, 'results']);
 
-            // Szavazat leadás/visszavonás - vendég session kell
-            Route::post('/{id}/vote', [PollController::class, 'vote'])
-                ->middleware('throttle:30,1');
-            Route::delete('/{id}/vote', [PollController::class, 'removeVote'])
-                ->middleware('throttle:30,1');
+                // Szavazat leadás/visszavonás - vendég session kell
+                Route::post('/{id}/vote', [PollController::class, 'vote'])
+                    ->middleware('throttle:30,1');
+                Route::delete('/{id}/vote', [PollController::class, 'removeVote'])
+                    ->middleware('throttle:30,1');
 
-            // Szavazás kezelés - csak kapcsolattartó (kódos belépés)
-            Route::middleware(\App\Http\Middleware\RequireFullAccess::class)->group(function () {
-                Route::post('/', [PollController::class, 'store']);
-                Route::put('/{id}', [PollController::class, 'update']);
-                Route::delete('/{id}', [PollController::class, 'destroy']);
-                Route::post('/{id}/close', [PollController::class, 'close']);
-                Route::post('/{id}/reopen', [PollController::class, 'reopen']);
+                // Szavazás kezelés - csak kapcsolattartó (kódos belépés)
+                Route::middleware(\App\Http\Middleware\RequireFullAccess::class)->group(function () {
+                    Route::post('/', [PollController::class, 'store']);
+                    Route::put('/{id}', [PollController::class, 'update']);
+                    Route::delete('/{id}', [PollController::class, 'destroy']);
+                    Route::post('/{id}/close', [PollController::class, 'close']);
+                    Route::post('/{id}/reopen', [PollController::class, 'reopen']);
+                });
             });
-        });
 
         // ============================================
         // FÓRUM (DISCUSSIONS)
         // ============================================
         // Beszélgetések és hozzászólások
-        Route::prefix('discussions')->group(function () {
-            // Olvasás - vendég is elérheti
-            Route::get('/', [DiscussionController::class, 'index']);
-            Route::get('/{slugOrId}', [DiscussionController::class, 'show']);
+        // MEGJEGYZÉS: Partner addon szükséges (forum feature) - Alap csomagnál vásárolható
+        Route::prefix('discussions')
+            ->middleware('partner.feature:forum')
+            ->group(function () {
+                // Olvasás - vendég is elérheti
+                Route::get('/', [DiscussionController::class, 'index']);
+                Route::get('/{slugOrId}', [DiscussionController::class, 'show']);
 
-            // Beszélgetés kezelés - csak kapcsolattartó
-            Route::middleware(\App\Http\Middleware\RequireFullAccess::class)->group(function () {
-                Route::post('/', [DiscussionController::class, 'store']);
-                Route::put('/{id}', [DiscussionController::class, 'update']);
-                Route::delete('/{id}', [DiscussionController::class, 'destroy']);
-                Route::post('/{id}/lock', [DiscussionController::class, 'lock']);
-                Route::post('/{id}/unlock', [DiscussionController::class, 'unlock']);
-                Route::post('/{id}/pin', [DiscussionController::class, 'pin']);
-                Route::post('/{id}/unpin', [DiscussionController::class, 'unpin']);
+                // Beszélgetés kezelés - csak kapcsolattartó
+                Route::middleware(\App\Http\Middleware\RequireFullAccess::class)->group(function () {
+                    Route::post('/', [DiscussionController::class, 'store']);
+                    Route::put('/{id}', [DiscussionController::class, 'update']);
+                    Route::delete('/{id}', [DiscussionController::class, 'destroy']);
+                    Route::post('/{id}/lock', [DiscussionController::class, 'lock']);
+                    Route::post('/{id}/unlock', [DiscussionController::class, 'unlock']);
+                    Route::post('/{id}/pin', [DiscussionController::class, 'pin']);
+                    Route::post('/{id}/unpin', [DiscussionController::class, 'unpin']);
+                });
+
+                // Hozzászólás kezelés - vendég is írhat (guest session-nel)
+                Route::post('/{id}/posts', [DiscussionController::class, 'createPost'])
+                    ->middleware('throttle:60,1'); // 60 hozzászólás/perc
             });
 
-            // Hozzászólás kezelés - vendég is írhat (guest session-nel)
-            Route::post('/{id}/posts', [DiscussionController::class, 'createPost'])
-                ->middleware('throttle:60,1'); // 60 hozzászólás/perc
-        });
-
         // Hozzászólás módosítás/törlés (külön prefix, mert post ID-val dolgozunk)
-        Route::prefix('posts')->group(function () {
-            Route::put('/{id}', [DiscussionController::class, 'updatePost']);
-            Route::delete('/{id}', [DiscussionController::class, 'deletePost']);
-            Route::post('/{id}/like', [DiscussionController::class, 'toggleLike'])
-                ->middleware('throttle:60,1');
-        });
+        // MEGJEGYZÉS: Partner addon szükséges (forum feature)
+        Route::prefix('posts')
+            ->middleware('partner.feature:forum')
+            ->group(function () {
+                Route::put('/{id}', [DiscussionController::class, 'updatePost']);
+                Route::delete('/{id}', [DiscussionController::class, 'deletePost']);
+                Route::post('/{id}/like', [DiscussionController::class, 'toggleLike'])
+                    ->middleware('throttle:60,1');
+            });
 
         // ============================================
         // HÍRFOLYAM (NEWSFEED)

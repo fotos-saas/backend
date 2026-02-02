@@ -294,6 +294,12 @@ class SubscriptionController extends Controller
 
         $planConfig = config("stripe.plans.{$partner->plan}");
 
+        // Ellenőrizzük, hogy van-e módosítás (extra tárhely vagy addon)
+        $hasExtraStorage = ($partner->extra_storage_gb ?? 0) > 0;
+        $activeAddons = $partner->addons()->where('status', 'active')->get();
+        $hasAddons = $activeAddons->count() > 0;
+        $isModified = $hasExtraStorage || $hasAddons;
+
         $response = [
             'plan' => $partner->plan,
             'plan_name' => $planConfig['name'] ?? $partner->plan,
@@ -303,6 +309,12 @@ class SubscriptionController extends Controller
             'ends_at' => $partner->subscription_ends_at,
             'features' => $planConfig['features'] ?? [],
             'limits' => $planConfig['limits'] ?? [],
+            // Módosítás jelzők
+            'is_modified' => $isModified,
+            'has_extra_storage' => $hasExtraStorage,
+            'extra_storage_gb' => $partner->extra_storage_gb ?? 0,
+            'has_addons' => $hasAddons,
+            'active_addons' => $activeAddons->pluck('addon_key')->toArray(),
         ];
 
         // Get more details from Stripe if subscription ID exists

@@ -134,6 +134,29 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Feature Addons
+    |--------------------------------------------------------------------------
+    | Funkció csomagok - Alap előfizetéshez vásárolható kiegészítők.
+    |
+    | Stripe beállítás:
+    | 1. Stripe Dashboard → Products → Create Product ("Közösségi csomag")
+    | 2. Add Price (Monthly): 1490 HUF, recurring monthly
+    | 3. Add Price (Yearly): 14900 HUF, recurring yearly (~17% kedvezmény)
+    | 4. Price ID-kat .env-be
+    */
+    'addons' => [
+        'community_pack' => [
+            'name' => 'Közösségi csomag',
+            'description' => 'Fórum + Szavazás funkciók',
+            'monthly' => env('STRIPE_ADDON_COMMUNITY_MONTHLY'),
+            'yearly' => env('STRIPE_ADDON_COMMUNITY_YEARLY'),
+            'monthly_price' => 1490,   // Ft/hó
+            'yearly_price' => 14900,   // Ft/év
+        ],
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | URLs
     |--------------------------------------------------------------------------
     */

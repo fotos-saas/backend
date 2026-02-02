@@ -55,21 +55,40 @@ class Partner extends Model
     public const PLANS = [
         'alap' => [
             'name' => 'Alap',
-            'storage_limit_gb' => 20,
-            'max_classes' => 3,
+            'storage_limit_gb' => 5,       // 20 → 5
+            'max_classes' => 10,           // 3 → 10
+            'max_schools' => 30,           // ÚJ
+            'max_templates' => 10,         // ÚJ
             'features' => ['online_selection', 'templates', 'qr_sharing', 'email_support'],
         ],
         'iskola' => [
             'name' => 'Iskola',
             'storage_limit_gb' => 100,
             'max_classes' => 20,
-            'features' => ['online_selection', 'templates', 'qr_sharing', 'subdomain', 'stripe_payments', 'sms_notifications', 'priority_support'],
+            'max_schools' => null,         // Korlátlan
+            'max_templates' => null,       // Korlátlan
+            'features' => ['online_selection', 'templates', 'qr_sharing', 'subdomain', 'stripe_payments', 'sms_notifications', 'priority_support', 'forum', 'polls'],
         ],
         'studio' => [
             'name' => 'Stúdió',
             'storage_limit_gb' => 500,
-            'max_classes' => null, // Unlimited
-            'features' => ['online_selection', 'templates', 'qr_sharing', 'custom_domain', 'white_label', 'api_access', 'dedicated_support', 'stripe_payments', 'sms_notifications'],
+            'max_classes' => null,         // Korlátlan
+            'max_schools' => null,         // Korlátlan
+            'max_templates' => null,       // Korlátlan
+            'features' => ['online_selection', 'templates', 'qr_sharing', 'custom_domain', 'white_label', 'api_access', 'dedicated_support', 'stripe_payments', 'sms_notifications', 'forum', 'polls'],
+        ],
+    ];
+
+    /**
+     * Addon definitions (csak Alap csomaghoz vásárolható)
+     */
+    public const ADDONS = [
+        'community_pack' => [
+            'name' => 'Közösségi csomag',
+            'description' => 'Fórum + Szavazás',
+            'includes' => ['forum', 'polls'],
+            'monthly_price' => 1490,   // Ft/hó
+            'yearly_price' => 14900,   // Ft/év (~17% kedvezmény)
         ],
     ];
 
@@ -96,6 +115,25 @@ class Partner extends Model
     }
 
     /**
+     * Get the partner's addons
+     */
+    public function addons(): HasMany
+    {
+        return $this->hasMany(PartnerAddon::class);
+    }
+
+    /**
+     * Check if partner has an active addon
+     */
+    public function hasAddon(string $addonKey): bool
+    {
+        return $this->addons()
+            ->where('addon_key', $addonKey)
+            ->where('status', 'active')
+            ->exists();
+    }
+
+    /**
      * Check if subscription is active
      */
     public function isSubscriptionActive(): bool
@@ -112,13 +150,26 @@ class Partner extends Model
     }
 
     /**
-     * Check if partner has a specific feature
+     * Check if partner has a specific feature (plan, addon, or extra features)
      */
     public function hasFeature(string $feature): bool
     {
         $planFeatures = self::PLANS[$this->plan]['features'] ?? [];
 
-        return in_array($feature, $planFeatures) || in_array($feature, $this->features ?? []);
+        // 1. Ha a plan tartalmazza → OK (Iskola/Stúdió esetén forum/polls benne van)
+        if (in_array($feature, $planFeatures)) {
+            return true;
+        }
+
+        // 2. Ha addon által elérhető (community_pack → forum, polls)
+        foreach (self::ADDONS as $addonKey => $addon) {
+            if (in_array($feature, $addon['includes'] ?? []) && $this->hasAddon($addonKey)) {
+                return true;
+            }
+        }
+
+        // 3. Extra features mezőből (egyedi engedélyezések)
+        return in_array($feature, $this->features ?? []);
     }
 
     /**
@@ -153,7 +204,23 @@ class Partner extends Model
      */
     public function getMaxClasses(): ?int
     {
-        return $this->max_classes ?? self::PLANS[$this->plan]['max_classes'] ?? 3;
+        return $this->max_classes ?? self::PLANS[$this->plan]['max_classes'] ?? 10;
+    }
+
+    /**
+     * Get max schools limit (null = unlimited)
+     */
+    public function getMaxSchools(): ?int
+    {
+        return self::PLANS[$this->plan]['max_schools'] ?? 30;
+    }
+
+    /**
+     * Get max templates limit (null = unlimited)
+     */
+    public function getMaxTemplates(): ?int
+    {
+        return self::PLANS[$this->plan]['max_templates'] ?? 10;
     }
 
     /**
