@@ -12,15 +12,13 @@ use App\Models\QrRegistrationCode;
 use App\Models\TabloPartner;
 use App\Models\TabloProject;
 use App\Services\Subscription\SubscriptionDiscountService;
+use App\Services\SuperAdmin\SubscriberService;
+use App\Services\SuperAdmin\SuperAdminStripeService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Stripe\Exception\ApiErrorException;
-use Stripe\Invoice;
-use Stripe\InvoiceItem;
-use Stripe\Stripe;
-use Stripe\Subscription;
 
 /**
  * Super Admin Controller for frontend-tablo super admin dashboard.
@@ -29,26 +27,10 @@ use Stripe\Subscription;
  */
 class SuperAdminController extends Controller
 {
-    /**
-     * Csomag ár lekérése config-ból (Single Source of Truth)
-     */
-    private function getPlanPrice(string $plan, string $cycle): int
-    {
-        $priceKey = $cycle === 'yearly' ? 'yearly_price' : 'monthly_price';
-
-        return (int) config("plans.plans.{$plan}.{$priceKey}", 0);
-    }
-
-    /**
-     * Csomag név lekérése config-ból (Single Source of Truth)
-     */
-    private function getPlanName(string $plan): string
-    {
-        // A teljes nevet lerövidítjük (pl. "TablóStúdió Alap" -> "Alap")
-        $fullName = config("plans.plans.{$plan}.name", ucfirst($plan));
-
-        return str_replace('TablóStúdió ', '', $fullName);
-    }
+    public function __construct(
+        private readonly SubscriberService $subscriberService,
+        private readonly SuperAdminStripeService $stripeService,
+    ) {}
 
     /**
      * Dashboard statistics.
@@ -113,8 +95,8 @@ class SuperAdminController extends Controller
             'data' => $partners->map(fn ($partner) => [
                 'id' => $partner->id,
                 'name' => $partner->name,
-                'schoolName' => $partner->email, // email as secondary info
-                'hasActiveQrCode' => false, // partner level doesn't have QR
+                'schoolName' => $partner->email,
+                'hasActiveQrCode' => false,
             ]),
             'current_page' => $partners->currentPage(),
             'last_page' => $partners->lastPage(),
@@ -130,57 +112,10 @@ class SuperAdminController extends Controller
      */
     public function subscribers(Request $request): JsonResponse
     {
-        $perPage = $request->input('per_page', 18);
-        $search = $request->input('search');
-        $plan = $request->input('plan');
-        $status = $request->input('status');
-        $sortBy = $request->input('sort_by', 'created_at');
-        $sortDir = $request->input('sort_dir', 'desc');
-
-        $query = Partner::query()
-            ->join('users', 'partners.user_id', '=', 'users.id')
-            ->select([
-                'partners.*',
-                'users.name as user_name',
-                'users.email as user_email',
-            ]);
-
-        // Search - ILIKE pattern escape-eléssel a DoS támadás ellen
-        if ($search) {
-            $safePattern = QueryHelper::safeLikePattern($search);
-            $query->where(function ($q) use ($safePattern) {
-                $q->where('users.name', 'ilike', $safePattern)
-                    ->orWhere('users.email', 'ilike', $safePattern)
-                    ->orWhere('partners.company_name', 'ilike', $safePattern);
-            });
-        }
-
-        // Plan filter
-        if ($plan && in_array($plan, ['alap', 'iskola', 'studio'])) {
-            $query->where('partners.plan', $plan);
-        }
-
-        // Status filter
-        if ($status && in_array($status, ['active', 'paused', 'canceling', 'trial'])) {
-            $query->where('partners.subscription_status', $status);
-        }
-
-        // Sorting
-        $allowedSortFields = [
-            'name' => 'users.name',
-            'email' => 'users.email',
-            'plan' => 'partners.plan',
-            'subscription_ends_at' => 'partners.subscription_ends_at',
-            'created_at' => 'partners.created_at',
-        ];
-
-        $sortColumn = $allowedSortFields[$sortBy] ?? 'partners.created_at';
-        $query->orderBy($sortColumn, $sortDir === 'asc' ? 'asc' : 'desc');
-
-        $subscribers = $query->paginate($perPage);
+        $subscribers = $this->subscriberService->getFilteredList($request);
 
         return response()->json([
-            'data' => $subscribers->map(fn ($partner) => $this->formatSubscriber($partner)),
+            'data' => $subscribers->map(fn ($partner) => $this->subscriberService->formatForList($partner)),
             'current_page' => $subscribers->currentPage(),
             'last_page' => $subscribers->lastPage(),
             'per_page' => $subscribers->perPage(),
@@ -188,31 +123,6 @@ class SuperAdminController extends Controller
             'from' => $subscribers->firstItem(),
             'to' => $subscribers->lastItem(),
         ]);
-    }
-
-    /**
-     * Format subscriber for API response.
-     */
-    private function formatSubscriber(Partner $partner): array
-    {
-        $billingCycle = $partner->billing_cycle ?? 'monthly';
-        $plan = $partner->plan ?? 'alap';
-        $price = $this->getPlanPrice($plan, $billingCycle);
-        $planName = $this->getPlanName($plan);
-
-        return [
-            'id' => $partner->id,
-            'name' => $partner->user_name,
-            'email' => $partner->user_email,
-            'companyName' => $partner->company_name,
-            'plan' => $plan,
-            'planName' => $planName,
-            'billingCycle' => $billingCycle,
-            'price' => $price,
-            'subscriptionStatus' => $partner->subscription_status ?? 'trial',
-            'subscriptionEndsAt' => $partner->subscription_ends_at?->toIso8601String(),
-            'createdAt' => $partner->created_at?->toIso8601String(),
-        ];
     }
 
     /**
@@ -232,7 +142,7 @@ class SuperAdminController extends Controller
                 'username' => config('mail.mailers.smtp.username') ? '***' : null,
             ],
             'stripe' => [
-                'publicKey' => config('services.stripe.key') ? substr(config('services.stripe.key'), 0, 12) . '***' : null,
+                'publicKey' => config('services.stripe.key') ? substr(config('services.stripe.key'), 0, 12).'***' : null,
                 'webhookConfigured' => ! empty(config('services.stripe.webhook_secret')),
             ],
             'info' => [
@@ -257,8 +167,6 @@ class SuperAdminController extends Controller
             'defaultPlan' => 'sometimes|string|in:alap,iskola,studio',
         ]);
 
-        // Note: In production, these would be stored in database or .env
-        // For now, we just return success
         return response()->json([
             'success' => true,
             'message' => 'Beállítások mentve.',
@@ -288,49 +196,7 @@ class SuperAdminController extends Controller
             $request->ip()
         );
 
-        $billingCycle = $partner->billing_cycle ?? 'monthly';
-        $plan = $partner->plan ?? 'alap';
-        $price = $this->getPlanPrice($plan, $billingCycle);
-        $planName = $this->getPlanName($plan);
-
-        // Calculate trial days remaining
-        $trialDaysRemaining = null;
-        if ($partner->subscription_status === 'trial' && $partner->subscription_ends_at) {
-            $trialDaysRemaining = max(0, now()->diffInDays($partner->subscription_ends_at, false));
-        }
-
-        return response()->json([
-            'id' => $partner->id,
-            'name' => $partner->user->name,
-            'email' => $partner->user->email,
-            'companyName' => $partner->company_name,
-            'taxNumber' => $partner->tax_number,
-            'billingCountry' => $partner->billing_country,
-            'billingPostalCode' => $partner->billing_postal_code,
-            'billingCity' => $partner->billing_city,
-            'billingAddress' => $partner->billing_address,
-            'phone' => $partner->phone,
-            'plan' => $plan,
-            'planName' => $planName,
-            'billingCycle' => $billingCycle,
-            'price' => $price,
-            'subscriptionStatus' => $partner->subscription_status ?? 'trial',
-            'subscriptionStartedAt' => $partner->subscription_started_at?->toIso8601String(),
-            'subscriptionEndsAt' => $partner->subscription_ends_at?->toIso8601String(),
-            'trialDaysRemaining' => $trialDaysRemaining,
-            'stripeCustomerId' => $partner->stripe_customer_id,
-            'stripeSubscriptionId' => $partner->stripe_subscription_id,
-            'storageLimitGb' => $partner->storage_limit_gb,
-            'maxClasses' => $partner->max_classes,
-            'features' => $partner->features,
-            'createdAt' => $partner->created_at?->toIso8601String(),
-            'activeDiscount' => $partner->activeDiscount ? [
-                'percent' => $partner->activeDiscount->percent,
-                'validUntil' => $partner->activeDiscount->valid_until?->toIso8601String(),
-                'note' => $partner->activeDiscount->note,
-                'createdAt' => $partner->activeDiscount->created_at?->toIso8601String(),
-            ] : null,
-        ]);
+        return response()->json($this->subscriberService->formatForDetail($partner));
     }
 
     /**
@@ -359,72 +225,39 @@ class SuperAdminController extends Controller
             ], 400);
         }
 
-        // SECURITY: Stripe Customer ID formátum validáció
-        if (! preg_match('/^cus_[a-zA-Z0-9]+$/', $partner->stripe_customer_id)) {
-            Log::warning('Invalid Stripe customer ID format', [
-                'partner_id' => $partner->id,
-                'stripe_customer_id' => $partner->stripe_customer_id,
-            ]);
+        $result = $this->stripeService->chargePartner(
+            $partner,
+            $validated['amount'],
+            $validated['description']
+        );
+
+        if (! $result['success']) {
+            $statusCode = str_contains($result['error'] ?? '', 'formátum') ? 400 : 500;
 
             return response()->json([
                 'success' => false,
-                'message' => 'Érvénytelen Stripe customer ID formátum.',
-            ], 400);
+                'message' => $result['error'],
+            ], $statusCode);
         }
 
-        try {
-            Stripe::setApiKey(config('stripe.secret_key'));
-
-            // Create invoice item
-            InvoiceItem::create([
-                'customer' => $partner->stripe_customer_id,
-                'amount' => $validated['amount'], // Amount in HUF (smallest currency unit)
-                'currency' => config('stripe.currency', 'huf'),
+        // Log audit
+        AdminAuditLog::log(
+            $request->user()->id,
+            $partner->id,
+            AdminAuditLog::ACTION_CHARGE,
+            [
+                'amount' => $validated['amount'],
                 'description' => $validated['description'],
-            ]);
+                'stripe_invoice_id' => $result['invoiceId'],
+            ],
+            $request->ip()
+        );
 
-            // Create and finalize invoice
-            $invoice = Invoice::create([
-                'customer' => $partner->stripe_customer_id,
-                'auto_advance' => true,
-                'collection_method' => 'charge_automatically',
-            ]);
-
-            // Finalize the invoice
-            $invoice->finalizeInvoice();
-
-            // Pay the invoice immediately
-            $invoice->pay();
-
-            // Log audit
-            AdminAuditLog::log(
-                $request->user()->id,
-                $partner->id,
-                AdminAuditLog::ACTION_CHARGE,
-                [
-                    'amount' => $validated['amount'],
-                    'description' => $validated['description'],
-                    'stripe_invoice_id' => $invoice->id,
-                ],
-                $request->ip()
-            );
-
-            return response()->json([
-                'success' => true,
-                'message' => 'Számla sikeresen létrehozva és terhelve.',
-                'invoiceId' => $invoice->id,
-            ]);
-        } catch (\Stripe\Exception\ApiErrorException $e) {
-            Log::error('Stripe charge error', [
-                'partner_id' => $partner->id,
-                'error' => $e->getMessage(),
-            ]);
-
-            return response()->json([
-                'success' => false,
-                'message' => 'Stripe hiba: '.$e->getMessage(),
-            ], 500);
-        }
+        return response()->json([
+            'success' => true,
+            'message' => 'Számla sikeresen létrehozva és terhelve.',
+            'invoiceId' => $result['invoiceId'],
+        ]);
     }
 
     /**
@@ -462,35 +295,16 @@ class SuperAdminController extends Controller
         }
 
         try {
-            // SECURITY: Tranzakcióban kezeljük a Stripe + DB műveleteket
-            // Ha bármelyik fail-el, rollback történik
             return DB::transaction(function () use ($request, $partner, $newPlan, $newBillingCycle, $newPriceId, $oldPlan, $oldBillingCycle) {
-                // 1. ELŐSZÖR a Stripe-ot frissítjük (ha van subscription)
-                if ($partner->stripe_subscription_id) {
-                    Stripe::setApiKey(config('stripe.secret_key'));
+                // 1. ELŐSZÖR a Stripe-ot frissítjük
+                $stripeResult = $this->stripeService->changePlan($partner, $newPriceId);
 
-                    $subscription = Subscription::retrieve($partner->stripe_subscription_id);
-
-                    Subscription::update($partner->stripe_subscription_id, [
-                        'items' => [
-                            [
-                                'id' => $subscription->items->data[0]->id,
-                                'price' => $newPriceId,
-                            ],
-                        ],
-                        'proration_behavior' => 'create_prorations',
-                    ]);
+                if (! $stripeResult['success']) {
+                    throw new \Exception($stripeResult['error']);
                 }
 
                 // 2. AZUTÁN a DB-t frissítjük
-                $planConfig = Partner::PLANS[$newPlan];
-                $partner->update([
-                    'plan' => $newPlan,
-                    'billing_cycle' => $newBillingCycle,
-                    'storage_limit_gb' => $planConfig['storage_limit_gb'],
-                    'max_classes' => $planConfig['max_classes'],
-                    'features' => $planConfig['features'],
-                ]);
+                $this->subscriberService->updatePlan($partner, $newPlan, $newBillingCycle);
 
                 // 3. Audit log
                 AdminAuditLog::log(
@@ -506,7 +320,7 @@ class SuperAdminController extends Controller
                     $request->ip()
                 );
 
-                $newPrice = $this->getPlanPrice($newPlan, $newBillingCycle);
+                $newPrice = $this->subscriberService->getPlanPrice($newPlan, $newBillingCycle);
 
                 return response()->json([
                     'success' => true,
@@ -514,25 +328,17 @@ class SuperAdminController extends Controller
                     'newPrice' => $newPrice,
                 ]);
             });
-        } catch (\Stripe\Exception\ApiErrorException $e) {
-            Log::error('Stripe plan change error', [
-                'partner_id' => $partner->id,
-                'error' => $e->getMessage(),
-            ]);
-
-            return response()->json([
-                'success' => false,
-                'message' => 'Stripe hiba: '.$e->getMessage(),
-            ], 500);
         } catch (\Exception $e) {
-            Log::error('Plan change DB error', [
+            Log::error('Plan change error', [
                 'partner_id' => $partner->id,
                 'error' => $e->getMessage(),
             ]);
 
             return response()->json([
                 'success' => false,
-                'message' => 'Hiba történt a csomag módosításakor.',
+                'message' => str_contains($e->getMessage(), 'Stripe')
+                    ? $e->getMessage()
+                    : 'Hiba történt a csomag módosításakor.',
             ], 500);
         }
     }
@@ -555,69 +361,35 @@ class SuperAdminController extends Controller
             ], 404);
         }
 
-        try {
-            if ($partner->stripe_subscription_id) {
-                Stripe::setApiKey(config('stripe.secret_key'));
+        $stripeResult = $this->stripeService->cancelSubscription($partner, $validated['immediate']);
 
-                if ($validated['immediate']) {
-                    // Cancel immediately
-                    Subscription::update($partner->stripe_subscription_id, [
-                        'cancel_at_period_end' => false,
-                    ]);
-                    $subscription = Subscription::retrieve($partner->stripe_subscription_id);
-                    $subscription->cancel();
-
-                    $partner->update([
-                        'subscription_status' => 'canceled',
-                        'stripe_subscription_id' => null,
-                    ]);
-                } else {
-                    // Cancel at period end
-                    Subscription::update($partner->stripe_subscription_id, [
-                        'cancel_at_period_end' => true,
-                    ]);
-
-                    $partner->update([
-                        'subscription_status' => 'canceling',
-                    ]);
-                }
-            } else {
-                // No Stripe subscription, just update status
-                $partner->update([
-                    'subscription_status' => 'canceled',
-                ]);
-            }
-
-            // Log audit
-            AdminAuditLog::log(
-                $request->user()->id,
-                $partner->id,
-                AdminAuditLog::ACTION_CANCEL_SUBSCRIPTION,
-                [
-                    'immediate' => $validated['immediate'],
-                ],
-                $request->ip()
-            );
-
-            $message = $validated['immediate']
-                ? 'Előfizetés azonnal törölve.'
-                : 'Előfizetés törölve a periódus végén.';
-
-            return response()->json([
-                'success' => true,
-                'message' => $message,
-            ]);
-        } catch (\Stripe\Exception\ApiErrorException $e) {
-            Log::error('Stripe cancel error', [
-                'partner_id' => $partner->id,
-                'error' => $e->getMessage(),
-            ]);
-
+        if (! $stripeResult['success']) {
             return response()->json([
                 'success' => false,
-                'message' => 'Stripe hiba: '.$e->getMessage(),
+                'message' => $stripeResult['error'],
             ], 500);
         }
+
+        // Update partner status
+        $this->subscriberService->updateCancelStatus($partner, $validated['immediate']);
+
+        // Log audit
+        AdminAuditLog::log(
+            $request->user()->id,
+            $partner->id,
+            AdminAuditLog::ACTION_CANCEL_SUBSCRIPTION,
+            ['immediate' => $validated['immediate']],
+            $request->ip()
+        );
+
+        $message = $validated['immediate']
+            ? 'Előfizetés azonnal törölve.'
+            : 'Előfizetés törölve a periódus végén.';
+
+        return response()->json([
+            'success' => true,
+            'message' => $message,
+        ]);
     }
 
     /**
@@ -634,45 +406,10 @@ class SuperAdminController extends Controller
             ], 404);
         }
 
-        $perPage = $request->input('per_page', 20);
-
-        $query = AdminAuditLog::with('adminUser')
-            ->where('target_partner_id', $id);
-
-        // Keresés admin név alapján - ILIKE pattern escape-eléssel
-        if ($search = $request->input('search')) {
-            $safePattern = QueryHelper::safeLikePattern($search);
-            $query->whereHas('adminUser', function ($q) use ($safePattern) {
-                $q->where('name', 'ilike', $safePattern);
-            });
-        }
-
-        // Művelet típus szűrő
-        if ($action = $request->input('action')) {
-            $query->where('action', $action);
-        }
-
-        // Hide view actions by default (unless explicitly requested)
-        if (! $request->boolean('show_views', false)) {
-            $query->where('action', '!=', AdminAuditLog::ACTION_VIEW);
-        }
-
-        // Rendezés
-        $sortDir = $request->input('sort_dir', 'desc');
-        $query->orderBy('created_at', $sortDir === 'asc' ? 'asc' : 'desc');
-
-        $logs = $query->paginate($perPage);
+        $logs = $this->subscriberService->getAuditLogs($id, $request);
 
         return response()->json([
-            'data' => $logs->map(fn ($log) => [
-                'id' => $log->id,
-                'adminName' => $log->adminUser->name ?? 'Ismeretlen',
-                'action' => $log->action,
-                'actionLabel' => $log->action_label,
-                'details' => $log->details,
-                'ipAddress' => $log->ip_address,
-                'createdAt' => $log->created_at->toIso8601String(),
-            ]),
+            'data' => $logs->map(fn ($log) => $this->subscriberService->formatAuditLog($log)),
             'current_page' => $logs->currentPage(),
             'last_page' => $logs->lastPage(),
             'per_page' => $logs->perPage(),
