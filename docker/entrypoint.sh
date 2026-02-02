@@ -79,7 +79,17 @@ fi
 
 # === APP CONTAINER ===
 if [ "$ROLE" = "app" ]; then
+    echo "Running migrations..."
+    php artisan migrate --force
+
     echo "Clearing all caches (including stale bootstrap cache)..."
+    php artisan config:clear
+    php artisan route:clear
+    php artisan view:clear
+
+    echo "Caching config and routes..."
+    php artisan config:cache
+    php artisan route:cache
 
     echo "Linking storage..."
     php artisan storage:link || true
