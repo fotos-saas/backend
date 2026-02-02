@@ -364,14 +364,9 @@ class SubscriptionController extends Controller
                     $totalMonthlyAmount += $amount;
                 }
 
-                // A HUF "zero-decimal" currency, tehát nincs fillér konverzió
-                // VISZONT ha a Stripe Price-ok hibásan lettek létrehozva (pl. 499000 helyett 4990),
-                // akkor detektáljuk és javítjuk
-                // Reális havi költség 1000-100000 Ft között van, ha ennél nagyobb, valószínűleg /100 kell
-                if ($totalMonthlyAmount > 500000) {
-                    $totalMonthlyAmount = (int) round($totalMonthlyAmount / 100);
-                }
-                $response['monthly_cost'] = $totalMonthlyAmount;
+                // A Stripe Price-ok fillérben/centben vannak tárolva, HUF esetén is
+                // Konvertálás Ft-ra
+                $response['monthly_cost'] = (int) round($totalMonthlyAmount / 100);
                 $response['currency'] = $subscription->currency;
             } catch (\Exception $e) {
                 Log::warning('Failed to retrieve Stripe subscription', [
