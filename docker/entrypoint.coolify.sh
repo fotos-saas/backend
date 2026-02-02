@@ -74,15 +74,25 @@ if [ "$(id -u)" = "0" ]; then
     chmod -R 775 storage bootstrap/cache
 fi
 
+# Run migrations
+echo "Running migrations..."
+php artisan migrate --force
+
 # Link storage
 echo "Linking storage..."
 php artisan storage:link || true
 
+# Clear stale caches first
+echo "Clearing stale caches..."
+php artisan config:clear
+php artisan route:clear
+php artisan view:clear
+
 # Cache config for production
 echo "Caching configuration..."
-php artisan config:cache || true
-php artisan route:cache || true
-php artisan view:cache || true
+php artisan config:cache
+php artisan route:cache
+php artisan view:cache
 
 echo "Laravel initialization complete!"
 echo "Starting Nginx + PHP-FPM via Supervisor..."
