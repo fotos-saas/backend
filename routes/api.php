@@ -144,13 +144,20 @@ Route::prefix('auth')->group(function () {
 });
 
 // Guest Share Routes
-Route::prefix('share')->group(function () {
+// SECURITY: Rate limited to prevent token enumeration and abuse
+Route::prefix('share')->middleware('throttle:30,1')->group(function () {
     Route::get('/{token}', [ShareController::class, 'validateToken']);
     Route::post('/{token}/selection', [ShareController::class, 'saveSelection']);
 });
 
-// Public Photos (for previews)
-Route::get('/photos/{photo}/preview', [PhotoController::class, 'preview']);
+// Photo Previews (protected against IDOR)
+// SECURITY: PhotoController@preview checks access rights based on:
+// - Album ownership (Sanctum auth)
+// - TabloProject access token (Sanctum with tablo_project_id)
+// - PartnerClient Bearer token (auth.client middleware)
+// Uses optional auth - controller handles authorization
+Route::get('/photos/{photo}/preview', [PhotoController::class, 'preview'])
+    ->middleware(['throttle:200,1']);
 
 // Pricing & Coupons (public for frontend cart)
 Route::get('/pricing-rules', [PricingController::class, 'index']);
@@ -171,7 +178,8 @@ Route::get('/map-config', [MapConfigController::class, 'getConfig']);
 Route::get('/plans', [PlansController::class, 'index']);
 
 // Cart (public - supports both authenticated and guest users)
-Route::prefix('cart')->group(function () {
+// SECURITY: Rate limited to prevent abuse
+Route::prefix('cart')->middleware('throttle:60,1')->group(function () {
     Route::get('/', [CartController::class, 'index']);
     Route::post('/items', [CartController::class, 'addItem']);
     Route::put('/items/{cartItem}', [CartController::class, 'updateItem']);

@@ -9,6 +9,7 @@ use App\Models\PhotoNote;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 
 class PhotoController extends Controller
 {
@@ -174,6 +175,71 @@ class PhotoController extends Controller
 
     public function preview(Photo $photo, Request $request)
     {
+        // SECURITY: Verify user has access to this photo (IDOR protection)
+        // Photo must belong to an album that:
+        // 1. User owns (direct ownership), OR
+        // 2. User is a partner who owns the project, OR
+        // 3. User has TabloProject access token (tablo frontend), OR
+        // 4. Client has PartnerClient Bearer token (client orders feature)
+        $album = $photo->album;
+
+        if ($album) {
+            $hasAccess = false;
+
+            // Try to get user from Sanctum auth (works for both web and API)
+            $user = auth('sanctum')->user();
+
+            // 1. Check direct album ownership
+            if ($user && $album->user_id === $user->id) {
+                $hasAccess = true;
+            }
+
+            // 2. Check if user is a partner who owns this album's project
+            if (!$hasAccess && $user && $user->partner_id) {
+                $tabloProject = $album->tabloProject ?? $album->parentAlbum?->tabloProject;
+                if ($tabloProject && $tabloProject->partner_id === $user->partner_id) {
+                    $hasAccess = true;
+                }
+            }
+
+            // 3. Check if user has tablo_project_id in their token (tablo frontend access)
+            if (!$hasAccess && $user) {
+                $token = $user->currentAccessToken();
+                if ($token && $token->tablo_project_id) {
+                    $tabloProject = $album->tabloProject ?? $album->parentAlbum?->tabloProject;
+                    if ($tabloProject && $tabloProject->id === $token->tablo_project_id) {
+                        $hasAccess = true;
+                    }
+                }
+            }
+
+            // 4. Check Bearer token for PartnerClient access (client orders feature)
+            if (!$hasAccess && $request->bearerToken()) {
+                $hashedToken = hash('sha256', $request->bearerToken());
+                $tokenRecord = DB::table('personal_access_tokens')
+                    ->where('token', $hashedToken)
+                    ->whereNotNull('partner_client_id')
+                    ->first();
+
+                if ($tokenRecord) {
+                    $partnerClient = \App\Models\PartnerClient::find($tokenRecord->partner_client_id);
+                    if ($partnerClient) {
+                        // Check if the photo's album belongs to this client
+                        $albumBelongsToClient = $partnerClient->albums()
+                            ->where('partner_order_albums.id', $album->id)
+                            ->exists();
+                        if ($albumBelongsToClient) {
+                            $hasAccess = true;
+                        }
+                    }
+                }
+            }
+
+            if (!$hasAccess) {
+                abort(403, 'Nincs jogosultságod ehhez a fotóhoz');
+            }
+        }
+
         $width = $request->integer('w', 1200);
 
         // Get media from Spatie Media Library

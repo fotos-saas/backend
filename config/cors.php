@@ -19,7 +19,13 @@ return [
 
     'allowed_methods' => ['*'],
 
-    'allowed_origins' => ['*'],
+    'allowed_origins' => [
+        env('FRONTEND_URL', 'https://tablostudio.hu'),
+        env('FRONTEND_TABLO_URL', 'https://kepvalaszto.hu'),
+        'http://localhost:4200',
+        'http://localhost:4201',
+        'http://localhost:4205',
+    ],
 
     'allowed_origins_patterns' => [],
 
