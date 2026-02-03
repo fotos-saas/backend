@@ -1355,7 +1355,19 @@ class PartnerController extends Controller
             'hasActiveProjects' => ($school->active_projects_count ?? 0) > 0,
         ]);
 
-        return response()->json($schools);
+        // Get school limits for this partner
+        $partner = auth()->user()->partner;
+        $maxSchools = $partner?->getMaxSchools();
+        $currentCount = TabloSchool::whereHas('projects', fn ($q) => $q->where('partner_id', $partnerId))->count();
+
+        $response = $schools->toArray();
+        $response['limits'] = [
+            'current' => $currentCount,
+            'max' => $maxSchools,
+            'can_create' => $maxSchools === null || $currentCount < $maxSchools,
+        ];
+
+        return response()->json($response);
     }
 
     /**
