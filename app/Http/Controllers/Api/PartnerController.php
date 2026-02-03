@@ -385,17 +385,16 @@ class PartnerController extends Controller
     // ============================================
 
     /**
-     * Get all schools for project creation dropdown.
-     * Returns all schools in the system (not filtered by partner).
+     * Get schools belonging to the partner for autocomplete.
      */
     public function allSchools(Request $request): JsonResponse
     {
-        // Verify that user has a partner (required for creating projects)
-        $this->getPartnerIdOrFail();
+        $partnerId = $this->getPartnerIdOrFail();
 
         $search = $request->input('search');
 
-        $query = TabloSchool::query();
+        // Only return schools linked to this partner
+        $query = TabloSchool::whereHas('partners', fn ($q) => $q->where('partner_id', $partnerId));
 
         if ($search) {
             $query->where(function ($q) use ($search) {
