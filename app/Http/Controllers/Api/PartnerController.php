@@ -494,11 +494,27 @@ class PartnerController extends Controller
 
     /**
      * Create a new school.
+     * Also creates a placeholder project to link the school to this partner.
      */
     public function storeSchool(Request $request): JsonResponse
     {
-        // Verify that user has a partner
-        $this->getPartnerIdOrFail();
+        $partnerId = $this->getPartnerIdOrFail();
+
+        // Check school limit
+        $partner = auth()->user()->partner;
+        if ($partner) {
+            $maxSchools = $partner->getMaxSchools();
+            if ($maxSchools !== null) {
+                $currentCount = TabloSchool::whereHas('projects', fn ($q) => $q->where('partner_id', $partnerId))->count();
+                if ($currentCount >= $maxSchools) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Elérted a csomagodban elérhető maximum iskolaszámot. Válts magasabb csomagra a korlátozás feloldásához!',
+                        'upgrade_required' => true,
+                    ], 403);
+                }
+            }
+        }
 
         $validator = Validator::make($request->all(), [
             'name' => 'required|string|max:255',
@@ -517,10 +533,29 @@ class PartnerController extends Controller
             ], 422);
         }
 
-        $school = TabloSchool::create([
-            'name' => $request->input('name'),
-            'city' => $request->input('city'),
-        ]);
+        // Check if school already exists
+        $school = TabloSchool::where('name', $request->input('name'))->first();
+
+        if (!$school) {
+            $school = TabloSchool::create([
+                'name' => $request->input('name'),
+                'city' => $request->input('city'),
+            ]);
+        }
+
+        // Check if this partner already has a project for this school
+        $existingProject = TabloProject::where('partner_id', $partnerId)
+            ->where('school_id', $school->id)
+            ->first();
+
+        if (!$existingProject) {
+            // Create a placeholder project to link the school to this partner
+            TabloProject::create([
+                'partner_id' => $partnerId,
+                'school_id' => $school->id,
+                'status' => 'not_started',
+            ]);
+        }
 
         return response()->json([
             'success' => true,
