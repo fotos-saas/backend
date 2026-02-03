@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class TabloSchool extends Model
@@ -22,5 +23,14 @@ class TabloSchool extends Model
     public function projects(): HasMany
     {
         return $this->hasMany(TabloProject::class, 'school_id');
+    }
+
+    /**
+     * Get partners that have this school linked (many-to-many via partner_schools pivot)
+     */
+    public function partners(): BelongsToMany
+    {
+        return $this->belongsToMany(TabloPartner::class, 'partner_schools', 'school_id', 'partner_id')
+            ->withTimestamps();
     }
 }

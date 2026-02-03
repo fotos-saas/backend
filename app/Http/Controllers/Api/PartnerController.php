@@ -494,18 +494,19 @@ class PartnerController extends Controller
 
     /**
      * Create a new school.
-     * Also creates a placeholder project to link the school to this partner.
+     * Links the school to this partner via partner_schools pivot table.
      */
     public function storeSchool(Request $request): JsonResponse
     {
         $partnerId = $this->getPartnerIdOrFail();
+        $tabloPartner = \App\Models\TabloPartner::find($partnerId);
 
         // Check school limit
         $partner = auth()->user()->partner;
         if ($partner) {
             $maxSchools = $partner->getMaxSchools();
             if ($maxSchools !== null) {
-                $currentCount = TabloSchool::whereHas('projects', fn ($q) => $q->where('partner_id', $partnerId))->count();
+                $currentCount = $tabloPartner?->schools()->count() ?? 0;
                 if ($currentCount >= $maxSchools) {
                     return response()->json([
                         'success' => false,
@@ -543,18 +544,9 @@ class PartnerController extends Controller
             ]);
         }
 
-        // Check if this partner already has a project for this school
-        $existingProject = TabloProject::where('partner_id', $partnerId)
-            ->where('school_id', $school->id)
-            ->first();
-
-        if (!$existingProject) {
-            // Create a placeholder project to link the school to this partner
-            TabloProject::create([
-                'partner_id' => $partnerId,
-                'school_id' => $school->id,
-                'status' => 'not_started',
-            ]);
+        // Link school to partner via pivot table (if not already linked)
+        if ($tabloPartner && !$tabloPartner->schools()->where('school_id', $school->id)->exists()) {
+            $tabloPartner->schools()->attach($school->id);
         }
 
         return response()->json([
@@ -1355,17 +1347,19 @@ class PartnerController extends Controller
 
     /**
      * Get schools list with project counts for partner.
+     * Uses partner_schools pivot table for partner-school linkage.
      */
     public function schools(Request $request): JsonResponse
     {
         $partnerId = $this->getPartnerIdOrFail();
+        $tabloPartner = \App\Models\TabloPartner::find($partnerId);
 
         $perPage = min((int) $request->input('per_page', 18), 50);
         $search = $request->input('search');
 
-        // Schools that have projects for this partner
+        // Schools linked to this partner via pivot table
         $query = TabloSchool::select('tablo_schools.*')
-            ->whereHas('projects', fn ($q) => $q->where('partner_id', $partnerId))
+            ->whereHas('partners', fn ($q) => $q->where('partner_id', $partnerId))
             ->withCount([
                 'projects as projects_count' => fn ($q) => $q->where('partner_id', $partnerId),
                 'projects as active_projects_count' => fn ($q) => $q->where('partner_id', $partnerId)
@@ -1393,7 +1387,7 @@ class PartnerController extends Controller
         // Get school limits for this partner
         $partner = auth()->user()->partner;
         $maxSchools = $partner?->getMaxSchools();
-        $currentCount = TabloSchool::whereHas('projects', fn ($q) => $q->where('partner_id', $partnerId))->count();
+        $currentCount = $tabloPartner?->schools()->count() ?? 0;
 
         $response = $schools->toArray();
         $response['limits'] = [
@@ -1412,8 +1406,8 @@ class PartnerController extends Controller
     {
         $partnerId = $this->getPartnerIdOrFail();
 
-        // Verify school belongs to partner (has projects)
-        $school = TabloSchool::whereHas('projects', fn ($q) => $q->where('partner_id', $partnerId))
+        // Verify school belongs to partner (via pivot table)
+        $school = TabloSchool::whereHas('partners', fn ($q) => $q->where('partner_id', $partnerId))
             ->findOrFail($schoolId);
 
         $validator = Validator::make($request->all(), [
@@ -1449,14 +1443,15 @@ class PartnerController extends Controller
     }
 
     /**
-     * Delete school (only if no projects).
+     * Delete school (unlink from partner, only if no projects).
      */
     public function deleteSchool(int $schoolId): JsonResponse
     {
         $partnerId = $this->getPartnerIdOrFail();
+        $tabloPartner = \App\Models\TabloPartner::find($partnerId);
 
-        // Verify school belongs to partner
-        $school = TabloSchool::whereHas('projects', fn ($q) => $q->where('partner_id', $partnerId))
+        // Verify school belongs to partner (via pivot table)
+        $school = TabloSchool::whereHas('partners', fn ($q) => $q->where('partner_id', $partnerId))
             ->findOrFail($schoolId);
 
         // Check if school has any projects (from this partner)
@@ -1471,9 +1466,11 @@ class PartnerController extends Controller
             ], 422);
         }
 
-        // Note: We only delete if partner has no projects with this school
-        // Other partners may still have projects with this school
-        $school->delete();
+        // Unlink school from partner (remove from pivot table)
+        $tabloPartner?->schools()->detach($schoolId);
+
+        // Note: We don't delete the school itself, just unlink it from this partner
+        // The school may still be used by other partners
 
         return response()->json([
             'success' => true,
