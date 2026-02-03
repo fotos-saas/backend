@@ -86,6 +86,14 @@ class TabloPartner extends Model
     }
 
     /**
+     * Get contacts for this partner
+     */
+    public function contacts(): HasMany
+    {
+        return $this->hasMany(TabloContact::class, 'partner_id');
+    }
+
+    /**
      * Get clients for this partner
      */
     public function clients(): HasMany

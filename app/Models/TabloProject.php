@@ -183,11 +183,24 @@ class TabloProject extends Model implements HasMedia
     }
 
     /**
-     * Get contacts for this project
+     * Get contacts for this project (many-to-many via pivot).
      */
-    public function contacts(): HasMany
+    public function contacts(): BelongsToMany
     {
-        return $this->hasMany(TabloContact::class, 'tablo_project_id');
+        return $this->belongsToMany(
+            TabloContact::class,
+            'tablo_project_contacts',
+            'tablo_project_id',
+            'tablo_contact_id'
+        )->withPivot('is_primary')->withTimestamps();
+    }
+
+    /**
+     * Get the primary contact for this project.
+     */
+    public function primaryContact(): ?TabloContact
+    {
+        return $this->contacts()->wherePivot('is_primary', true)->first();
     }
 
     /**

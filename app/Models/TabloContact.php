@@ -5,18 +5,18 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 
 class TabloContact extends Model
 {
     use HasFactory;
 
     protected $fillable = [
-        'tablo_project_id',
+        'partner_id',
         'name',
         'email',
         'phone',
         'note',
-        'is_primary',
         'call_count',
         'sms_count',
         'last_contacted_at',
@@ -25,7 +25,6 @@ class TabloContact extends Model
     protected function casts(): array
     {
         return [
-            'is_primary' => 'boolean',
             'call_count' => 'integer',
             'sms_count' => 'integer',
             'last_contacted_at' => 'datetime',
@@ -33,11 +32,24 @@ class TabloContact extends Model
     }
 
     /**
-     * Get the project
+     * Get the partner that owns this contact.
      */
-    public function project(): BelongsTo
+    public function partner(): BelongsTo
     {
-        return $this->belongsTo(TabloProject::class, 'tablo_project_id');
+        return $this->belongsTo(TabloPartner::class, 'partner_id');
+    }
+
+    /**
+     * Get the projects this contact is linked to.
+     */
+    public function projects(): BelongsToMany
+    {
+        return $this->belongsToMany(
+            TabloProject::class,
+            'tablo_project_contacts',
+            'tablo_contact_id',
+            'tablo_project_id'
+        )->withPivot('is_primary')->withTimestamps();
     }
 
     /**
@@ -82,5 +94,23 @@ class TabloContact extends Model
     public function getTotalContactsAttribute(): int
     {
         return $this->call_count + $this->sms_count;
+    }
+
+    /**
+     * Check if this contact is primary for a given project.
+     */
+    public function isPrimaryForProject(int $projectId): bool
+    {
+        $pivot = $this->projects()->where('tablo_projects.id', $projectId)->first()?->pivot;
+
+        return $pivot?->is_primary ?? false;
+    }
+
+    /**
+     * Get the first project this contact is linked to (for backward compatibility).
+     */
+    public function getFirstProjectAttribute(): ?TabloProject
+    {
+        return $this->projects()->first();
     }
 }

@@ -184,7 +184,8 @@ class PartnerController extends Controller
 
         // Transform data
         $projects->getCollection()->transform(function ($project) {
-            $primaryContact = $project->contacts->firstWhere('is_primary', true)
+            // Get primary contact from pivot (is_primary is in pivot table)
+            $primaryContact = $project->contacts->first(fn ($c) => $c->pivot->is_primary ?? false)
                 ?? $project->contacts->first();
 
             $activeQrCode = $project->qrCodes->first();
@@ -236,6 +237,7 @@ class PartnerController extends Controller
             'current' => $currentCount,
             'max' => $maxClasses,
             'can_create' => $maxClasses === null || $currentCount < $maxClasses,
+            'plan_id' => $partner?->plan ?? 'alap',
         ];
 
         return response()->json($response);
@@ -263,7 +265,8 @@ class PartnerController extends Controller
             'missingPersons as missing_count' => fn ($q) => $q->whereNull('media_id'),
         ]);
 
-        $primaryContact = $project->contacts->firstWhere('is_primary', true)
+        // Get primary contact from pivot (is_primary is now in pivot table)
+        $primaryContact = $project->contacts->first(fn ($c) => $c->pivot->is_primary)
             ?? $project->contacts->first();
 
         $activeQrCode = $project->qrCodes->where('is_active', true)->first();
@@ -303,7 +306,7 @@ class PartnerController extends Controller
                 'name' => $c->name,
                 'email' => $c->email,
                 'phone' => $c->phone,
-                'isPrimary' => $c->is_primary,
+                'isPrimary' => $c->pivot->is_primary ?? false,
             ]),
             'qrCode' => $activeQrCode ? [
                 'id' => $activeQrCode->id,
@@ -414,8 +417,8 @@ class PartnerController extends Controller
     }
 
     /**
-     * Get all contacts from partner's projects for autocomplete.
-     * Returns unique contacts (by email) from all projects.
+     * Get all contacts from partner for autocomplete.
+     * Returns unique contacts (by email) from the partner.
      */
     public function allContacts(Request $request): JsonResponse
     {
@@ -423,10 +426,8 @@ class PartnerController extends Controller
 
         $search = $request->input('search');
 
-        // Get all contacts from partner's projects
-        $query = \App\Models\TabloContact::whereHas('project', function ($q) use ($partnerId) {
-            $q->where('partner_id', $partnerId);
-        });
+        // Get all contacts that belong to this partner
+        $query = \App\Models\TabloContact::where('partner_id', $partnerId);
 
         if ($search) {
             $query->where(function ($q) use ($search) {
@@ -630,12 +631,13 @@ class PartnerController extends Controller
         $contact = null;
         if ($request->filled('contact_name')) {
             $contact = \App\Models\TabloContact::create([
-                'tablo_project_id' => $project->id,
+                'partner_id' => $partnerId,
                 'name' => $request->input('contact_name'),
                 'email' => $request->input('contact_email'),
                 'phone' => $request->input('contact_phone'),
-                'is_primary' => true,
             ]);
+            // Link contact to project via pivot with is_primary = true
+            $contact->projects()->attach($project->id, ['is_primary' => true]);
         }
 
         // Load relations for response
@@ -772,6 +774,7 @@ class PartnerController extends Controller
      */
     public function addContact(Request $request, int $projectId): JsonResponse
     {
+        $partnerId = $this->getPartnerIdOrFail();
         $project = $this->getProjectForPartner($projectId);
 
         $validator = Validator::make($request->all(), [
@@ -789,17 +792,26 @@ class PartnerController extends Controller
             ], 422);
         }
 
-        // Ha ez lesz az elsődleges, többi elsődleges flag törlése
-        if ($request->boolean('isPrimary')) {
-            $project->contacts()->update(['is_primary' => false]);
+        $isPrimary = $request->boolean('isPrimary', false);
+
+        // Ha ez lesz az elsődleges, többi elsődleges flag törlése a pivot-ban
+        if ($isPrimary) {
+            $project->contacts()->updateExistingPivot(
+                $project->contacts()->pluck('tablo_contacts.id')->toArray(),
+                ['is_primary' => false]
+            );
         }
 
-        $contact = $project->contacts()->create([
+        // Create contact with partner_id
+        $contact = \App\Models\TabloContact::create([
+            'partner_id' => $partnerId,
             'name' => $request->input('name'),
             'email' => $request->input('email'),
             'phone' => $request->input('phone'),
-            'is_primary' => $request->boolean('isPrimary', false),
         ]);
+
+        // Link to project via pivot
+        $contact->projects()->attach($projectId, ['is_primary' => $isPrimary]);
 
         return response()->json([
             'success' => true,
@@ -809,7 +821,7 @@ class PartnerController extends Controller
                 'name' => $contact->name,
                 'email' => $contact->email,
                 'phone' => $contact->phone,
-                'isPrimary' => $contact->is_primary,
+                'isPrimary' => $isPrimary,
             ],
         ], 201);
     }
@@ -819,8 +831,14 @@ class PartnerController extends Controller
      */
     public function updateContact(Request $request, int $projectId, int $contactId): JsonResponse
     {
+        $partnerId = $this->getPartnerIdOrFail();
         $project = $this->getProjectForPartner($projectId);
-        $contact = $project->contacts()->findOrFail($contactId);
+
+        // Find contact that is linked to this project and belongs to partner
+        $contact = $project->contacts()
+            ->where('tablo_contacts.id', $contactId)
+            ->where('tablo_contacts.partner_id', $partnerId)
+            ->firstOrFail();
 
         $validator = Validator::make($request->all(), [
             'name' => 'sometimes|string|max:255',
@@ -837,17 +855,32 @@ class PartnerController extends Controller
             ], 422);
         }
 
-        // Ha ez lesz az elsődleges, többi elsődleges flag törlése
+        // Ha ez lesz az elsődleges, többi elsődleges flag törlése a pivot-ban
         if ($request->boolean('isPrimary')) {
-            $project->contacts()->where('id', '!=', $contactId)->update(['is_primary' => false]);
+            // Reset all other contacts' is_primary for this project
+            $project->contacts()
+                ->where('tablo_contacts.id', '!=', $contactId)
+                ->each(fn ($c) => $project->contacts()->updateExistingPivot($c->id, ['is_primary' => false]));
         }
 
+        // Update contact basic fields
         $contact->update([
             'name' => $request->input('name', $contact->name),
             'email' => $request->input('email'),
             'phone' => $request->input('phone'),
-            'is_primary' => $request->has('isPrimary') ? $request->boolean('isPrimary') : $contact->is_primary,
         ]);
+
+        // Update is_primary in pivot if provided
+        if ($request->has('isPrimary')) {
+            $project->contacts()->updateExistingPivot($contactId, [
+                'is_primary' => $request->boolean('isPrimary'),
+            ]);
+        }
+
+        // Get updated pivot data
+        $isPrimary = $project->contacts()
+            ->where('tablo_contacts.id', $contactId)
+            ->first()?->pivot?->is_primary ?? false;
 
         return response()->json([
             'success' => true,
@@ -857,24 +890,38 @@ class PartnerController extends Controller
                 'name' => $contact->name,
                 'email' => $contact->email,
                 'phone' => $contact->phone,
-                'isPrimary' => $contact->is_primary,
+                'isPrimary' => $isPrimary,
             ],
         ]);
     }
 
     /**
-     * Delete contact.
+     * Delete contact from project (detach from pivot).
+     * Note: This only removes the project-contact link, not the contact itself.
+     * If you want to delete the contact entirely, use deleteStandaloneContact().
      */
     public function deleteContact(int $projectId, int $contactId): JsonResponse
     {
+        $partnerId = $this->getPartnerIdOrFail();
         $project = $this->getProjectForPartner($projectId);
-        $contact = $project->contacts()->findOrFail($contactId);
 
-        $contact->delete();
+        // Verify contact exists and belongs to partner
+        $contact = $project->contacts()
+            ->where('tablo_contacts.id', $contactId)
+            ->where('tablo_contacts.partner_id', $partnerId)
+            ->firstOrFail();
+
+        // Detach from this project (doesn't delete the contact)
+        $project->contacts()->detach($contactId);
+
+        // If contact has no more projects, delete it entirely
+        if ($contact->projects()->count() === 0) {
+            $contact->delete();
+        }
 
         return response()->json([
             'success' => true,
-            'message' => 'Kapcsolattartó sikeresen törölve',
+            'message' => 'Kapcsolattartó sikeresen törölve a projektből',
         ]);
     }
 
@@ -1394,6 +1441,7 @@ class PartnerController extends Controller
             'current' => $currentCount,
             'max' => $maxSchools,
             'can_create' => $maxSchools === null || $currentCount < $maxSchools,
+            'plan_id' => $partner?->plan ?? 'alap',
         ];
 
         return response()->json($response);
@@ -1492,39 +1540,53 @@ class PartnerController extends Controller
         $perPage = min((int) $request->input('per_page', 18), 50);
         $search = $request->input('search');
 
-        // Contacts from partner's projects
-        $query = \App\Models\TabloContact::select('tablo_contacts.*')
-            ->join('tablo_projects', 'tablo_projects.id', '=', 'tablo_contacts.tablo_project_id')
-            ->where('tablo_projects.partner_id', $partnerId)
-            ->with(['project.school']);
+        // Contacts that belong directly to partner
+        $query = \App\Models\TabloContact::where('partner_id', $partnerId)
+            ->with(['projects.school']);
 
         // Search using centralized SearchService
         if ($search) {
             $query = app(SearchService::class)->apply($query, $search, [
-                'columns' => ['tablo_contacts.name', 'tablo_contacts.email', 'tablo_contacts.phone'],
+                'columns' => ['name', 'email', 'phone'],
             ]);
         }
 
-        $contacts = $query->orderBy('tablo_contacts.name')->paginate($perPage);
+        $contacts = $query->orderBy('name')->paginate($perPage);
 
-        $contacts->getCollection()->transform(fn ($contact) => [
-            'id' => $contact->id,
-            'name' => $contact->name,
-            'email' => $contact->email,
-            'phone' => $contact->phone,
-            'note' => $contact->note,
-            'isPrimary' => $contact->is_primary,
-            'projectId' => $contact->tablo_project_id,
-            'projectName' => $contact->project?->display_name,
-            'schoolName' => $contact->project?->school?->name,
-            'callCount' => $contact->call_count ?? 0,
-            'smsCount' => $contact->sms_count ?? 0,
-        ]);
+        $contacts->getCollection()->transform(function ($contact) {
+            // Get all projects with their school names
+            $projects = $contact->projects;
+            $projectIds = $projects->pluck('id')->toArray();
+            $projectNames = $projects->map(fn ($p) => $p->display_name)->toArray();
+            $schoolNames = $projects->map(fn ($p) => $p->school?->name)->filter()->unique()->values()->toArray();
+
+            // Check if contact is primary for any project
+            $isPrimary = $projects->contains(fn ($p) => $p->pivot->is_primary);
+
+            return [
+                'id' => $contact->id,
+                'name' => $contact->name,
+                'email' => $contact->email,
+                'phone' => $contact->phone,
+                'note' => $contact->note,
+                'isPrimary' => $isPrimary,
+                // New: multiple projects support
+                'projectIds' => $projectIds,
+                'projectNames' => $projectNames,
+                'schoolNames' => $schoolNames,
+                // Backward compatibility: first project
+                'projectId' => $projectIds[0] ?? null,
+                'projectName' => $projectNames[0] ?? null,
+                'schoolName' => $schoolNames[0] ?? null,
+                'callCount' => $contact->call_count ?? 0,
+                'smsCount' => $contact->sms_count ?? 0,
+            ];
+        });
 
         // Get contact limits for this partner
         $partner = auth()->user()->partner;
         $maxContacts = $partner?->getMaxContacts();
-        $currentCount = \App\Models\TabloContact::whereHas('project', fn ($q) => $q->where('partner_id', $partnerId))->count();
+        $currentCount = \App\Models\TabloContact::where('partner_id', $partnerId)->count();
 
         // Add limits to pagination response
         $response = $contacts->toArray();
@@ -1532,13 +1594,14 @@ class PartnerController extends Controller
             'current' => $currentCount,
             'max' => $maxContacts,
             'can_create' => $maxContacts === null || $currentCount < $maxContacts,
+            'plan_id' => $partner?->plan ?? 'alap',
         ];
 
         return response()->json($response);
     }
 
     /**
-     * Create standalone contact (must be linked to a project).
+     * Create standalone contact (optionally linked to projects).
      */
     public function createStandaloneContact(Request $request): JsonResponse
     {
@@ -1549,7 +1612,9 @@ class PartnerController extends Controller
             'email' => 'nullable|email|max:255',
             'phone' => 'nullable|string|max:50',
             'note' => 'nullable|string|max:1000',
-            'project_id' => 'required|integer|exists:tablo_projects,id',
+            'project_id' => 'nullable|integer|exists:tablo_projects,id',
+            'project_ids' => 'nullable|array',
+            'project_ids.*' => 'integer|exists:tablo_projects,id',
         ], [
             'name.required' => 'A név megadása kötelező.',
             'name.max' => 'A név maximum 255 karakter lehet.',
@@ -1557,8 +1622,8 @@ class PartnerController extends Controller
             'email.max' => 'Az email maximum 255 karakter lehet.',
             'phone.max' => 'A telefonszám maximum 50 karakter lehet.',
             'note.max' => 'A megjegyzés maximum 1000 karakter lehet.',
-            'project_id.required' => 'A projekt kiválasztása kötelező.',
             'project_id.exists' => 'A megadott projekt nem található.',
+            'project_ids.*.exists' => 'A megadott projekt nem található.',
         ]);
 
         if ($validator->fails()) {
@@ -1569,21 +1634,41 @@ class PartnerController extends Controller
             ], 422);
         }
 
-        // Verify project belongs to partner
-        $project = TabloProject::where('id', $request->input('project_id'))
-            ->where('partner_id', $partnerId)
-            ->firstOrFail();
-
+        // Create contact with partner_id
         $contact = \App\Models\TabloContact::create([
-            'tablo_project_id' => $project->id,
+            'partner_id' => $partnerId,
             'name' => $request->input('name'),
             'email' => $request->input('email'),
             'phone' => $request->input('phone'),
             'note' => $request->input('note'),
-            'is_primary' => false,
         ]);
 
-        $contact->load('project.school');
+        // Get project IDs (support both single and array)
+        $projectIds = $request->input('project_ids', []);
+        if ($request->filled('project_id') && empty($projectIds)) {
+            $projectIds = [$request->input('project_id')];
+        }
+
+        // Verify all projects belong to partner and attach
+        if (!empty($projectIds)) {
+            $projectIds = array_map('intval', $projectIds);
+            $validProjects = TabloProject::whereIn('id', $projectIds)
+                ->where('partner_id', $partnerId)
+                ->pluck('id')
+                ->toArray();
+
+            foreach ($validProjects as $projectId) {
+                $contact->projects()->attach($projectId, ['is_primary' => false]);
+            }
+        }
+
+        $contact->load('projects.school');
+
+        // Build response
+        $projects = $contact->projects;
+        $projectIdsResult = $projects->pluck('id')->toArray();
+        $projectNames = $projects->map(fn ($p) => $p->display_name)->toArray();
+        $schoolNames = $projects->map(fn ($p) => $p->school?->name)->filter()->unique()->values()->toArray();
 
         return response()->json([
             'success' => true,
@@ -1594,23 +1679,30 @@ class PartnerController extends Controller
                 'email' => $contact->email,
                 'phone' => $contact->phone,
                 'note' => $contact->note,
-                'isPrimary' => $contact->is_primary,
-                'projectId' => $contact->tablo_project_id,
-                'projectName' => $contact->project?->display_name,
-                'schoolName' => $contact->project?->school?->name,
+                'isPrimary' => false,
+                // New: multiple projects
+                'projectIds' => $projectIdsResult,
+                'projectNames' => $projectNames,
+                'schoolNames' => $schoolNames,
+                // Backward compatibility
+                'projectId' => $projectIdsResult[0] ?? null,
+                'projectName' => $projectNames[0] ?? null,
+                'schoolName' => $schoolNames[0] ?? null,
+                'callCount' => 0,
+                'smsCount' => 0,
             ],
         ], 201);
     }
 
     /**
-     * Update standalone contact (can change project).
+     * Update standalone contact (can change projects).
      */
     public function updateStandaloneContact(Request $request, int $contactId): JsonResponse
     {
         $partnerId = $this->getPartnerIdOrFail();
 
-        // Find contact that belongs to partner's project
-        $contact = \App\Models\TabloContact::whereHas('project', fn ($q) => $q->where('partner_id', $partnerId))
+        // Find contact that belongs to this partner
+        $contact = \App\Models\TabloContact::where('partner_id', $partnerId)
             ->findOrFail($contactId);
 
         $validator = Validator::make($request->all(), [
@@ -1618,7 +1710,9 @@ class PartnerController extends Controller
             'email' => 'nullable|email|max:255',
             'phone' => 'nullable|string|max:50',
             'note' => 'nullable|string|max:1000',
-            'project_id' => 'sometimes|integer|exists:tablo_projects,id',
+            'project_id' => 'nullable|integer|exists:tablo_projects,id',
+            'project_ids' => 'nullable|array',
+            'project_ids.*' => 'integer|exists:tablo_projects,id',
         ], [
             'name.max' => 'A név maximum 255 karakter lehet.',
             'email.email' => 'Érvénytelen email cím.',
@@ -1626,6 +1720,7 @@ class PartnerController extends Controller
             'phone.max' => 'A telefonszám maximum 50 karakter lehet.',
             'note.max' => 'A megjegyzés maximum 1000 karakter lehet.',
             'project_id.exists' => 'A megadott projekt nem található.',
+            'project_ids.*.exists' => 'A megadott projekt nem található.',
         ]);
 
         if ($validator->fails()) {
@@ -1636,15 +1731,7 @@ class PartnerController extends Controller
             ], 422);
         }
 
-        // If changing project, verify new project belongs to partner
-        if ($request->has('project_id')) {
-            TabloProject::where('id', $request->input('project_id'))
-                ->where('partner_id', $partnerId)
-                ->firstOrFail();
-
-            $contact->tablo_project_id = $request->input('project_id');
-        }
-
+        // Update basic fields
         $contact->update([
             'name' => $request->input('name', $contact->name),
             'email' => $request->input('email'),
@@ -1652,7 +1739,38 @@ class PartnerController extends Controller
             'note' => $request->input('note'),
         ]);
 
-        $contact->load('project.school');
+        // Handle project sync if provided
+        if ($request->has('project_ids') || $request->has('project_id')) {
+            $projectIds = $request->input('project_ids', []);
+            if ($request->filled('project_id') && empty($projectIds)) {
+                $projectIds = [$request->input('project_id')];
+            }
+
+            // Verify all projects belong to partner
+            $projectIds = array_map('intval', $projectIds);
+            $validProjects = TabloProject::whereIn('id', $projectIds)
+                ->where('partner_id', $partnerId)
+                ->pluck('id')
+                ->toArray();
+
+            // Sync projects (this will detach old and attach new)
+            // Preserve is_primary flags for existing relationships
+            $syncData = [];
+            foreach ($validProjects as $projectId) {
+                $existingPivot = $contact->projects()->where('tablo_projects.id', $projectId)->first()?->pivot;
+                $syncData[$projectId] = ['is_primary' => $existingPivot?->is_primary ?? false];
+            }
+            $contact->projects()->sync($syncData);
+        }
+
+        $contact->load('projects.school');
+
+        // Build response
+        $projects = $contact->projects;
+        $projectIdsResult = $projects->pluck('id')->toArray();
+        $projectNames = $projects->map(fn ($p) => $p->display_name)->toArray();
+        $schoolNames = $projects->map(fn ($p) => $p->school?->name)->filter()->unique()->values()->toArray();
+        $isPrimary = $projects->contains(fn ($p) => $p->pivot->is_primary);
 
         return response()->json([
             'success' => true,
@@ -1663,10 +1781,17 @@ class PartnerController extends Controller
                 'email' => $contact->email,
                 'phone' => $contact->phone,
                 'note' => $contact->note,
-                'isPrimary' => $contact->is_primary,
-                'projectId' => $contact->tablo_project_id,
-                'projectName' => $contact->project?->display_name,
-                'schoolName' => $contact->project?->school?->name,
+                'isPrimary' => $isPrimary,
+                // New: multiple projects
+                'projectIds' => $projectIdsResult,
+                'projectNames' => $projectNames,
+                'schoolNames' => $schoolNames,
+                // Backward compatibility
+                'projectId' => $projectIdsResult[0] ?? null,
+                'projectName' => $projectNames[0] ?? null,
+                'schoolName' => $schoolNames[0] ?? null,
+                'callCount' => $contact->call_count ?? 0,
+                'smsCount' => $contact->sms_count ?? 0,
             ],
         ]);
     }
@@ -1678,8 +1803,8 @@ class PartnerController extends Controller
     {
         $partnerId = $this->getPartnerIdOrFail();
 
-        // Find contact that belongs to partner's project
-        $contact = \App\Models\TabloContact::whereHas('project', fn ($q) => $q->where('partner_id', $partnerId))
+        // Find contact that belongs to this partner
+        $contact = \App\Models\TabloContact::where('partner_id', $partnerId)
             ->findOrFail($contactId);
 
         $contact->delete();

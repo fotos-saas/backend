@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\TabloProjectResource\RelationManagers;
 
 use App\Filament\Resources\TabloProjectResource;
+use App\Models\TabloContact;
 use Filament\Actions\CreateAction;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\DeleteBulkAction;
@@ -128,16 +129,81 @@ class ContactsRelationManager extends RelationManager
             ->headerActions([
                 CreateAction::make()
                     ->label('Új Kapcsolattartó')
-                    ->modalWidth('lg'),
+                    ->modalWidth('lg')
+                    ->mutateFormDataUsing(function (array $data): array {
+                        // Add partner_id from parent project
+                        $data['partner_id'] = $this->getOwnerRecord()->partner_id;
+
+                        return $data;
+                    })
+                    ->using(function (array $data): Model {
+                        // Extract is_primary for pivot
+                        $isPrimary = $data['is_primary'] ?? false;
+                        unset($data['is_primary']);
+
+                        // Create contact
+                        $contact = TabloContact::create($data);
+
+                        // Attach to project via pivot
+                        $contact->projects()->attach($this->getOwnerRecord()->id, [
+                            'is_primary' => $isPrimary,
+                        ]);
+
+                        return $contact;
+                    }),
             ])
             ->actions([
                 EditAction::make()
-                    ->modalWidth('lg'),
-                DeleteAction::make(),
+                    ->modalWidth('lg')
+                    ->mutateRecordDataUsing(function (array $data, Model $record): array {
+                        // Load is_primary from pivot
+                        $pivot = $record->projects()
+                            ->where('tablo_projects.id', $this->getOwnerRecord()->id)
+                            ->first()?->pivot;
+                        $data['is_primary'] = $pivot?->is_primary ?? false;
+
+                        return $data;
+                    })
+                    ->using(function (Model $record, array $data): Model {
+                        // Extract is_primary for pivot
+                        $isPrimary = $data['is_primary'] ?? false;
+                        unset($data['is_primary']);
+
+                        // Update contact
+                        $record->update($data);
+
+                        // Update pivot
+                        $record->projects()->updateExistingPivot($this->getOwnerRecord()->id, [
+                            'is_primary' => $isPrimary,
+                        ]);
+
+                        return $record;
+                    }),
+                DeleteAction::make()
+                    ->using(function (Model $record): void {
+                        // Detach from this project
+                        $record->projects()->detach($this->getOwnerRecord()->id);
+
+                        // Delete contact if no more projects
+                        if ($record->projects()->count() === 0) {
+                            $record->delete();
+                        }
+                    }),
             ])
             ->bulkActions([
                 \Filament\Actions\BulkActionGroup::make([
-                    DeleteBulkAction::make(),
+                    DeleteBulkAction::make()
+                        ->using(function ($records): void {
+                            foreach ($records as $record) {
+                                // Detach from this project
+                                $record->projects()->detach($this->getOwnerRecord()->id);
+
+                                // Delete contact if no more projects
+                                if ($record->projects()->count() === 0) {
+                                    $record->delete();
+                                }
+                            }
+                        }),
                 ]),
             ]);
     }

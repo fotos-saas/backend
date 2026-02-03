@@ -12,7 +12,7 @@ use Illuminate\Support\Facades\Validator;
 class TabloContactController extends Controller
 {
     /**
-     * List contacts for a project
+     * List contacts for a project (via pivot table).
      */
     public function index(int $projectId): JsonResponse
     {
@@ -37,13 +37,14 @@ class TabloContactController extends Controller
                 'email' => $c->email,
                 'phone' => $c->phone,
                 'note' => $c->note,
+                'isPrimary' => $c->pivot->is_primary ?? false,
                 'created_at' => $c->created_at->toIso8601String(),
             ]),
         ]);
     }
 
     /**
-     * Add contact to project
+     * Add contact to project.
      */
     public function store(Request $request, int $projectId): JsonResponse
     {
@@ -71,12 +72,17 @@ class TabloContactController extends Controller
             ], 422);
         }
 
-        $contact = $project->contacts()->create([
+        // Create contact with partner_id from project
+        $contact = TabloContact::create([
+            'partner_id' => $project->partner_id,
             'name' => $request->input('name'),
             'email' => $request->input('email'),
             'phone' => $request->input('phone'),
             'note' => $request->input('note'),
         ]);
+
+        // Link to project via pivot
+        $contact->projects()->attach($projectId, ['is_primary' => false]);
 
         return response()->json([
             'success' => true,
@@ -87,13 +93,14 @@ class TabloContactController extends Controller
                 'email' => $contact->email,
                 'phone' => $contact->phone,
                 'note' => $contact->note,
+                'isPrimary' => false,
                 'created_at' => $contact->created_at->toIso8601String(),
             ],
         ], 201);
     }
 
     /**
-     * Update contact
+     * Update contact.
      */
     public function update(Request $request, int $id): JsonResponse
     {
@@ -137,7 +144,7 @@ class TabloContactController extends Controller
     }
 
     /**
-     * Delete contact
+     * Delete contact.
      */
     public function destroy(int $id): JsonResponse
     {
