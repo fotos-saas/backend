@@ -3,6 +3,7 @@
 namespace App\Services\Subscription;
 
 use App\Models\Partner;
+use App\Models\TabloPartner;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -108,9 +109,21 @@ class PartnerRegistrationService
                 'subscription_ends_at' => $subscriptionEndsAt,
             ]);
 
+            // Create TabloPartner for project management
+            $tabloPartner = TabloPartner::create([
+                'name' => $registrationData['billing']['company_name'] ?? $registrationData['name'],
+                'email' => $registrationData['email'],
+                'phone' => $registrationData['billing']['phone'] ?? null,
+            ]);
+
+            // Link user to TabloPartner
+            $user->tablo_partner_id = $tabloPartner->id;
+            $user->save();
+
             return [
                 'user' => $user,
                 'partner' => $partner,
+                'tabloPartner' => $tabloPartner,
             ];
         });
     }

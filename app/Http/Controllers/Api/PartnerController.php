@@ -177,6 +177,11 @@ class PartnerController extends Controller
 
         $projects = $query->paginate($perPage);
 
+        // Get project limits for this partner
+        $partner = auth()->user()->partner;
+        $maxClasses = $partner?->getMaxClasses();
+        $currentCount = TabloProject::where('partner_id', $partnerId)->count();
+
         // Transform data
         $projects->getCollection()->transform(function ($project) {
             $primaryContact = $project->contacts->firstWhere('is_primary', true)
@@ -225,7 +230,15 @@ class PartnerController extends Controller
             ];
         });
 
-        return response()->json($projects);
+        // Add limits to pagination response
+        $response = $projects->toArray();
+        $response['limits'] = [
+            'current' => $currentCount,
+            'max' => $maxClasses,
+            'can_create' => $maxClasses === null || $currentCount < $maxClasses,
+        ];
+
+        return response()->json($response);
     }
 
     /**
@@ -526,6 +539,22 @@ class PartnerController extends Controller
     public function storeProject(Request $request): JsonResponse
     {
         $partnerId = $this->getPartnerIdOrFail();
+
+        // Check project limit
+        $partner = auth()->user()->partner;
+        if ($partner) {
+            $maxClasses = $partner->getMaxClasses();
+            if ($maxClasses !== null) {
+                $currentCount = TabloProject::where('partner_id', $partnerId)->count();
+                if ($currentCount >= $maxClasses) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Elérted a csomagodban elérhető maximum projektszámot. Válts magasabb csomagra a korlátozás feloldásához!',
+                        'upgrade_required' => true,
+                    ], 403);
+                }
+            }
+        }
 
         $validator = Validator::make($request->all(), [
             'school_id' => 'nullable|exists:tablo_schools,id',
