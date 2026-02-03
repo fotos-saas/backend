@@ -714,6 +714,21 @@ class PartnerController extends Controller
         ]);
     }
 
+    /**
+     * Delete a project.
+     */
+    public function deleteProject(int $projectId): JsonResponse
+    {
+        $project = $this->getProjectForPartner($projectId);
+
+        $project->delete();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Projekt sikeresen törölve',
+        ]);
+    }
+
     // ============================================
     // QR CODE MANAGEMENT
     // ============================================
