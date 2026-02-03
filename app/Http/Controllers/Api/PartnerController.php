@@ -1477,7 +1477,20 @@ class PartnerController extends Controller
             'smsCount' => $contact->sms_count ?? 0,
         ]);
 
-        return response()->json($contacts);
+        // Get contact limits for this partner
+        $partner = auth()->user()->partner;
+        $maxContacts = $partner?->getMaxContacts();
+        $currentCount = \App\Models\TabloContact::whereHas('project', fn ($q) => $q->where('partner_id', $partnerId))->count();
+
+        // Add limits to pagination response
+        $response = $contacts->toArray();
+        $response['limits'] = [
+            'current' => $currentCount,
+            'max' => $maxContacts,
+            'can_create' => $maxContacts === null || $currentCount < $maxContacts,
+        ];
+
+        return response()->json($response);
     }
 
     /**

@@ -40,7 +40,8 @@ return [
             'limits' => [
                 'storage_gb' => 5,
                 'max_classes' => 10,
-                'max_schools' => 30,
+                'max_schools' => 20,
+                'max_contacts' => 50,
                 'max_templates' => 10,
             ],
 
@@ -56,7 +57,8 @@ return [
             'feature_labels' => [
                 '5 GB tárhely',
                 'Max. 10 osztály',
-                'Max. 30 iskola',
+                'Max. 20 iskola',
+                'Max. 50 kapcsolattartó',
                 'Online képválasztás',
                 'Sablon szerkesztő',
                 'QR kódos megosztás',
@@ -79,6 +81,7 @@ return [
                 'storage_gb' => 100,
                 'max_classes' => 20,
                 'max_schools' => null,
+                'max_contacts' => null,
                 'max_templates' => null,
             ],
 
@@ -124,6 +127,7 @@ return [
                 'storage_gb' => 500,
                 'max_classes' => null,
                 'max_schools' => null,
+                'max_contacts' => null,
                 'max_templates' => null,
             ],
 

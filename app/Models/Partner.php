@@ -209,7 +209,15 @@ class Partner extends Model
      */
     public function getMaxSchools(): ?int
     {
-        return $this->getPlanLimit('max_schools') ?? 30;
+        return $this->getPlanLimit('max_schools') ?? 20;
+    }
+
+    /**
+     * Get max contacts limit (null = unlimited)
+     */
+    public function getMaxContacts(): ?int
+    {
+        return $this->getPlanLimit('max_contacts') ?? 50;
     }
 
     /**
