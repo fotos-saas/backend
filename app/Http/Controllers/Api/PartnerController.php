@@ -668,6 +668,52 @@ class PartnerController extends Controller
         ], 201);
     }
 
+    /**
+     * Update an existing project.
+     */
+    public function updateProject(Request $request, int $projectId): JsonResponse
+    {
+        $project = $this->getProjectForPartner($projectId);
+
+        $validator = Validator::make($request->all(), [
+            'school_id' => 'nullable|exists:tablo_schools,id',
+            'class_name' => 'nullable|string|max:255',
+            'class_year' => 'nullable|string|max:50',
+            'photo_date' => 'nullable|date',
+            'deadline' => 'nullable|date',
+            'expected_class_size' => 'nullable|integer|min:1|max:500',
+        ], [
+            'school_id.exists' => 'A megadott iskola nem található.',
+            'class_name.max' => 'Az osztály neve maximum 255 karakter lehet.',
+            'class_year.max' => 'Az évfolyam maximum 50 karakter lehet.',
+            'photo_date.date' => 'Érvénytelen fotózás dátum.',
+            'deadline.date' => 'Érvénytelen határidő dátum.',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validációs hiba',
+                'errors' => $validator->errors(),
+            ], 422);
+        }
+
+        // Update the project
+        $project->update([
+            'school_id' => $request->input('school_id'),
+            'class_name' => $request->input('class_name'),
+            'class_year' => $request->input('class_year'),
+            'photo_date' => $request->input('photo_date'),
+            'deadline' => $request->input('deadline'),
+            'expected_class_size' => $request->input('expected_class_size', $project->expected_class_size),
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Projekt sikeresen módosítva',
+        ]);
+    }
+
     // ============================================
     // QR CODE MANAGEMENT
     // ============================================

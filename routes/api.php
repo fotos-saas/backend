@@ -432,6 +432,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/stats', [PartnerController::class, 'stats']);
         Route::get('/projects', [PartnerController::class, 'projects']);
         Route::post('/projects', [PartnerController::class, 'storeProject']);
+        Route::put('/projects/{projectId}', [PartnerController::class, 'updateProject']);
         Route::get('/projects/autocomplete', [PartnerController::class, 'projectsAutocomplete']);
         Route::get('/projects/{projectId}', [PartnerController::class, 'projectDetails']);
         Route::get('/projects/{projectId}/samples', [PartnerController::class, 'projectSamples']);
