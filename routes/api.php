@@ -432,9 +432,10 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/stats', [PartnerController::class, 'stats']);
         Route::get('/projects', [PartnerController::class, 'projects']);
         Route::post('/projects', [PartnerController::class, 'storeProject']);
-        Route::put('/projects/{projectId}', [PartnerController::class, 'updateProject']);
-        Route::delete('/projects/{projectId}', [PartnerController::class, 'deleteProject']);
         Route::get('/projects/autocomplete', [PartnerController::class, 'projectsAutocomplete']);
+        Route::put('/projects/{projectId}', [PartnerController::class, 'updateProject']);
+        Route::patch('/projects/{projectId}/toggle-aware', [PartnerController::class, 'toggleAware']);
+        Route::delete('/projects/{projectId}', [PartnerController::class, 'deleteProject']);
         Route::get('/projects/{projectId}', [PartnerController::class, 'projectDetails']);
         Route::get('/projects/{projectId}/samples', [PartnerController::class, 'projectSamples']);
         Route::get('/projects/{projectId}/missing-persons', [PartnerController::class, 'projectMissingPersons']);

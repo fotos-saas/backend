@@ -729,6 +729,24 @@ class PartnerController extends Controller
         ]);
     }
 
+    /**
+     * Toggle is_aware status for a project.
+     */
+    public function toggleAware(int $projectId): JsonResponse
+    {
+        $project = $this->getProjectForPartner($projectId);
+
+        $project->update([
+            'is_aware' => !$project->is_aware,
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => $project->is_aware ? 'Tudnak róla' : 'Nem tudnak róla',
+            'isAware' => $project->is_aware,
+        ]);
+    }
+
     // ============================================
     // QR CODE MANAGEMENT
     // ============================================
