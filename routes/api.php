@@ -135,7 +135,6 @@ Route::prefix('auth')->group(function () {
         ->middleware('throttle:10,1'); // Token validation
     Route::get('/magic/{token}', [AuthController::class, 'loginMagic'])
         ->middleware('throttle:10,1'); // Magic link login
-    Route::post('/magic/consume', [AuthController::class, 'consumeMagicToken']); // Legacy
 
     // QR Registration (public - for tablo frontend)
     Route::get('/qr-code/{code}/validate', [AuthController::class, 'validateQrCode'])

@@ -46,11 +46,11 @@ class PartnerAddon extends Model
     }
 
     /**
-     * Get addon definition from Partner::ADDONS
+     * Get addon definition from config
      */
     public function getDefinition(): ?array
     {
-        return Partner::ADDONS[$this->addon_key] ?? null;
+        return config("plans.addons.{$this->addon_key}");
     }
 
     /**

@@ -133,7 +133,7 @@ class AuthController extends Controller
 
         // Ha tablo-guest felhasználó (internal email), keressük meg a hozzá tartozó projektet
         // Email formátum: tablo-guest-{projectId}-xxx@internal.local
-        \Log::info('[Auth] Checking for tablo-guest login', ['email' => $user->email]);
+        \Log::info('[Auth] Checking for tablo-guest login', ['user_id' => $user->id]);
 
         if (preg_match('/^tablo-guest-(\d+)-[a-zA-Z0-9]+@internal\.local$/', $user->email ?? '', $matches)) {
             $projectId = (int) $matches[1];
@@ -534,7 +534,6 @@ class AuthController extends Controller
                 \Log::info('[Auth] Guest session restored via magic link', [
                     'project_id' => $tabloProject->id,
                     'session_id' => $restoredSession->id,
-                    'guest_name' => $restoredSession->guest_name,
                 ]);
             }
         }
@@ -862,7 +861,6 @@ class AuthController extends Controller
 
         } catch (\Exception $e) {
             \Log::error('Magic link request failed: ' . $e->getMessage(), [
-                'email' => $email,
                 'trace' => $e->getTraceAsString(),
             ]);
 
@@ -1087,35 +1085,6 @@ class AuthController extends Controller
                 'email' => $user->email,
                 'password_set' => true,
             ],
-        ]);
-    }
-
-    /**
-     * Consume magic token (legacy - kept for backward compatibility)
-     */
-    public function consumeMagicToken(Request $request)
-    {
-        $validated = $request->validate([
-            'token' => 'required|string',
-        ]);
-
-        // TODO: Implement proper magic link token verification
-        // This is a placeholder implementation
-        // In production, verify token from database/cache with expiration
-
-        $tokenData = decrypt($validated['token']);
-
-        $user = User::where('email', $tokenData['email'])->first();
-
-        if (! $user) {
-            return response()->json(['message' => 'Invalid token'], 401);
-        }
-
-        Auth::login($user);
-
-        return response()->json([
-            'message' => 'Authenticated',
-            'user' => $user,
         ]);
     }
 

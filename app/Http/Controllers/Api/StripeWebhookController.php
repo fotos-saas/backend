@@ -198,10 +198,7 @@ class StripeWebhookController extends Controller
             'amount_paid' => $invoice->amount_paid,
         ]);
 
-        // Check if this is a registration checkout
-        if (isset($invoice->metadata->registration_token)) {
-            $controller = app(\App\Http\Controllers\Api\SubscriptionController::class);
-            $controller->handleSuccessfulPayment($invoice->id);
-        }
+        // Registration checkout handling is done via checkout.session.completed event
+        // Invoice events are logged but no action needed
     }
 }
