@@ -205,6 +205,7 @@ class PartnerDashboardController extends Controller
                 'hasActiveQrCode' => $activeQrCode !== null,
                 'isAware' => $project->is_aware,
                 'createdAt' => $project->created_at->toIso8601String(),
+                'finalizedAt' => $project->data['finalized_at'] ?? null,
             ];
         });
 
