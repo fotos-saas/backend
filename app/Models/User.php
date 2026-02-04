@@ -212,7 +212,7 @@ class User extends Authenticatable implements FilamentUser
 
     /**
      * Get the effective partner for this user (own or via team membership).
-     * Csapattagok esetén a tablo_partner_id alapján keresi meg a Partner-t.
+     * Csapattagok esetén a tablo_partner_id alapján keresi meg a Partner-t (a tulajdonos userén keresztül).
      */
     public function getEffectivePartner(): ?Partner
     {
@@ -221,9 +221,13 @@ class User extends Authenticatable implements FilamentUser
             return $this->partner;
         }
 
-        // Ha csapattag, keressük meg a tablo_partner_id alapján
+        // Ha csapattag, keressük meg a TabloPartner email alapján a tulajdonos Partner-jét
         if ($this->tablo_partner_id) {
-            return Partner::where('tablo_partner_id', $this->tablo_partner_id)->first();
+            $tabloPartner = TabloPartner::find($this->tablo_partner_id);
+            if ($tabloPartner && $tabloPartner->email) {
+                $ownerUser = User::where('email', $tabloPartner->email)->first();
+                return $ownerUser?->partner;
+            }
         }
 
         return null;
