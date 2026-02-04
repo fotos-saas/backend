@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\Tablo;
 
 use App\Http\Controllers\Controller;
+use App\Http\Controllers\Api\Traits\ApiResponseTrait;
 use App\Models\TabloGuestSession;
 use App\Models\TabloProject;
 use Illuminate\Http\JsonResponse;
@@ -13,87 +14,13 @@ use Illuminate\Http\Request;
  *
  * Alap osztály minden Tablo API controllerhez.
  * Közös funkcionalitások:
- * - JSON response formázás (success, error, notFound)
+ * - JSON response formázás (ApiResponseTrait)
  * - Projekt azonosítás token alapján
  * - Guest session kezelés
  */
 abstract class BaseTabloController extends Controller
 {
-    // ============================================================================
-    // JSON RESPONSE HELPERS
-    // ============================================================================
-
-    /**
-     * Sikeres válasz egységes formátumban.
-     */
-    protected function successResponse(
-        mixed $data = null,
-        string $message = 'Sikeres',
-        int $code = 200
-    ): JsonResponse {
-        $response = [
-            'success' => true,
-            'message' => $message,
-        ];
-
-        if ($data !== null) {
-            $response['data'] = $data;
-        }
-
-        return response()->json($response, $code);
-    }
-
-    /**
-     * Hiba válasz egységes formátumban.
-     */
-    protected function errorResponse(
-        string $message,
-        int $code = 400,
-        array $errors = []
-    ): JsonResponse {
-        $response = [
-            'success' => false,
-            'message' => $message,
-        ];
-
-        if (! empty($errors)) {
-            $response['errors'] = $errors;
-        }
-
-        return response()->json($response, $code);
-    }
-
-    /**
-     * 404 Not Found válasz.
-     */
-    protected function notFoundResponse(string $message = 'Nem található'): JsonResponse
-    {
-        return $this->errorResponse($message, 404);
-    }
-
-    /**
-     * 401 Unauthorized válasz.
-     */
-    protected function unauthorizedResponse(string $message = 'Azonosítás szükséges'): JsonResponse
-    {
-        return $this->errorResponse($message, 401);
-    }
-
-    /**
-     * 403 Forbidden válasz.
-     */
-    protected function forbiddenResponse(string $message = 'Nincs jogosultság'): JsonResponse
-    {
-        return $this->errorResponse($message, 403);
-    }
-
-    /**
-     * 422 Validation error válasz.
-     */
-    protected function validationErrorResponse(string $message, array $errors = []): JsonResponse
-    {
-        return $this->errorResponse($message, 422, $errors);
-    }
+    use ApiResponseTrait;
 
     // ============================================================================
     // PROJECT & TOKEN HELPERS
