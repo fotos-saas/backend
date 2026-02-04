@@ -32,13 +32,14 @@ class CheckFinalizationAccess
         }
 
         // Token típus ellenőrzése
+        // Engedélyezett: kódos belépés (tablo-auth-token) és QR regisztráció (qr-registration)
         $tokenName = $token->name;
-        $allowedTokens = ['tablo-auth-token'];
+        $allowedTokens = ['tablo-auth-token', 'qr-registration'];
 
         if (! in_array($tokenName, $allowedTokens)) {
             return response()->json([
                 'success' => false,
-                'message' => 'A véglegesítés csak belépési kóddal érhető el. Megosztott vagy előnézeti linkkel nem lehetséges.',
+                'message' => 'A véglegesítés csak belépési kóddal vagy QR regisztrációval érhető el. Megosztott vagy előnézeti linkkel nem lehetséges.',
             ], 403);
         }
 

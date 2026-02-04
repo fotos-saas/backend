@@ -36,9 +36,9 @@ class RequireFullAccess
             ], 401);
         }
 
-        // Token típus ellenőrzése - csak 'tablo-auth-token' engedélyezett
+        // Token típus ellenőrzése - kódos belépés és QR regisztráció engedélyezett
         $tokenName = $token->name;
-        $allowedTokens = ['tablo-auth-token'];
+        $allowedTokens = ['tablo-auth-token', 'qr-registration'];
 
         if (! in_array($tokenName, $allowedTokens)) {
             return response()->json([
