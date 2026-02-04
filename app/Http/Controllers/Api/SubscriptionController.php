@@ -420,13 +420,18 @@ class SubscriptionController extends Controller
         }
 
         // Ha nem tulajdonos, csapattagként keresünk
-        $teamMember = \App\Models\PartnerTeamMember::where('user_id', $userId)
-            ->where('is_active', true)
-            ->first();
-
-        if ($teamMember) {
-            return Partner::with(['addons' => fn ($q) => $q->where('status', 'active')])
-                ->find($teamMember->partner_id);
+        // A user-ből vesszük a tablo_partner_id-t, majd a TabloPartner email alapján a Partner-t
+        $user = \App\Models\User::find($userId);
+        if ($user && $user->tablo_partner_id) {
+            $tabloPartner = \App\Models\TabloPartner::find($user->tablo_partner_id);
+            if ($tabloPartner && $tabloPartner->email) {
+                $ownerUser = \App\Models\User::where('email', $tabloPartner->email)->first();
+                if ($ownerUser) {
+                    return Partner::with(['addons' => fn ($q) => $q->where('status', 'active')])
+                        ->where('user_id', $ownerUser->id)
+                        ->first();
+                }
+            }
         }
 
         return null;
