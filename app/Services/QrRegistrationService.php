@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\QrRegistrationCode;
+use App\Models\TabloContact;
 use App\Models\TabloGuestSession;
 use App\Models\TabloProject;
 use App\Models\User;
@@ -150,6 +151,36 @@ class QrRegistrationService
                 'last_activity_at' => now(),
             ]);
 
+            // Create TabloContact and link to project
+            // Check if contact with same email already exists for this partner
+            $existingContact = TabloContact::where('partner_id', $project->partner_id)
+                ->where('email', $email)
+                ->first();
+
+            if ($existingContact) {
+                // Link existing contact to project if not already linked
+                if (! $existingContact->projects()->where('tablo_projects.id', $project->id)->exists()) {
+                    $existingContact->projects()->attach($project->id, [
+                        'is_primary' => ! $project->contacts()->exists(), // Primary if no other contacts
+                    ]);
+                }
+                $contact = $existingContact;
+            } else {
+                // Create new contact
+                $contact = TabloContact::create([
+                    'partner_id' => $project->partner_id,
+                    'name' => $name,
+                    'email' => $email,
+                    'phone' => $phone,
+                    'note' => 'QR kóddal regisztrált ügyintéző',
+                ]);
+
+                // Link to project (primary if no other contacts exist)
+                $contact->projects()->attach($project->id, [
+                    'is_primary' => ! $project->contacts()->exists(),
+                ]);
+            }
+
             // Increment QR code usage
             $qrCode->incrementUsage();
 
@@ -182,6 +213,7 @@ class QrRegistrationService
                 'project_id' => $project->id,
                 'user_id' => $user->id,
                 'guest_session_id' => $guestSession->id,
+                'contact_id' => $contact->id,
                 'qr_code' => $qrCode->code,
             ]);
 
