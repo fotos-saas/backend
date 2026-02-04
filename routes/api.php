@@ -36,6 +36,9 @@ use App\Http\Controllers\Api\PartnerClientController;
 use App\Http\Controllers\Api\PartnerOrderAlbumController;
 use App\Http\Controllers\Api\ClientAlbumController;
 use App\Http\Controllers\Api\ClientAuthController;
+use App\Http\Controllers\Api\InviteRegisterController;
+use App\Http\Controllers\Api\Partner\InvitationController as PartnerInvitationController;
+use App\Http\Controllers\Api\Partner\TeamController as PartnerTeamController;
 use App\Http\Middleware\SyncFotocmsId;
 use App\Http\Middleware\TabloApiKeyAuth;
 use Illuminate\Http\Request;
@@ -141,6 +144,15 @@ Route::prefix('auth')->group(function () {
         ->middleware('throttle:20,1');
     Route::post('/register-qr', [AuthController::class, 'registerFromQr'])
         ->middleware('throttle:10,1');
+});
+
+// ============================================
+// INVITE REGISTRATION (Meghívó kóddal regisztráció)
+// ============================================
+// Public routes - nincs auth szükséges
+Route::prefix('invite')->middleware('throttle:10,1')->group(function () {
+    Route::post('/validate', [InviteRegisterController::class, 'validateCode']);
+    Route::post('/register', [InviteRegisterController::class, 'register']);
 });
 
 // Guest Share Routes
@@ -438,6 +450,20 @@ Route::middleware('auth:sanctum')->group(function () {
     // ============================================
     Route::prefix('partner')->middleware('role:partner')->group(function () {
         Route::get('/stats', [PartnerController::class, 'stats']);
+
+        // ============================================
+        // TEAM MANAGEMENT (Csapatkezelés)
+        // ============================================
+        // Csapat összefoglaló
+        Route::get('/team', [PartnerTeamController::class, 'index']);
+        Route::put('/team/{id}', [PartnerTeamController::class, 'update']);
+        Route::delete('/team/{id}', [PartnerTeamController::class, 'destroy']);
+
+        // Meghívók kezelése
+        Route::get('/invitations', [PartnerInvitationController::class, 'index']);
+        Route::post('/invitations', [PartnerInvitationController::class, 'store']);
+        Route::delete('/invitations/{id}', [PartnerInvitationController::class, 'destroy']);
+        Route::post('/invitations/{id}/resend', [PartnerInvitationController::class, 'resend']);
         Route::get('/projects', [PartnerController::class, 'projects']);
         Route::post('/projects', [PartnerController::class, 'storeProject']);
         Route::get('/projects/autocomplete', [PartnerController::class, 'projectsAutocomplete']);

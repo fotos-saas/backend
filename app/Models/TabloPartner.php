@@ -11,13 +11,20 @@ use Illuminate\Support\Str;
 /**
  * TabloPartner Model
  *
- * Tablo partnercégek (fotóstúdiók).
+ * Tablo partnercégek (fotóstúdiók és nyomdák).
  * Az ügyintézők (User-ek) a tablo_partner_id-n keresztül kapcsolódnak.
+ *
+ * Partner típusok:
+ * - photo_studio: Fotós partner (előfizetéses modell)
+ * - print_shop: Nyomda partner (forgalom alapú díjazás)
  */
-
 class TabloPartner extends Model
 {
     use HasFactory;
+
+    // Partner típusok
+    public const TYPE_PHOTO_STUDIO = 'photo_studio';
+    public const TYPE_PRINT_SHOP = 'print_shop';
 
     protected $fillable = [
         'name',
@@ -25,11 +32,14 @@ class TabloPartner extends Model
         'phone',
         'slug',
         'local_id',
+        'type',
+        'commission_rate',
         'features',
     ];
 
     protected $casts = [
         'features' => 'array',
+        'commission_rate' => 'decimal:2',
     ];
 
     /**
@@ -141,4 +151,128 @@ class TabloPartner extends Model
      * Feature constants
      */
     public const FEATURE_CLIENT_ORDERS = 'client_orders';
+
+    // ============ Partner Type Methods ============
+
+    /**
+     * Fotós partner-e?
+     */
+    public function isPhotoStudio(): bool
+    {
+        return $this->type === self::TYPE_PHOTO_STUDIO || $this->type === null;
+    }
+
+    /**
+     * Nyomda partner-e?
+     */
+    public function isPrintShop(): bool
+    {
+        return $this->type === self::TYPE_PRINT_SHOP;
+    }
+
+    /**
+     * Partner típus magyar megnevezése
+     */
+    public function getTypeNameAttribute(): string
+    {
+        return match ($this->type) {
+            self::TYPE_PHOTO_STUDIO => 'Fotós Partner',
+            self::TYPE_PRINT_SHOP => 'Nyomda Partner',
+            default => 'Fotós Partner',
+        };
+    }
+
+    // ============ Team Members (Csapattagok) ============
+
+    /**
+     * Csapattagok (szabadúszó modell)
+     */
+    public function teamMembers(): HasMany
+    {
+        return $this->hasMany(PartnerTeamMember::class, 'partner_id');
+    }
+
+    /**
+     * Aktív csapattagok
+     */
+    public function activeTeamMembers(): HasMany
+    {
+        return $this->teamMembers()->where('is_active', true);
+    }
+
+    /**
+     * Csapattagok User-ként (BelongsToMany)
+     */
+    public function teamMemberUsers(): BelongsToMany
+    {
+        return $this->belongsToMany(User::class, 'partner_team_members', 'partner_id', 'user_id')
+            ->withPivot('role', 'is_active')
+            ->withTimestamps();
+    }
+
+    /**
+     * Meghívások
+     */
+    public function invitations(): HasMany
+    {
+        return $this->hasMany(PartnerInvitation::class, 'partner_id');
+    }
+
+    /**
+     * Függőben lévő meghívások
+     */
+    public function pendingInvitations(): HasMany
+    {
+        return $this->invitations()->where('status', PartnerInvitation::STATUS_PENDING);
+    }
+
+    // ============ Partner Connections (Nyomda ↔ Fotós) ============
+
+    /**
+     * Kapcsolt nyomdák (ha fotós partner)
+     */
+    public function connectedPrintShops(): BelongsToMany
+    {
+        return $this->belongsToMany(
+            TabloPartner::class,
+            'partner_connections',
+            'photo_studio_id',
+            'print_shop_id'
+        )
+            ->wherePivot('status', PartnerConnection::STATUS_ACTIVE)
+            ->withPivot('initiated_by', 'status')
+            ->withTimestamps();
+    }
+
+    /**
+     * Kapcsolt fotósok (ha nyomda partner)
+     */
+    public function connectedPhotoStudios(): BelongsToMany
+    {
+        return $this->belongsToMany(
+            TabloPartner::class,
+            'partner_connections',
+            'print_shop_id',
+            'photo_studio_id'
+        )
+            ->wherePivot('status', PartnerConnection::STATUS_ACTIVE)
+            ->withPivot('initiated_by', 'status')
+            ->withTimestamps();
+    }
+
+    /**
+     * Függőben lévő kapcsolat kérések (bejövő)
+     */
+    public function pendingConnectionRequests(): HasMany
+    {
+        if ($this->isPhotoStudio()) {
+            return $this->hasMany(PartnerConnection::class, 'photo_studio_id')
+                ->where('status', PartnerConnection::STATUS_PENDING)
+                ->where('initiated_by', PartnerConnection::INITIATED_BY_PRINT_SHOP);
+        }
+
+        return $this->hasMany(PartnerConnection::class, 'print_shop_id')
+            ->where('status', PartnerConnection::STATUS_PENDING)
+            ->where('initiated_by', PartnerConnection::INITIATED_BY_PHOTO_STUDIO);
+    }
 }

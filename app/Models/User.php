@@ -30,6 +30,11 @@ class User extends Authenticatable implements FilamentUser
 
     public const ROLE_MARKETER = 'marketer';
 
+    // Csapattag szerepkörök (meghívottak)
+    public const ROLE_DESIGNER = 'designer';
+    public const ROLE_PRINTER = 'printer';
+    public const ROLE_ASSISTANT = 'assistant';
+
     /** @use HasFactory<\Database\Factories\UserFactory> */
     use HasApiTokens, HasFactory, Notifiable, HasRoles;
 
@@ -375,5 +380,79 @@ class User extends Authenticatable implements FilamentUser
     public function loginAudits(): \Illuminate\Database\Eloquent\Relations\HasMany
     {
         return $this->hasMany(LoginAudit::class);
+    }
+
+    // ==========================================
+    // TEAM MEMBERSHIPS (Csapattagság)
+    // ==========================================
+
+    /**
+     * Partnerek ahol csapattag (szabadúszó modell)
+     */
+    public function partnerMemberships(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(PartnerTeamMember::class);
+    }
+
+    /**
+     * Aktív partner tagságok
+     */
+    public function activePartnerMemberships(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->partnerMemberships()->where('is_active', true);
+    }
+
+    /**
+     * Partnerek (BelongsToMany)
+     */
+    public function memberOfPartners(): BelongsToMany
+    {
+        return $this->belongsToMany(TabloPartner::class, 'partner_team_members', 'user_id', 'partner_id')
+            ->withPivot('role', 'is_active')
+            ->withTimestamps();
+    }
+
+    /**
+     * Adott szerepkörrel dolgozik-e a partnernél?
+     */
+    public function hasRoleAtPartner(int $partnerId, string $role): bool
+    {
+        return $this->partnerMemberships()
+            ->where('partner_id', $partnerId)
+            ->where('role', $role)
+            ->where('is_active', true)
+            ->exists();
+    }
+
+    /**
+     * Aktív csapattag-e bármelyik partnernél?
+     */
+    public function isTeamMember(): bool
+    {
+        return $this->activePartnerMemberships()->exists();
+    }
+
+    /**
+     * Grafikus-e?
+     */
+    public function isDesigner(): bool
+    {
+        return $this->hasRole(self::ROLE_DESIGNER) || $this->activePartnerMemberships()->where('role', self::ROLE_DESIGNER)->exists();
+    }
+
+    /**
+     * Nyomdász-e?
+     */
+    public function isPrinter(): bool
+    {
+        return $this->hasRole(self::ROLE_PRINTER) || $this->activePartnerMemberships()->where('role', self::ROLE_PRINTER)->exists();
+    }
+
+    /**
+     * Ügyintéző-e?
+     */
+    public function isAssistant(): bool
+    {
+        return $this->hasRole(self::ROLE_ASSISTANT) || $this->activePartnerMemberships()->where('role', self::ROLE_ASSISTANT)->exists();
     }
 }
