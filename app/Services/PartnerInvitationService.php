@@ -204,6 +204,8 @@ class PartnerInvitationService
                 'email' => $invitation->email,
                 'role' => $invitation->role,
                 'roleName' => $invitation->role_name,
+                'code' => $invitation->code,
+                'inviteUrl' => $invitation->getRegistrationUrl(),
                 'createdAt' => $invitation->created_at->toIso8601String(),
                 'expiresAt' => $invitation->expires_at?->toIso8601String(),
             ];
