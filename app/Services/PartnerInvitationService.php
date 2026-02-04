@@ -89,9 +89,11 @@ class PartnerInvitationService
             if ($invitation->isTeamMemberInvitation()) {
                 $this->addUserToTeam($invitation->partner, $user, $invitation->role);
 
-                // Spatie 'partner' role hozzáadása (ha még nincs)
-                if (! $user->hasRole('partner')) {
-                    $user->assignRole('partner');
+                // Spatie role hozzáadása a csapattag szerepköre alapján
+                // designer, marketer, printer, assistant
+                $spatieRole = $invitation->role;
+                if (! $user->hasRole($spatieRole)) {
+                    $user->assignRole($spatieRole);
                 }
             }
         });
