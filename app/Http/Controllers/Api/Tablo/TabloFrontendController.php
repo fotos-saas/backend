@@ -345,21 +345,23 @@ class TabloFrontendController extends Controller
         DB::beginTransaction();
         try {
             // Update or create primary contact
-            $contact = $tabloProject->contacts->where('is_primary', true)->first();
-            if ($contact) {
-                $contact->update([
+            $primaryContact = $tabloProject->contacts()->wherePivot('is_primary', true)->first();
+            if ($primaryContact) {
+                $primaryContact->update([
                     'name' => $validated['name'],
                     'email' => $validated['contactEmail'],
                     'phone' => $validated['contactPhone'],
                 ]);
             } else {
-                TabloContact::create([
-                    'tablo_project_id' => $projectId,
+                // Create new contact and link to project as primary
+                $contact = TabloContact::create([
+                    'partner_id' => $tabloProject->partner_id,
                     'name' => $validated['name'],
                     'email' => $validated['contactEmail'],
                     'phone' => $validated['contactPhone'],
-                    'is_primary' => true,
+                    'note' => 'Véglegesítéskor hozzáadva',
                 ]);
+                $tabloProject->contacts()->attach($contact->id, ['is_primary' => true]);
             }
 
             // Update or create school
