@@ -58,7 +58,7 @@ return [
 
     'frontend_url' => env('FRONTEND_URL', env('APP_URL', 'http://localhost')),
 
-    'frontend_tablo_url' => env('FRONTEND_TABLO_URL', 'http://localhost:4201'),
+    'frontend_tablo_url' => env('FRONTEND_TABLO_URL', 'http://localhost:4205'),
 
     /*
     |--------------------------------------------------------------------------
