@@ -181,8 +181,9 @@ class QrRegistrationService
                 ]);
             }
 
-            // Increment QR code usage
+            // Increment QR code usage and deactivate (single-use)
             $qrCode->incrementUsage();
+            $qrCode->deactivate();
 
             // Create token with metadata
             $token = $this->authService->createTokenWithMetadata(
