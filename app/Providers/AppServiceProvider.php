@@ -10,6 +10,12 @@ use App\Observers\PhotoObserver;
 use App\Observers\TabloMissingPersonObserver;
 use App\Observers\TabloNotificationObserver;
 use App\Observers\WorkSessionObserver;
+use App\Repositories\Contracts\TabloContactRepositoryContract;
+use App\Repositories\Contracts\TabloGuestSessionRepositoryContract;
+use App\Repositories\Contracts\TabloProjectRepositoryContract;
+use App\Repositories\TabloContactRepository;
+use App\Repositories\TabloGuestSessionRepository;
+use App\Repositories\TabloProjectRepository;
 use App\Services\BrandingService;
 use Filament\Tables\Table;
 use Illuminate\Cache\RateLimiting\Limit;
@@ -25,7 +31,10 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        // Repository bindings
+        $this->app->bind(TabloProjectRepositoryContract::class, TabloProjectRepository::class);
+        $this->app->bind(TabloContactRepositoryContract::class, TabloContactRepository::class);
+        $this->app->bind(TabloGuestSessionRepositoryContract::class, TabloGuestSessionRepository::class);
     }
 
     /**

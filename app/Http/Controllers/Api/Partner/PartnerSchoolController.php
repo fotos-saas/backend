@@ -4,13 +4,14 @@ namespace App\Http\Controllers\Api\Partner;
 
 use App\Http\Controllers\Api\Partner\Traits\PartnerAuthTrait;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Api\Partner\StoreSchoolRequest;
+use App\Http\Requests\Api\Partner\UpdateSchoolRequest;
 use App\Models\TabloPartner;
 use App\Models\TabloProject;
 use App\Models\TabloSchool;
 use App\Services\Search\SearchService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Validator;
 
 /**
  * Partner School Controller - School management for partners.
@@ -111,7 +112,7 @@ class PartnerSchoolController extends Controller
      * Create a new school.
      * Links the school to this partner via partner_schools pivot table.
      */
-    public function storeSchool(Request $request): JsonResponse
+    public function storeSchool(StoreSchoolRequest $request): JsonResponse
     {
         $partnerId = $this->getPartnerIdOrFail();
         $tabloPartner = TabloPartner::find($partnerId);
@@ -132,35 +133,18 @@ class PartnerSchoolController extends Controller
             }
         }
 
-        $validator = Validator::make($request->all(), [
-            'name' => 'required|string|max:255',
-            'city' => 'nullable|string|max:255',
-        ], [
-            'name.required' => 'Az iskola neve kötelező.',
-            'name.max' => 'Az iskola neve maximum 255 karakter lehet.',
-            'city.max' => 'A város neve maximum 255 karakter lehet.',
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Validációs hiba',
-                'errors' => $validator->errors(),
-            ], 422);
-        }
-
         // Check if school already exists
-        $school = TabloSchool::where('name', $request->input('name'))->first();
+        $school = TabloSchool::where('name', $request->validated('name'))->first();
 
-        if (!$school) {
+        if (! $school) {
             $school = TabloSchool::create([
-                'name' => $request->input('name'),
-                'city' => $request->input('city'),
+                'name' => $request->validated('name'),
+                'city' => $request->validated('city'),
             ]);
         }
 
         // Link school to partner via pivot table (if not already linked)
-        if ($tabloPartner && !$tabloPartner->schools()->where('school_id', $school->id)->exists()) {
+        if ($tabloPartner && ! $tabloPartner->schools()->where('school_id', $school->id)->exists()) {
             $tabloPartner->schools()->attach($school->id);
         }
 
@@ -178,7 +162,7 @@ class PartnerSchoolController extends Controller
     /**
      * Update school (name, city).
      */
-    public function updateSchool(Request $request, int $schoolId): JsonResponse
+    public function updateSchool(UpdateSchoolRequest $request, int $schoolId): JsonResponse
     {
         $partnerId = $this->getPartnerIdOrFail();
 
@@ -186,25 +170,9 @@ class PartnerSchoolController extends Controller
         $school = TabloSchool::whereHas('partners', fn ($q) => $q->where('partner_id', $partnerId))
             ->findOrFail($schoolId);
 
-        $validator = Validator::make($request->all(), [
-            'name' => 'sometimes|string|max:255',
-            'city' => 'nullable|string|max:255',
-        ], [
-            'name.max' => 'Az iskola neve maximum 255 karakter lehet.',
-            'city.max' => 'A város neve maximum 255 karakter lehet.',
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Validációs hiba',
-                'errors' => $validator->errors(),
-            ], 422);
-        }
-
         $school->update([
-            'name' => $request->input('name', $school->name),
-            'city' => $request->input('city'),
+            'name' => $request->validated('name', $school->name),
+            'city' => $request->validated('city'),
         ]);
 
         return response()->json([

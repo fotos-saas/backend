@@ -5,11 +5,12 @@ namespace App\Http\Controllers\Api\Partner;
 use App\Enums\TabloProjectStatus;
 use App\Http\Controllers\Api\Partner\Traits\PartnerAuthTrait;
 use App\Http\Controllers\Controller;
-use App\Models\TabloContact;
-use App\Models\TabloProject;
+use App\Http\Requests\Api\Partner\StoreProjectRequest;
+use App\Http\Requests\Api\Partner\UpdateProjectRequest;
+use App\Repositories\Contracts\TabloContactRepositoryContract;
+use App\Repositories\Contracts\TabloProjectRepositoryContract;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Validator;
 
 /**
  * Partner Project Controller - Project CRUD operations for partners.
@@ -21,10 +22,15 @@ class PartnerProjectController extends Controller
 {
     use PartnerAuthTrait;
 
+    public function __construct(
+        private readonly TabloProjectRepositoryContract $projectRepository,
+        private readonly TabloContactRepositoryContract $contactRepository
+    ) {}
+
     /**
      * Create a new project for the user's partner.
      */
-    public function storeProject(Request $request): JsonResponse
+    public function storeProject(StoreProjectRequest $request): JsonResponse
     {
         $partnerId = $this->getPartnerIdOrFail();
 
@@ -33,7 +39,7 @@ class PartnerProjectController extends Controller
         if ($partner) {
             $maxClasses = $partner->getMaxClasses();
             if ($maxClasses !== null) {
-                $currentCount = TabloProject::where('partner_id', $partnerId)->count();
+                $currentCount = $this->projectRepository->countByPartner($partnerId);
                 if ($currentCount >= $maxClasses) {
                     return response()->json([
                         'success' => false,
@@ -44,60 +50,28 @@ class PartnerProjectController extends Controller
             }
         }
 
-        $validator = Validator::make($request->all(), [
-            'school_id' => 'nullable|exists:tablo_schools,id',
-            'class_name' => 'nullable|string|max:255',
-            'class_year' => 'nullable|string|max:50',
-            'photo_date' => 'nullable|date',
-            'deadline' => 'nullable|date',
-            'expected_class_size' => 'nullable|integer|min:1|max:500',
-            // Contact fields
-            'contact_name' => 'nullable|string|max:255',
-            'contact_email' => 'nullable|email|max:255',
-            'contact_phone' => 'nullable|string|max:50',
-        ], [
-            'school_id.exists' => 'A megadott iskola nem található.',
-            'class_name.max' => 'Az osztály neve maximum 255 karakter lehet.',
-            'class_year.max' => 'Az évfolyam maximum 50 karakter lehet.',
-            'photo_date.date' => 'Érvénytelen fotózás dátum.',
-            'deadline.date' => 'Érvénytelen határidő dátum.',
-            'expected_class_size.integer' => 'A várható létszámnak egész számnak kell lennie.',
-            'expected_class_size.min' => 'A várható létszámnak legalább 1-nek kell lennie.',
-            'expected_class_size.max' => 'A várható létszám maximum 500 lehet.',
-            'contact_email.email' => 'Érvénytelen email cím.',
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Validációs hiba',
-                'errors' => $validator->errors(),
-            ], 422);
-        }
-
         // Create the project
-        $project = TabloProject::create([
+        $project = $this->projectRepository->create([
             'partner_id' => $partnerId,
-            'school_id' => $request->input('school_id'),
-            'class_name' => $request->input('class_name'),
-            'class_year' => $request->input('class_year'),
-            'photo_date' => $request->input('photo_date'),
-            'deadline' => $request->input('deadline'),
-            'expected_class_size' => $request->input('expected_class_size'),
+            'school_id' => $request->validated('school_id'),
+            'class_name' => $request->validated('class_name'),
+            'class_year' => $request->validated('class_year'),
+            'photo_date' => $request->validated('photo_date'),
+            'deadline' => $request->validated('deadline'),
+            'expected_class_size' => $request->validated('expected_class_size'),
             'status' => TabloProjectStatus::NotStarted,
         ]);
 
         // Create contact if provided
-        $contact = null;
         if ($request->filled('contact_name')) {
-            $contact = TabloContact::create([
+            $contact = $this->contactRepository->create([
                 'partner_id' => $partnerId,
-                'name' => $request->input('contact_name'),
-                'email' => $request->input('contact_email'),
-                'phone' => $request->input('contact_phone'),
+                'name' => $request->validated('contact_name'),
+                'email' => $request->validated('contact_email'),
+                'phone' => $request->validated('contact_phone'),
             ]);
             // Link contact to project via pivot with is_primary = true
-            $contact->projects()->attach($project->id, ['is_primary' => true]);
+            $this->projectRepository->attachContact($project->id, $contact->id, true);
         }
 
         // Load relations for response
@@ -132,41 +106,18 @@ class PartnerProjectController extends Controller
     /**
      * Update an existing project.
      */
-    public function updateProject(Request $request, int $projectId): JsonResponse
+    public function updateProject(UpdateProjectRequest $request, int $projectId): JsonResponse
     {
         $project = $this->getProjectForPartner($projectId);
 
-        $validator = Validator::make($request->all(), [
-            'school_id' => 'nullable|exists:tablo_schools,id',
-            'class_name' => 'nullable|string|max:255',
-            'class_year' => 'nullable|string|max:50',
-            'photo_date' => 'nullable|date',
-            'deadline' => 'nullable|date',
-            'expected_class_size' => 'nullable|integer|min:1|max:500',
-        ], [
-            'school_id.exists' => 'A megadott iskola nem található.',
-            'class_name.max' => 'Az osztály neve maximum 255 karakter lehet.',
-            'class_year.max' => 'Az évfolyam maximum 50 karakter lehet.',
-            'photo_date.date' => 'Érvénytelen fotózás dátum.',
-            'deadline.date' => 'Érvénytelen határidő dátum.',
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Validációs hiba',
-                'errors' => $validator->errors(),
-            ], 422);
-        }
-
         // Update the project
-        $project->update([
-            'school_id' => $request->input('school_id'),
-            'class_name' => $request->input('class_name'),
-            'class_year' => $request->input('class_year'),
-            'photo_date' => $request->input('photo_date'),
-            'deadline' => $request->input('deadline'),
-            'expected_class_size' => $request->input('expected_class_size', $project->expected_class_size),
+        $this->projectRepository->update($project, [
+            'school_id' => $request->validated('school_id'),
+            'class_name' => $request->validated('class_name'),
+            'class_year' => $request->validated('class_year'),
+            'photo_date' => $request->validated('photo_date'),
+            'deadline' => $request->validated('deadline'),
+            'expected_class_size' => $request->validated('expected_class_size', $project->expected_class_size),
         ]);
 
         return response()->json([
@@ -182,7 +133,7 @@ class PartnerProjectController extends Controller
     {
         $project = $this->getProjectForPartner($projectId);
 
-        $project->delete();
+        $this->projectRepository->delete($project);
 
         return response()->json([
             'success' => true,
@@ -197,9 +148,12 @@ class PartnerProjectController extends Controller
     {
         $project = $this->getProjectForPartner($projectId);
 
-        $project->update([
-            'is_aware' => !$project->is_aware,
+        $this->projectRepository->update($project, [
+            'is_aware' => ! $project->is_aware,
         ]);
+
+        // Refresh to get updated value
+        $project->refresh();
 
         return response()->json([
             'success' => true,
@@ -215,7 +169,7 @@ class PartnerProjectController extends Controller
     {
         $project = $this->getProjectForPartner($projectId);
 
-        $samples = $project->getMedia('samples')->map(fn ($media) => [
+        $samples = $this->projectRepository->getSamples($project->id)->map(fn ($media) => [
             'id' => $media->id,
             'url' => $media->getUrl(),
             'thumbnailUrl' => $media->getUrl('thumb'),
