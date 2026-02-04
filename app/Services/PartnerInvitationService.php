@@ -124,6 +124,12 @@ class PartnerInvitationService
      */
     public function addUserToTeam(TabloPartner $partner, User $user, string $role): PartnerTeamMember
     {
+        // Beállítjuk a user tablo_partner_id-ját (fontos az API hozzáféréshez!)
+        if ($user->tablo_partner_id !== $partner->id) {
+            $user->tablo_partner_id = $partner->id;
+            $user->save();
+        }
+
         // Ha már tag ezzel a szerepkörrel, aktiváljuk
         $existing = PartnerTeamMember::where('partner_id', $partner->id)
             ->where('user_id', $user->id)
