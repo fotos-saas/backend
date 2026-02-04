@@ -75,8 +75,8 @@ class PartnerContactController extends Controller
             ];
         });
 
-        // Get contact limits for this partner
-        $partner = auth()->user()->partner;
+        // Get contact limits for this partner (csapattagoknak is működik)
+        $partner = auth()->user()->getEffectivePartner();
         $maxContacts = $partner?->getMaxContacts();
         $currentCount = TabloContact::where('partner_id', $partnerId)->count();
 

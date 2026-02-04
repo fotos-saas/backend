@@ -34,8 +34,8 @@ class PartnerProjectController extends Controller
     {
         $partnerId = $this->getPartnerIdOrFail();
 
-        // Check project limit
-        $partner = auth()->user()->partner;
+        // Check project limit (csapattagoknak is működik)
+        $partner = auth()->user()->getEffectivePartner();
         if ($partner) {
             $maxClasses = $partner->getMaxClasses();
             if ($maxClasses !== null) {

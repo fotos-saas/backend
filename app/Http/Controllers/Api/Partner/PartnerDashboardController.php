@@ -154,8 +154,8 @@ class PartnerDashboardController extends Controller
 
         $projects = $query->paginate($perPage);
 
-        // Get project limits for this partner
-        $partner = auth()->user()->partner;
+        // Get project limits for this partner (csapattagoknak is működik)
+        $partner = auth()->user()->getEffectivePartner();
         $maxClasses = $partner?->getMaxClasses();
         $currentCount = TabloProject::where('partner_id', $partnerId)->count();
 

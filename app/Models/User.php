@@ -211,6 +211,25 @@ class User extends Authenticatable implements FilamentUser
     }
 
     /**
+     * Get the effective partner for this user (own or via team membership).
+     * Csapattagok esetén a tablo_partner_id alapján keresi meg a Partner-t.
+     */
+    public function getEffectivePartner(): ?Partner
+    {
+        // Ha saját partner van (tulajdonos)
+        if ($this->partner) {
+            return $this->partner;
+        }
+
+        // Ha csapattag, keressük meg a tablo_partner_id alapján
+        if ($this->tablo_partner_id) {
+            return Partner::where('tablo_partner_id', $this->tablo_partner_id)->first();
+        }
+
+        return null;
+    }
+
+    /**
      * Determine if the user has a super admin role.
      */
     public function isSuperAdmin(): bool

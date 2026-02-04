@@ -61,8 +61,8 @@ class PartnerSchoolController extends Controller
             'hasActiveProjects' => ($school->active_projects_count ?? 0) > 0,
         ]);
 
-        // Get school limits for this partner
-        $partner = auth()->user()->partner;
+        // Get school limits for this partner (csapattagoknak is működik)
+        $partner = auth()->user()->getEffectivePartner();
         $maxSchools = $partner?->getMaxSchools();
         $currentCount = $tabloPartner?->schools()->count() ?? 0;
 
@@ -117,8 +117,8 @@ class PartnerSchoolController extends Controller
         $partnerId = $this->getPartnerIdOrFail();
         $tabloPartner = TabloPartner::find($partnerId);
 
-        // Check school limit
-        $partner = auth()->user()->partner;
+        // Check school limit (csapattagoknak is működik)
+        $partner = auth()->user()->getEffectivePartner();
         if ($partner) {
             $maxSchools = $partner->getMaxSchools();
             if ($maxSchools !== null) {
