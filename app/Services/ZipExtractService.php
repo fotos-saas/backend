@@ -4,12 +4,14 @@ namespace App\Services;
 
 use App\Models\ConversionJob;
 use App\Models\ConversionMedia;
+use App\Traits\FileValidation;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Log;
 use ZipArchive;
 
 class ZipExtractService
 {
+    use FileValidation;
     /**
      * Támogatott képformátumok kiterjesztései
      */
@@ -223,15 +225,5 @@ class ZipExtractService
         return $zipBaseName . '/' . implode('/', $parts);
     }
 
-    /**
-     * ZIP fájl-e ellenőrzés
-     */
-    public function isZipFile(UploadedFile $file): bool
-    {
-        $mimeType = $file->getMimeType();
-        $extension = strtolower($file->getClientOriginalExtension());
-
-        return in_array($mimeType, ['application/zip', 'application/x-zip-compressed'])
-            || $extension === 'zip';
-    }
+    // isZipFile() a FileValidation trait-ből jön
 }

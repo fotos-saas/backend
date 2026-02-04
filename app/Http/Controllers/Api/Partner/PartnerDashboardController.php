@@ -1,0 +1,341 @@
+<?php
+
+namespace App\Http\Controllers\Api\Partner;
+
+use App\Http\Controllers\Api\Partner\Traits\PartnerAuthTrait;
+use App\Http\Controllers\Controller;
+use App\Models\QrRegistrationCode;
+use App\Models\TabloProject;
+use App\Models\TabloSchool;
+use App\Services\Search\SearchService;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+
+/**
+ * Partner Dashboard Controller - Statistics and project listings.
+ *
+ * Handles: stats(), projects(), projectDetails(), projectsAutocomplete()
+ */
+class PartnerDashboardController extends Controller
+{
+    use PartnerAuthTrait;
+
+    /**
+     * Dashboard statistics for partner.
+     */
+    public function stats(): JsonResponse
+    {
+        $partnerId = $this->getPartnerIdOrFail();
+
+        $totalProjects = TabloProject::where('partner_id', $partnerId)->count();
+
+        $activeQrCodes = QrRegistrationCode::active()
+            ->whereHas('project', fn ($q) => $q->where('partner_id', $partnerId))
+            ->count();
+
+        // Schools that have projects for this partner
+        $totalSchools = TabloSchool::whereHas('projects', fn ($q) => $q->where('partner_id', $partnerId))
+            ->count();
+
+        // Upcoming photoshoots (photo_date in the future)
+        $upcomingPhotoshoots = TabloProject::where('partner_id', $partnerId)
+            ->whereNotNull('photo_date')
+            ->where('photo_date', '>=', now()->startOfDay())
+            ->count();
+
+        // Projects by status
+        $projectsByStatus = TabloProject::where('partner_id', $partnerId)
+            ->selectRaw('status, COUNT(*) as count')
+            ->groupBy('status')
+            ->pluck('count', 'status')
+            ->toArray();
+
+        return response()->json([
+            'totalProjects' => $totalProjects,
+            'activeQrCodes' => $activeQrCodes,
+            'totalSchools' => $totalSchools,
+            'upcomingPhotoshoots' => $upcomingPhotoshoots,
+            'projectsByStatus' => $projectsByStatus,
+        ]);
+    }
+
+    /**
+     * List projects with pagination and search.
+     */
+    public function projects(Request $request): JsonResponse
+    {
+        $partnerId = $this->getPartnerIdOrFail();
+
+        $perPage = min((int) $request->input('per_page', 15), 50);
+        $search = $request->input('search');
+        $sortBy = $request->input('sort_by', 'created_at');
+        $sortDir = $request->input('sort_dir', 'desc');
+        $status = $request->input('status');
+
+        // Validate sort fields
+        $allowedSortFields = ['created_at', 'photo_date', 'class_year', 'school_name', 'tablo_status', 'missing_count', 'samples_count'];
+        if (!in_array($sortBy, $allowedSortFields)) {
+            $sortBy = 'created_at';
+        }
+
+        $query = TabloProject::with(['school', 'contacts', 'tabloStatus', 'qrCodes' => function ($q) {
+            $q->active();
+        }, 'media' => function ($q) {
+            // Load both samples and tablo_pending collections
+            $q->whereIn('collection_name', ['samples', 'tablo_pending']);
+        }])
+            ->withCount([
+                'guestSessions as guests_count' => fn ($q) => $q->where('is_banned', false),
+                'missingPersons as missing_count' => fn ($q) => $q->whereNull('media_id'),
+                'missingPersons as missing_students_count' => fn ($q) => $q->whereNull('media_id')->where('type', 'student'),
+                'missingPersons as missing_teachers_count' => fn ($q) => $q->whereNull('media_id')->where('type', 'teacher'),
+            ])
+            ->where('partner_id', $partnerId);
+
+        // Search using centralized SearchService
+        if ($search) {
+            $query = app(SearchService::class)->apply($query, $search, [
+                'columns' => ['name', 'class_name'],
+                'relations' => [
+                    'school' => ['name', 'city'],
+                    'contacts' => ['name', 'email'],
+                    'missingPersons' => ['name'],
+                ],
+                'prefixes' => [
+                    '@' => ['contacts' => ['name', 'email']],
+                ],
+            ]);
+        }
+
+        // Filter by status
+        if ($status) {
+            $query->where('status', $status);
+        }
+
+        // Filter by is_aware
+        if ($request->filled('is_aware')) {
+            $query->where('is_aware', $request->input('is_aware') === 'true');
+        }
+
+        // Filter by has_draft_photos
+        if ($request->filled('has_draft')) {
+            $hasDraft = $request->input('has_draft') === 'true';
+            if ($hasDraft) {
+                $query->whereHas('media', fn ($q) => $q->where('collection_name', 'tablo_pending'));
+            } else {
+                $query->whereDoesntHave('media', fn ($q) => $q->where('collection_name', 'tablo_pending'));
+            }
+        }
+
+        // Handle special sort fields - use subqueries to avoid interfering with withCount
+        if ($sortBy === 'school_name') {
+            $query->orderBy(
+                TabloSchool::select('name')
+                    ->whereColumn('tablo_schools.id', 'tablo_projects.school_id')
+                    ->limit(1),
+                $sortDir
+            );
+        } elseif ($sortBy === 'tablo_status') {
+            $query->orderBy(
+                \App\Models\TabloStatus::select('sort_order')
+                    ->whereColumn('tablo_statuses.id', 'tablo_projects.tablo_status_id')
+                    ->limit(1),
+                $sortDir
+            );
+        } elseif ($sortBy === 'missing_count') {
+            $query->orderBy('missing_count', $sortDir);
+        } elseif ($sortBy === 'samples_count') {
+            // samples_count requires subquery since it's from media library
+            $query->withCount('media as samples_count')
+                ->orderBy('samples_count', $sortDir);
+        } else {
+            $query->orderBy($sortBy, $sortDir);
+        }
+
+        $projects = $query->paginate($perPage);
+
+        // Get project limits for this partner
+        $partner = auth()->user()->partner;
+        $maxClasses = $partner?->getMaxClasses();
+        $currentCount = TabloProject::where('partner_id', $partnerId)->count();
+
+        // Transform data
+        $projects->getCollection()->transform(function ($project) {
+            // Get primary contact from pivot (is_primary is in pivot table)
+            $primaryContact = $project->contacts->first(fn ($c) => $c->pivot->is_primary ?? false)
+                ?? $project->contacts->first();
+
+            $activeQrCode = $project->qrCodes->first();
+
+            // Get samples from eager loaded media
+            $samples = $project->media->where('collection_name', 'samples');
+            $firstSample = $samples->first();
+
+            // Count draft photos from eager loaded media
+            $draftPhotoCount = $project->media
+                ->where('collection_name', 'tablo_pending')
+                ->count();
+
+            return [
+                'id' => $project->id,
+                'name' => $project->display_name,
+                'schoolName' => $project->school?->name,
+                'schoolCity' => $project->school?->city,
+                'className' => $project->class_name,
+                'classYear' => $project->class_year,
+                'status' => $project->status?->value,
+                'statusLabel' => $project->status?->label() ?? 'Ismeretlen',
+                'statusColor' => $project->status?->tailwindColor() ?? 'gray',
+                'tabloStatus' => $project->tabloStatus?->toApiResponse(),
+                'photoDate' => $project->photo_date?->format('Y-m-d'),
+                'deadline' => $project->deadline?->format('Y-m-d'),
+                'guestsCount' => $project->guests_count ?? 0,
+                'expectedClassSize' => $project->expected_class_size,
+                'missingCount' => $project->missing_count ?? 0,
+                'missingStudentsCount' => $project->missing_students_count ?? 0,
+                'missingTeachersCount' => $project->missing_teachers_count ?? 0,
+                'samplesCount' => $samples->count(),
+                'sampleThumbUrl' => $firstSample?->getUrl('thumb'),
+                'draftPhotoCount' => $draftPhotoCount,
+                'contact' => $primaryContact ? [
+                    'name' => $primaryContact->name,
+                    'email' => $primaryContact->email,
+                    'phone' => $primaryContact->phone,
+                ] : null,
+                'hasActiveQrCode' => $activeQrCode !== null,
+                'isAware' => $project->is_aware,
+                'createdAt' => $project->created_at->toIso8601String(),
+            ];
+        });
+
+        // Add limits to pagination response
+        $response = $projects->toArray();
+        $response['limits'] = [
+            'current' => $currentCount,
+            'max' => $maxClasses,
+            'can_create' => $maxClasses === null || $currentCount < $maxClasses,
+            'plan_id' => $partner?->plan ?? 'alap',
+        ];
+
+        return response()->json($response);
+    }
+
+    /**
+     * Get project details.
+     */
+    public function projectDetails(int $projectId): JsonResponse
+    {
+        $project = $this->getProjectForPartner($projectId);
+
+        $project->load([
+            'school',
+            'partner',
+            'contacts',
+            'tabloStatus',
+            'qrCodes' => function ($q) {
+                $q->orderBy('created_at', 'desc');
+            },
+        ]);
+
+        $project->loadCount([
+            'guestSessions as guests_count' => fn ($q) => $q->where('is_banned', false),
+            'missingPersons as missing_count' => fn ($q) => $q->whereNull('media_id'),
+        ]);
+
+        // Get primary contact from pivot (is_primary is now in pivot table)
+        $primaryContact = $project->contacts->first(fn ($c) => $c->pivot->is_primary)
+            ?? $project->contacts->first();
+
+        $activeQrCode = $project->qrCodes->where('is_active', true)->first();
+        $samplesCount = $project->getMedia('samples')->count();
+
+        return response()->json([
+            'id' => $project->id,
+            'name' => $project->display_name,
+            'school' => $project->school ? [
+                'id' => $project->school->id,
+                'name' => $project->school->name,
+                'city' => $project->school->city,
+            ] : null,
+            'partner' => $project->partner ? [
+                'id' => $project->partner->id,
+                'name' => $project->partner->name,
+            ] : null,
+            'className' => $project->class_name,
+            'classYear' => $project->class_year,
+            'status' => $project->status?->value,
+            'statusLabel' => $project->status?->label() ?? 'Ismeretlen',
+            'tabloStatus' => $project->tabloStatus?->toApiResponse(),
+            'photoDate' => $project->photo_date?->format('Y-m-d'),
+            'deadline' => $project->deadline?->format('Y-m-d'),
+            'expectedClassSize' => $project->expected_class_size,
+            'guestsCount' => $project->guests_count ?? 0,
+            'missingCount' => $project->missing_count ?? 0,
+            'samplesCount' => $samplesCount,
+            'contact' => $primaryContact ? [
+                'id' => $primaryContact->id,
+                'name' => $primaryContact->name,
+                'email' => $primaryContact->email,
+                'phone' => $primaryContact->phone,
+            ] : null,
+            'contacts' => $project->contacts->map(fn ($c) => [
+                'id' => $c->id,
+                'name' => $c->name,
+                'email' => $c->email,
+                'phone' => $c->phone,
+                'isPrimary' => $c->pivot->is_primary ?? false,
+            ]),
+            'qrCode' => $activeQrCode ? [
+                'id' => $activeQrCode->id,
+                'code' => $activeQrCode->code,
+                'usageCount' => $activeQrCode->usage_count,
+                'maxUsages' => $activeQrCode->max_usages,
+                'expiresAt' => $activeQrCode->expires_at?->toIso8601String(),
+                'isValid' => $activeQrCode->isValid(),
+                'registrationUrl' => $activeQrCode->getRegistrationUrl(),
+            ] : null,
+            'qrCodesHistory' => $project->qrCodes->map(fn ($qr) => [
+                'id' => $qr->id,
+                'code' => $qr->code,
+                'isActive' => $qr->is_active,
+                'usageCount' => $qr->usage_count,
+                'createdAt' => $qr->created_at->toIso8601String(),
+            ]),
+            'createdAt' => $project->created_at->toIso8601String(),
+            'updatedAt' => $project->updated_at->toIso8601String(),
+        ]);
+    }
+
+    /**
+     * Get projects for autocomplete (contact modal).
+     */
+    public function projectsAutocomplete(Request $request): JsonResponse
+    {
+        $partnerId = $this->getPartnerIdOrFail();
+
+        $search = $request->input('search');
+
+        $query = TabloProject::with('school')
+            ->where('partner_id', $partnerId);
+
+        if ($search) {
+            $query->where(function ($q) use ($search) {
+                $q->where('class_name', 'ILIKE', "%{$search}%")
+                    ->orWhere('name', 'ILIKE', "%{$search}%")
+                    ->orWhereHas('school', function ($sq) use ($search) {
+                        $sq->where('name', 'ILIKE', "%{$search}%");
+                    });
+            });
+        }
+
+        $projects = $query->orderBy('created_at', 'desc')->limit(30)->get();
+
+        return response()->json(
+            $projects->map(fn ($project) => [
+                'id' => $project->id,
+                'name' => $project->display_name,
+                'schoolName' => $project->school?->name,
+            ])
+        );
+    }
+}

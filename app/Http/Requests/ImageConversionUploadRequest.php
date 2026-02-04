@@ -32,7 +32,9 @@ class ImageConversionUploadRequest extends FormRequest
                 'required',
                 'file',
                 "max:{$maxSize}",
-                // Use 'extensions' instead of 'mimes' for better compatibility with modern formats
+                // MIME type validation for security (prevents extension spoofing)
+                'mimetypes:image/jpeg,image/png,image/gif,image/webp,image/heic,image/heif,image/avif,image/jxl,image/x-adobe-dng,image/x-canon-cr2,image/x-nikon-nef,image/x-sony-arw,image/x-olympus-orf,image/x-panasonic-rw2,image/bmp,application/zip,application/x-zip-compressed',
+                // Extension validation for user-friendly error messages
                 // Supported: Apple (HEIC/HEIF), Modern (AVIF/WEBP/JXL), RAW (DNG/CR2/NEF/ARW/ORF/RW2), Traditional, ZIP
                 'extensions:heic,heif,webp,avif,jxl,dng,cr2,nef,arw,orf,rw2,jpeg,jpg,png,bmp,zip',
             ],

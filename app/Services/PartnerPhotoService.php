@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Jobs\GenerateMediaThumbnailJob;
 use App\Models\TabloMissingPerson;
 use App\Models\TabloProject;
+use App\Traits\FileValidation;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -20,6 +21,7 @@ use ZipArchive;
  */
 class PartnerPhotoService
 {
+    use FileValidation;
     /**
      * Támogatott képformátumok
      */
@@ -522,15 +524,5 @@ class PartnerPhotoService
         return $filename ?: 'unnamed_'.uniqid();
     }
 
-    /**
-     * ZIP fájl-e ellenőrzés
-     */
-    public function isZipFile(UploadedFile $file): bool
-    {
-        $mimeType = $file->getMimeType();
-        $extension = strtolower($file->getClientOriginalExtension());
-
-        return in_array($mimeType, ['application/zip', 'application/x-zip-compressed'])
-            || $extension === 'zip';
-    }
+    // isZipFile() és isValidImageFile() a FileValidation trait-ből jön
 }

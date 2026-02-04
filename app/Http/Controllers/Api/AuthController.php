@@ -1041,7 +1041,19 @@ class AuthController extends Controller
     public function setPassword(Request $request)
     {
         $validated = $request->validate([
-            'password' => ['required', 'string', 'min:8', 'confirmed'],
+            'password' => [
+                'required',
+                'string',
+                'min:12',
+                'regex:/[A-Z]/',      // Legalább 1 nagybetű
+                'regex:/[a-z]/',      // Legalább 1 kisbetű
+                'regex:/[0-9]/',      // Legalább 1 szám
+                'regex:/[@$!%*#?&]/', // Legalább 1 speciális karakter
+                'confirmed',
+            ],
+        ], [
+            'password.min' => 'A jelszónak legalább 12 karakter hosszúnak kell lennie.',
+            'password.regex' => 'A jelszónak tartalmaznia kell nagybetűt, kisbetűt, számot és speciális karaktert (@$!%*#?&).',
         ]);
 
         $user = $request->user();

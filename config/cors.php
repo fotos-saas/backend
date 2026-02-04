@@ -19,13 +19,14 @@ return [
 
     'allowed_methods' => ['*'],
 
-    'allowed_origins' => [
+    'allowed_origins' => array_filter([
         env('FRONTEND_URL', 'https://tablostudio.hu'),
         env('FRONTEND_TABLO_URL', 'https://kepvalaszto.hu'),
-        'http://localhost:4200',
-        'http://localhost:4201',
-        'http://localhost:4205',
-    ],
+        // Localhost only in local/development environment
+        env('APP_ENV') === 'local' ? 'http://localhost:4200' : null,
+        env('APP_ENV') === 'local' ? 'http://localhost:4201' : null,
+        env('APP_ENV') === 'local' ? 'http://localhost:4205' : null,
+    ]),
 
     'allowed_origins_patterns' => [],
 

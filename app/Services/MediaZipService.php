@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Traits\FileValidation;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
@@ -16,6 +17,7 @@ use ZipArchive;
  */
 class MediaZipService
 {
+    use FileValidation;
     /**
      * Támogatott képformátumok
      */
@@ -132,17 +134,7 @@ class MediaZipService
         return $uploadedMedia;
     }
 
-    /**
-     * ZIP fájl-e ellenőrzés
-     */
-    public function isZipFile(UploadedFile $file): bool
-    {
-        $mimeType = $file->getMimeType();
-        $extension = strtolower($file->getClientOriginalExtension());
-
-        return in_array($mimeType, ['application/zip', 'application/x-zip-compressed'])
-            || $extension === 'zip';
-    }
+    // isZipFile() a FileValidation trait-ből jön
 
     /**
      * Entry kihagyandó-e
@@ -186,29 +178,14 @@ class MediaZipService
 
     /**
      * Valódi kép ellenőrzés
+     * A FileValidation trait isValidImageFile() metódusát használja.
      */
     protected function isValidImage(UploadedFile $file): bool
     {
-        $extension = strtolower($file->getClientOriginalExtension());
-        if (!in_array($extension, self::SUPPORTED_EXTENSIONS)) {
-            return false;
-        }
-
-        // MIME type ellenőrzés
-        $mimeType = $file->getMimeType();
-        $validMimes = ['image/jpeg', 'image/png', 'image/webp'];
-        if (!in_array($mimeType, $validMimes)) {
-            return false;
-        }
-
-        // Valódi kép ellenőrzés - getimagesize() MIME spoofing ellen
-        $imageInfo = @getimagesize($file->getRealPath());
-        if ($imageInfo === false) {
-            return false;
-        }
-
-        $allowedImageTypes = [IMAGETYPE_JPEG, IMAGETYPE_PNG, IMAGETYPE_WEBP];
-
-        return in_array($imageInfo[2], $allowedImageTypes, true);
+        return $this->isValidImageFile(
+            $file,
+            self::SUPPORTED_EXTENSIONS,
+            ['image/jpeg', 'image/png', 'image/webp']
+        );
     }
 }

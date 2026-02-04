@@ -117,11 +117,28 @@ class SearchService
     }
 
     /**
+     * Engedélyezett oszlopnevek a kereséshez (SQL injection védelem).
+     * Csak ezek az oszlopok használhatók a raw query-kben.
+     */
+    private const ALLOWED_COLUMNS = [
+        'name', 'email', 'phone', 'city', 'address', 'title', 'description',
+        'school_name', 'class_name', 'first_name', 'last_name', 'full_name',
+        'company_name', 'contact_name', 'note', 'notes', 'comment', 'body',
+    ];
+
+    /**
      * PostgreSQL unaccent + ILIKE feltétel hozzáadása.
      * Ékezet-független keresést biztosít.
      */
     protected function addUnaccentCondition(Builder $query, string $column, string $value, string $boolean = 'and'): void
     {
+        // SQL injection védelem: csak engedélyezett oszlopnevek
+        // Az oszlopnév lehet "table.column" formátumú is
+        $columnName = str_contains($column, '.') ? explode('.', $column)[1] : $column;
+        if (!in_array($columnName, self::ALLOWED_COLUMNS, true)) {
+            throw new \InvalidArgumentException("Invalid column name for search: {$column}");
+        }
+
         $method = $boolean === 'or' ? 'orWhereRaw' : 'whereRaw';
         $query->$method("unaccent({$column}) ILIKE unaccent(?)", ["%{$value}%"]);
     }
