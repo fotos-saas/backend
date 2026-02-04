@@ -220,25 +220,31 @@ Route::prefix('subscription')->group(function () {
     Route::post('/complete', [\App\Http\Controllers\Api\SubscriptionController::class, 'completeRegistration']);
 });
 
-// Subscription Management (authenticated partners)
-Route::prefix('subscription')->middleware(['auth:sanctum', 'role:partner'])->group(function () {
-    Route::get('/', [\App\Http\Controllers\Api\SubscriptionController::class, 'getSubscription']);
-    Route::get('/invoices', [\App\Http\Controllers\Api\SubscriptionController::class, 'getInvoices']);
-    Route::post('/portal', [\App\Http\Controllers\Api\SubscriptionController::class, 'createPortalSession'])
-        ->middleware('throttle:10,1');
-    // SECURITY: Rate limiting subscription lifecycle műveleteknél (3/perc)
-    Route::post('/cancel', [\App\Http\Controllers\Api\SubscriptionController::class, 'cancelSubscription'])
-        ->middleware('throttle:3,1');
-    Route::post('/resume', [\App\Http\Controllers\Api\SubscriptionController::class, 'resumeSubscription'])
-        ->middleware('throttle:3,1');
-    Route::post('/pause', [\App\Http\Controllers\Api\SubscriptionController::class, 'pauseSubscription'])
-        ->middleware('throttle:3,1');
-    Route::post('/unpause', [\App\Http\Controllers\Api\SubscriptionController::class, 'unpauseSubscription'])
-        ->middleware('throttle:3,1');
+// Subscription Management (authenticated partners + team members for read)
+Route::prefix('subscription')->middleware(['auth:sanctum'])->group(function () {
+    // Csapattagok is lekérhetik (főnök nevéhez kell)
+    Route::get('/', [\App\Http\Controllers\Api\SubscriptionController::class, 'getSubscription'])
+        ->middleware('role:partner|designer|marketer|printer|assistant');
+
+    // Csak partner végezheti ezeket
+    Route::middleware('role:partner')->group(function () {
+        Route::get('/invoices', [\App\Http\Controllers\Api\SubscriptionController::class, 'getInvoices']);
+        Route::post('/portal', [\App\Http\Controllers\Api\SubscriptionController::class, 'createPortalSession'])
+            ->middleware('throttle:10,1');
+        // SECURITY: Rate limiting subscription lifecycle műveleteknél (3/perc)
+        Route::post('/cancel', [\App\Http\Controllers\Api\SubscriptionController::class, 'cancelSubscription'])
+            ->middleware('throttle:3,1');
+        Route::post('/resume', [\App\Http\Controllers\Api\SubscriptionController::class, 'resumeSubscription'])
+            ->middleware('throttle:3,1');
+        Route::post('/pause', [\App\Http\Controllers\Api\SubscriptionController::class, 'pauseSubscription'])
+            ->middleware('throttle:3,1');
+        Route::post('/unpause', [\App\Http\Controllers\Api\SubscriptionController::class, 'unpauseSubscription'])
+            ->middleware('throttle:3,1');
+    });
 });
 
-// Account Management (authenticated partners)
-Route::prefix('account')->middleware(['auth:sanctum', 'role:partner'])->group(function () {
+// Account Management (authenticated partners + team members)
+Route::prefix('account')->middleware(['auth:sanctum', 'role:partner|designer|marketer|printer|assistant'])->group(function () {
     Route::get('/status', [\App\Http\Controllers\Api\AccountController::class, 'getStatus']);
     Route::delete('/', [\App\Http\Controllers\Api\AccountController::class, 'deleteAccount']);
     Route::post('/cancel-deletion', [\App\Http\Controllers\Api\AccountController::class, 'cancelDeletion']);
@@ -446,9 +452,9 @@ Route::middleware('auth:sanctum')->group(function () {
     });
 
     // ============================================
-    // PARTNER ROUTES (Fotós/Partner)
+    // PARTNER ROUTES (Fotós/Partner + Csapattagok)
     // ============================================
-    Route::prefix('partner')->middleware('role:partner')->group(function () {
+    Route::prefix('partner')->middleware('role:partner|designer|marketer|printer|assistant')->group(function () {
         Route::get('/stats', [PartnerController::class, 'stats']);
 
         // ============================================
