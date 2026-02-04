@@ -44,6 +44,7 @@ class SubscriptionController extends Controller
             'billing.phone' => ['required', 'string', 'max:50'],
             'plan' => ['required', 'string', 'in:alap,iskola,studio'],
             'billing_cycle' => ['required', 'string', 'in:monthly,yearly'],
+            'is_desktop' => ['nullable', 'boolean'],
         ]);
 
         try {
@@ -53,6 +54,7 @@ class SubscriptionController extends Controller
                 'email' => $validated['email'],
                 'plan' => $validated['plan'],
                 'billing_cycle' => $validated['billing_cycle'],
+                'is_desktop' => $validated['is_desktop'] ?? false,
             ], $registrationToken);
 
             Log::info('Stripe Checkout Session created for subscription', [
@@ -408,9 +410,26 @@ class SubscriptionController extends Controller
 
     private function getPartnerWithAddons(int $userId): ?Partner
     {
-        return Partner::with(['addons' => fn ($q) => $q->where('status', 'active')])
+        // Először próbáljuk tulajdonosként
+        $partner = Partner::with(['addons' => fn ($q) => $q->where('status', 'active')])
             ->where('user_id', $userId)
             ->first();
+
+        if ($partner) {
+            return $partner;
+        }
+
+        // Ha nem tulajdonos, csapattagként keresünk
+        $teamMember = \App\Models\PartnerTeamMember::where('user_id', $userId)
+            ->where('is_active', true)
+            ->first();
+
+        if ($teamMember) {
+            return Partner::with(['addons' => fn ($q) => $q->where('status', 'active')])
+                ->find($teamMember->partner_id);
+        }
+
+        return null;
     }
 
     private function buildSubscriptionResponse(Partner $partner): array
@@ -439,6 +458,7 @@ class SubscriptionController extends Controller
         }
 
         return [
+            'partner_name' => $partner->company_name,
             'plan' => $partner->plan,
             'plan_name' => $planConfig['name'] ?? $partner->plan,
             'billing_cycle' => $partner->billing_cycle,
