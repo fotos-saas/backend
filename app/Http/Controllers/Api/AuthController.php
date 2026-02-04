@@ -1069,25 +1069,27 @@ class AuthController extends Controller
         $user->password_set = true;
         $user->save();
 
-        // Send password changed confirmation email
-        $emailEvent = EmailEvent::where('event_type', 'password_changed')
-            ->where('is_active', true)
-            ->first();
+        // Send password changed confirmation email (async via queue)
+        dispatch(function () use ($user) {
+            $emailEvent = EmailEvent::where('event_type', 'password_changed')
+                ->where('is_active', true)
+                ->first();
 
-        if ($emailEvent && $emailEvent->emailTemplate) {
-            $emailService = app(EmailService::class);
-            $variableService = app(EmailVariableService::class);
+            if ($emailEvent && $emailEvent->emailTemplate) {
+                $emailService = app(EmailService::class);
+                $variableService = app(EmailVariableService::class);
 
-            $variables = $variableService->resolveVariables(user: $user);
+                $variables = $variableService->resolveVariables(user: $user);
 
-            $emailService->sendFromTemplate(
-                template: $emailEvent->emailTemplate,
-                recipientEmail: $user->email,
-                variables: $variables,
-                recipientUser: $user,
-                eventType: 'password_changed'
-            );
-        }
+                $emailService->sendFromTemplate(
+                    template: $emailEvent->emailTemplate,
+                    recipientEmail: $user->email,
+                    variables: $variables,
+                    recipientUser: $user,
+                    eventType: 'password_changed'
+                );
+            }
+        })->afterResponse();
 
         return response()->json([
             'message' => 'Jelszó sikeresen beállítva',
