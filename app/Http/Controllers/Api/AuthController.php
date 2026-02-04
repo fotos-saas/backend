@@ -1,5 +1,30 @@
 <?php
 
+/**
+ * @deprecated This controller has been split into multiple smaller controllers.
+ * Use the new controllers in App\Http\Controllers\Api\Auth namespace:
+ * - LoginController - login, loginCode, loginMagic
+ * - TabloLoginController - loginTabloCode, loginTabloShare, loginTabloPreview
+ * - RegisterController - register, validateQrCode, registerFromQr
+ * - PasswordController - forgotPassword, resetPassword, setPassword, changePassword
+ * - SessionController - logout, refresh, validateSession, activeSessions, revokeSession, revokeAllSessions
+ * - MagicLinkController - requestMagicLink, validateMagicToken, bulkWorkSessionInvite
+ * - VerificationController - verifyEmail, resendVerification
+ * - TwoFactorController - enable2FA, confirm2FA, disable2FA, verify2FA
+ *
+ * This file is kept for backward compatibility but should not be used for new routes.
+ * All routes have been migrated to the new controllers.
+ *
+ * @see App\Http\Controllers\Api\Auth\LoginController
+ * @see App\Http\Controllers\Api\Auth\TabloLoginController
+ * @see App\Http\Controllers\Api\Auth\RegisterController
+ * @see App\Http\Controllers\Api\Auth\PasswordController
+ * @see App\Http\Controllers\Api\Auth\SessionController
+ * @see App\Http\Controllers\Api\Auth\MagicLinkController
+ * @see App\Http\Controllers\Api\Auth\VerificationController
+ * @see App\Http\Controllers\Api\Auth\TwoFactorController
+ */
+
 namespace App\Http\Controllers\Api;
 
 use App\Enums\TabloProjectStatus;

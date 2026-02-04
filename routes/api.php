@@ -1,7 +1,14 @@
 <?php
 
 use App\Http\Controllers\Api\AlbumController;
-use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\Auth\LoginController;
+use App\Http\Controllers\Api\Auth\MagicLinkController;
+use App\Http\Controllers\Api\Auth\PasswordController;
+use App\Http\Controllers\Api\Auth\RegisterController;
+use App\Http\Controllers\Api\Auth\SessionController;
+use App\Http\Controllers\Api\Auth\TabloLoginController;
+use App\Http\Controllers\Api\Auth\TwoFactorController;
+use App\Http\Controllers\Api\Auth\VerificationController;
 use App\Http\Controllers\Api\CartController;
 use App\Http\Controllers\Api\ClaimController;
 use App\Http\Controllers\Api\CouponController;
@@ -26,6 +33,7 @@ use App\Http\Controllers\Api\Tablo\TabloPersonController;
 use App\Http\Controllers\Api\Tablo\TabloPartnerController;
 use App\Http\Controllers\Api\Tablo\TabloProjectController;
 use App\Http\Controllers\Api\TabloWorkflowController;
+use App\Http\Controllers\Api\Tablo\WorkflowController as TabloWorkflowControllerNew;
 use App\Http\Controllers\Api\WorkSessionController;
 use App\Http\Controllers\Api\MarketerController;
 use App\Http\Controllers\Api\PartnerController;
@@ -99,50 +107,50 @@ Route::get('/health', function () {
 // SECURITY: All login endpoints have rate limiting to prevent brute force attacks
 Route::prefix('auth')->group(function () {
     // Login endpoints with account lockout check
-    Route::post('/login', [AuthController::class, 'login'])
+    Route::post('/login', [LoginController::class, 'login'])
         ->middleware(['account.lockout', 'throttle:5,1']); // 5 attempts per minute
-    Route::post('/login-code', [AuthController::class, 'loginCode'])
+    Route::post('/login-code', [LoginController::class, 'loginCode'])
         ->middleware('throttle:10,1'); // 10 attempts per minute (work session codes)
     // Unified access code login - supports both TabloProject codes and PartnerClient codes
-    Route::post('/login-access-code', [AuthController::class, 'loginTabloCode'])
+    Route::post('/login-access-code', [TabloLoginController::class, 'loginTabloCode'])
         ->middleware('throttle:tablo-login');
     // Legacy alias for backward compatibility
-    Route::post('/login-tablo-code', [AuthController::class, 'loginTabloCode'])
+    Route::post('/login-tablo-code', [TabloLoginController::class, 'loginTabloCode'])
         ->middleware('throttle:tablo-login');
-    Route::post('/login-tablo-share', [AuthController::class, 'loginTabloShare'])
+    Route::post('/login-tablo-share', [TabloLoginController::class, 'loginTabloShare'])
         ->middleware('throttle:tablo-login');
-    Route::post('/login-tablo-preview', [AuthController::class, 'loginTabloPreview'])
+    Route::post('/login-tablo-preview', [TabloLoginController::class, 'loginTabloPreview'])
         ->middleware('throttle:tablo-login');
 
     // Registration
-    Route::post('/register', [AuthController::class, 'register'])
+    Route::post('/register', [RegisterController::class, 'register'])
         ->middleware('throttle:3,1'); // 3 registrations per minute per IP
 
     // Password management (public)
-    Route::post('/forgot-password', [AuthController::class, 'forgotPassword'])
+    Route::post('/forgot-password', [PasswordController::class, 'forgotPassword'])
         ->middleware('throttle:3,1'); // 3 password reset requests per minute
-    Route::post('/reset-password', [AuthController::class, 'resetPassword'])
+    Route::post('/reset-password', [PasswordController::class, 'resetPassword'])
         ->middleware('throttle:5,1'); // 5 resets per minute
 
     // Email verification (public, signed URL)
-    Route::get('/verify-email/{id}/{hash}', [AuthController::class, 'verifyEmail'])
+    Route::get('/verify-email/{id}/{hash}', [VerificationController::class, 'verifyEmail'])
         ->middleware(['signed', 'throttle:10,1'])
         ->name('verification.verify');
-    Route::post('/resend-verification', [AuthController::class, 'resendVerification'])
+    Route::post('/resend-verification', [VerificationController::class, 'resendVerification'])
         ->middleware('throttle:3,1');
 
     // Magic link
-    Route::post('/request-magic-link', [AuthController::class, 'requestMagicLink'])
+    Route::post('/request-magic-link', [MagicLinkController::class, 'requestMagicLink'])
         ->middleware('throttle:3,1'); // 3 magic link requests per minute
-    Route::get('/magic/{token}/validate', [AuthController::class, 'validateMagicToken'])
+    Route::get('/magic/{token}/validate', [MagicLinkController::class, 'validateMagicToken'])
         ->middleware('throttle:10,1'); // Token validation
-    Route::get('/magic/{token}', [AuthController::class, 'loginMagic'])
+    Route::get('/magic/{token}', [LoginController::class, 'loginMagic'])
         ->middleware('throttle:10,1'); // Magic link login
 
     // QR Registration (public - for tablo frontend)
-    Route::get('/qr-code/{code}/validate', [AuthController::class, 'validateQrCode'])
+    Route::get('/qr-code/{code}/validate', [RegisterController::class, 'validateQrCode'])
         ->middleware('throttle:20,1');
-    Route::post('/register-qr', [AuthController::class, 'registerFromQr'])
+    Route::post('/register-qr', [RegisterController::class, 'registerFromQr'])
         ->middleware('throttle:10,1');
 });
 
@@ -292,24 +300,28 @@ Route::prefix('image-conversion')->middleware('throttle:image-conversion')->grou
 
 Route::middleware('auth:sanctum')->group(function () {
 
-    // Auth
-    Route::post('/auth/logout', [AuthController::class, 'logout']);
-    Route::get('/auth/refresh', [AuthController::class, 'refresh']);
-    Route::post('/auth/set-password', [AuthController::class, 'setPassword']);
-    Route::post('/auth/change-password', [AuthController::class, 'changePassword']);
-    Route::get('/auth/validate-session', [AuthController::class, 'validateSession']);
-    Route::post('/auth/bulk-work-session-invite', [AuthController::class, 'bulkWorkSessionInvite']);
+    // Auth - Session management
+    Route::post('/auth/logout', [SessionController::class, 'logout']);
+    Route::get('/auth/refresh', [SessionController::class, 'refresh']);
+    Route::get('/auth/validate-session', [SessionController::class, 'validateSession']);
+
+    // Auth - Password management
+    Route::post('/auth/set-password', [PasswordController::class, 'setPassword']);
+    Route::post('/auth/change-password', [PasswordController::class, 'changePassword']);
+
+    // Auth - Magic link bulk invite
+    Route::post('/auth/bulk-work-session-invite', [MagicLinkController::class, 'bulkWorkSessionInvite']);
 
     // Session management
-    Route::get('/auth/sessions', [AuthController::class, 'activeSessions']);
-    Route::delete('/auth/sessions/{tokenId}', [AuthController::class, 'revokeSession']);
-    Route::delete('/auth/sessions', [AuthController::class, 'revokeAllSessions']);
+    Route::get('/auth/sessions', [SessionController::class, 'activeSessions']);
+    Route::delete('/auth/sessions/{tokenId}', [SessionController::class, 'revokeSession']);
+    Route::delete('/auth/sessions', [SessionController::class, 'revokeAllSessions']);
 
     // 2FA (preparation - endpoints exist but return "not available" until implemented)
-    Route::post('/auth/2fa/enable', [AuthController::class, 'enable2FA']);
-    Route::post('/auth/2fa/confirm', [AuthController::class, 'confirm2FA']);
-    Route::post('/auth/2fa/disable', [AuthController::class, 'disable2FA']);
-    Route::post('/auth/2fa/verify', [AuthController::class, 'verify2FA']);
+    Route::post('/auth/2fa/enable', [TwoFactorController::class, 'enable2FA']);
+    Route::post('/auth/2fa/confirm', [TwoFactorController::class, 'confirm2FA']);
+    Route::post('/auth/2fa/disable', [TwoFactorController::class, 'disable2FA']);
+    Route::post('/auth/2fa/verify', [TwoFactorController::class, 'verify2FA']);
 
     // Current User
     Route::get('/user', function (Request $request) {
@@ -376,13 +388,23 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/progress/{gallery}', [TabloWorkflowController::class, 'getProgress']);
         Route::get('/step-data/{gallery}', [TabloWorkflowController::class, 'getStepData']);
 
-        // Unified workflow status endpoint
-        Route::get('/workflow/status', [TabloWorkflowController::class, 'getWorkflowStatus']);
+        // Unified workflow status endpoint (NEW - Action-based)
+        Route::get('/workflow/status', [TabloWorkflowControllerNew::class, 'getStatus']);
 
-        // Step-by-step save endpoints (US-014)
-        Route::post('/workflow/retouch', [TabloWorkflowController::class, 'saveWorkflowRetouch']);
-        Route::post('/workflow/tablo-photo', [TabloWorkflowController::class, 'saveWorkflowTabloPhoto']);
-        Route::post('/workflow/finalize', [TabloWorkflowController::class, 'finalizeWorkflow']);
+        // Step-by-step save endpoints (US-014) (NEW - Action-based)
+        Route::post('/workflow/retouch', [TabloWorkflowControllerNew::class, 'saveRetouch']);
+        Route::post('/workflow/tablo-photo', [TabloWorkflowControllerNew::class, 'saveTabloPhoto']);
+        Route::post('/workflow/finalize', [TabloWorkflowControllerNew::class, 'finalize']);
+
+        // NEW Action-based endpoints (preferred)
+        Route::post('/workflow/claiming', [TabloWorkflowControllerNew::class, 'saveClaiming']);
+        Route::post('/workflow/tablo-photo/clear', [TabloWorkflowControllerNew::class, 'clearTabloPhoto']);
+        Route::post('/workflow/next-step', [TabloWorkflowControllerNew::class, 'nextStep']);
+        Route::post('/workflow/previous-step', [TabloWorkflowControllerNew::class, 'previousStep']);
+        Route::post('/workflow/move-to-step', [TabloWorkflowControllerNew::class, 'moveToStep']);
+        Route::get('/workflow/progress/{gallery}', [TabloWorkflowControllerNew::class, 'getProgress']);
+        Route::get('/workflow/step-data/{gallery}', [TabloWorkflowControllerNew::class, 'getStepData']);
+        Route::post('/workflow/cart-comment', [TabloWorkflowControllerNew::class, 'saveCartComment']);
     });
 
     // Work Sessions
@@ -630,8 +652,8 @@ Route::prefix('tablo-frontend')
     ->middleware(['auth:sanctum', 'throttle:200,1', \App\Http\Middleware\CheckTabloProjectStatus::class])
     ->group(function () {
         // Auth endpoints
-        Route::post('/logout', [AuthController::class, 'logout']);
-        Route::get('/refresh', [AuthController::class, 'refresh']);
+        Route::post('/logout', [SessionController::class, 'logout']);
+        Route::get('/refresh', [SessionController::class, 'refresh']);
 
         // Validate current tablo project session
         Route::get('/validate-session', function (Request $request) {

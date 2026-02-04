@@ -1,5 +1,30 @@
 <?php
 
+/**
+ * @deprecated Use App\Http\Controllers\Api\Tablo\WorkflowController instead.
+ *
+ * This controller has been refactored to use Action classes.
+ * Legacy endpoints are kept for backward compatibility.
+ * New development should use the /workflow/* endpoints which use the new controller.
+ *
+ * New endpoints (preferred):
+ * - POST /api/tablo/workflow/claiming → WorkflowController::saveClaiming
+ * - POST /api/tablo/workflow/retouch → WorkflowController::saveRetouch
+ * - POST /api/tablo/workflow/tablo-photo → WorkflowController::saveTabloPhoto
+ * - POST /api/tablo/workflow/finalize → WorkflowController::finalize
+ * - GET /api/tablo/workflow/status → WorkflowController::getStatus
+ * - POST /api/tablo/workflow/next-step → WorkflowController::nextStep
+ * - POST /api/tablo/workflow/previous-step → WorkflowController::previousStep
+ *
+ * @see App\Http\Controllers\Api\Tablo\WorkflowController
+ * @see App\Actions\Tablo\SaveClaimingSelectionAction
+ * @see App\Actions\Tablo\SaveRetouchSelectionAction
+ * @see App\Actions\Tablo\SaveTabloPhotoAction
+ * @see App\Actions\Tablo\FinalizeWorkflowAction
+ * @see App\Actions\Tablo\GetWorkflowStatusAction
+ * @see App\Actions\Tablo\NavigateWorkflowAction
+ */
+
 namespace App\Http\Controllers\Api;
 
 use App\Events\TabloUserRegistered;
