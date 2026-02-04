@@ -16,7 +16,7 @@ use Illuminate\Http\Request;
  * Partner Project Controller - Project CRUD operations for partners.
  *
  * Handles: storeProject(), updateProject(), deleteProject(), toggleAware(),
- *          projectSamples(), projectMissingPersons()
+ *          projectSamples(), projectPersons()
  */
 class PartnerProjectController extends Controller
 {
@@ -182,21 +182,21 @@ class PartnerProjectController extends Controller
     }
 
     /**
-     * Get project missing persons.
+     * Get project persons (diákok és tanárok).
      */
-    public function projectMissingPersons(int $projectId, Request $request): JsonResponse
+    public function projectPersons(int $projectId, Request $request): JsonResponse
     {
         $project = $this->getProjectForPartner($projectId);
 
         $withoutPhoto = $request->boolean('without_photo', false);
 
-        $query = $project->missingPersons()->orderBy('position');
+        $query = $project->persons()->orderBy('position');
 
         if ($withoutPhoto) {
             $query->whereNull('media_id');
         }
 
-        $missingPersons = $query->with('photo')->get()->map(function ($person) {
+        $persons = $query->with('photo')->get()->map(function ($person) {
             return [
                 'id' => $person->id,
                 'name' => $person->name,
@@ -209,7 +209,15 @@ class PartnerProjectController extends Controller
         });
 
         return response()->json([
-            'data' => $missingPersons,
+            'data' => $persons,
         ]);
+    }
+
+    /**
+     * @deprecated Use projectPersons() instead
+     */
+    public function projectMissingPersons(int $projectId, Request $request): JsonResponse
+    {
+        return $this->projectPersons($projectId, $request);
     }
 }

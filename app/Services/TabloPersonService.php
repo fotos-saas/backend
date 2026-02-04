@@ -3,17 +3,17 @@
 namespace App\Services;
 
 use App\Enums\TabloPersonType;
-use App\Models\TabloMissingPerson;
+use App\Models\TabloPerson;
 use Illuminate\Support\Facades\Cache;
 
 /**
- * Tabló hiányzó személyek kezelése - badge count-ok és csoportosítás
+ * Tabló személyek kezelése - badge count-ok és csoportosítás
  */
-class TabloMissingPersonService
+class TabloPersonService
 {
     private const CACHE_TTL = 300; // 5 perc
 
-    private const CACHE_PREFIX = 'tablo_missing_counts_';
+    private const CACHE_PREFIX = 'tablo_person_counts_';
 
     /**
      * Tab badge számlálók - 1 optimalizált query-vel, cache-elve
@@ -25,7 +25,7 @@ class TabloMissingPersonService
         $cacheKey = self::CACHE_PREFIX . ($projectId ?? 'all');
 
         return Cache::remember($cacheKey, self::CACHE_TTL, function () use ($projectId) {
-            $counts = TabloMissingPerson::query()
+            $counts = TabloPerson::query()
                 ->when($projectId, fn ($q) => $q->where('tablo_project_id', $projectId))
                 ->selectRaw('
                     SUM(CASE WHEN type = ? THEN 1 ELSE 0 END) as teachers,
@@ -43,7 +43,7 @@ class TabloMissingPersonService
     }
 
     /**
-     * Cache invalidálás - hívandó amikor TabloMissingPerson módosul
+     * Cache invalidálás - hívandó amikor TabloPerson módosul
      */
     public function clearCountCache(?int $projectId = null): void
     {

@@ -565,13 +565,13 @@ class GuestSessionController extends Controller
     {
         $validated = $request->validate([
             'nickname' => 'required|string|max:100|min:2',
-            'missing_person_id' => 'nullable|integer|exists:tablo_missing_persons,id',
+            'person_id' => 'nullable|integer|exists:tablo_persons,id',
             'email' => 'required|email|max:255',
             'device_identifier' => 'nullable|string|max:255',
         ], [
             'nickname.required' => 'A becenév megadása kötelező.',
             'nickname.min' => 'A becenév legalább 2 karakter legyen.',
-            'missing_person_id.exists' => 'A kiválasztott személy nem található.',
+            'person_id.exists' => 'A kiválasztott személy nem található.',
             'email.required' => 'Az email cím megadása kötelező.',
             'email.email' => 'Érvénytelen email cím.',
         ]);
@@ -586,10 +586,10 @@ class GuestSessionController extends Controller
             ], 404);
         }
 
-        // Ha van missing_person_id, ellenőrizzük hogy a projekt missing_persons listájában van-e
-        if ($validated['missing_person_id'] ?? null) {
-            $validPerson = $project->missingPersons()
-                ->where('id', $validated['missing_person_id'])
+        // Ha van person_id, ellenőrizzük hogy a projekt persons listájában van-e
+        if ($validated['person_id'] ?? null) {
+            $validPerson = $project->persons()
+                ->where('id', $validated['person_id'])
                 ->exists();
 
             if (! $validPerson) {
@@ -603,7 +603,7 @@ class GuestSessionController extends Controller
         $result = $this->guestSessionService->registerWithIdentification(
             $project,
             $validated['nickname'],
-            $validated['missing_person_id'] ?? null,
+            $validated['person_id'] ?? null,
             $validated['email'] ?? null,
             $validated['device_identifier'] ?? null,
             $request->ip()
@@ -623,8 +623,8 @@ class GuestSessionController extends Controller
                 'guest_email' => $session->guest_email,
                 'verification_status' => $session->verification_status,
                 'is_pending' => $session->isPending(),
-                'missing_person_id' => $session->tablo_missing_person_id,
-                'missing_person_name' => $session->missingPerson?->name,
+                'person_id' => $session->tablo_person_id,
+                'person_name' => $session->person?->name,
             ],
             'has_conflict' => $result['has_conflict'],
         ]);
@@ -734,17 +734,17 @@ class GuestSessionController extends Controller
                 'id' => $session->id,
                 'guest_name' => $session->guest_name,
                 'guest_email' => $session->guest_email,
-                'missing_person' => $session->missingPerson ? [
-                    'id' => $session->missingPerson->id,
-                    'name' => $session->missingPerson->name,
-                    'type' => $session->missingPerson->type,
-                    'type_label' => $session->missingPerson->type_label,
+                'person' => $session->person ? [
+                    'id' => $session->person->id,
+                    'name' => $session->person->name,
+                    'type' => $session->person->type,
+                    'type_label' => $session->person->type_label,
                 ] : null,
                 'created_at' => $session->created_at->toIso8601String(),
                 // Megmutatjuk ki az eredeti "tulajdonos"
-                'existing_owner' => $session->missingPerson?->guestSession ? [
-                    'id' => $session->missingPerson->guestSession->id,
-                    'guest_name' => $session->missingPerson->guestSession->guest_name,
+                'existing_owner' => $session->person?->guestSession ? [
+                    'id' => $session->person->guestSession->id,
+                    'guest_name' => $session->person->guestSession->guest_name,
                 ] : null,
             ]),
             'count' => $pendingSessions->count(),

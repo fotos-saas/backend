@@ -776,7 +776,7 @@ class TabloProjectResource extends BaseResource
     {
         return [
             RelationManagers\ContactsRelationManager::class,
-            RelationManagers\MissingPersonsRelationManager::class,
+            RelationManagers\PersonsRelationManager::class,
             RelationManagers\NotesRelationManager::class,
             RelationManagers\SamplesRelationManager::class,
             RelationManagers\EmailsRelationManager::class,

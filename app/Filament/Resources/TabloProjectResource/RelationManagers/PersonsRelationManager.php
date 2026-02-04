@@ -3,7 +3,7 @@
 namespace App\Filament\Resources\TabloProjectResource\RelationManagers;
 
 use App\Filament\Resources\TabloProjectResource;
-use App\Models\TabloMissingPerson;
+use App\Models\TabloPerson;
 use App\Models\TabloProject;
 use App\Services\NameMatcherService;
 use Filament\Actions\Action;
@@ -26,9 +26,9 @@ use Illuminate\Support\HtmlString;
 use Illuminate\Support\Str;
 use ZipArchive;
 
-class MissingPersonsRelationManager extends RelationManager
+class PersonsRelationManager extends RelationManager
 {
-    protected static string $relationship = 'missingPersons';
+    protected static string $relationship = 'persons';
 
     /**
      * When super admin views this relation, mark photos as seen.
@@ -81,19 +81,19 @@ class MissingPersonsRelationManager extends RelationManager
     public static function getBadge(Model $ownerRecord, string $pageClass): ?string
     {
         /** @var \App\Models\TabloProject $ownerRecord */
-        $missingPersons = $ownerRecord->missingPersons;
+        $persons = $ownerRecord->persons;
 
-        if ($missingPersons->isEmpty()) {
+        if ($persons->isEmpty()) {
             return null;
         }
 
         // Count persons without photos (media_id is null)
-        $studentsWithoutPhoto = $missingPersons
+        $studentsWithoutPhoto = $persons
             ->where('type', 'student')
             ->filter(fn ($p) => $p->media_id === null)
             ->count();
 
-        $teachersWithoutPhoto = $missingPersons
+        $teachersWithoutPhoto = $persons
             ->where('type', 'teacher')
             ->filter(fn ($p) => $p->media_id === null)
             ->count();
@@ -538,7 +538,7 @@ class MissingPersonsRelationManager extends RelationManager
                         /** @var TabloProject $project */
                         $project = $this->getOwnerRecord();
                         $hasPhotos = $project->getMedia('tablo_photos')->count() > 0;
-                        $hasUnmatchedPersons = $project->missingPersons()->whereNull('media_id')->exists();
+                        $hasUnmatchedPersons = $project->persons()->whereNull('media_id')->exists();
 
                         return $hasPhotos && $hasUnmatchedPersons;
                     })
@@ -550,7 +550,7 @@ class MissingPersonsRelationManager extends RelationManager
                         $allSummaries = [];
 
                         // Párosítatlan képek (még nem használt media_id-k)
-                        $usedMediaIds = $project->missingPersons()
+                        $usedMediaIds = $project->persons()
                             ->whereNotNull('media_id')
                             ->pluck('media_id')
                             ->toArray();
@@ -563,7 +563,7 @@ class MissingPersonsRelationManager extends RelationManager
                             $typeLabel = $type === 'teacher' ? 'Tanár' : 'Diák';
 
                             // Adott típusú párosítatlan személyek
-                            $unmatchedPersons = $project->missingPersons()
+                            $unmatchedPersons = $project->persons()
                                 ->whereNull('media_id')
                                 ->where('type', $type)
                                 ->get();
@@ -661,13 +661,13 @@ class MissingPersonsRelationManager extends RelationManager
                         $project = $this->getOwnerRecord();
 
                         // Párosítatlan személyek
-                        $unmatchedPersons = $project->missingPersons()
+                        $unmatchedPersons = $project->persons()
                             ->whereNull('media_id')
                             ->orderBy('name')
                             ->get();
 
                         // Párosítatlan képek
-                        $usedMediaIds = $project->missingPersons()
+                        $usedMediaIds = $project->persons()
                             ->whereNotNull('media_id')
                             ->pluck('media_id')
                             ->toArray();
@@ -804,21 +804,21 @@ class MissingPersonsRelationManager extends RelationManager
                             return;
                         }
 
-                        $maxPosition = $project->missingPersons()->max('position') ?? 0;
+                        $maxPosition = $project->persons()->max('position') ?? 0;
                         $imported = 0;
 
                         foreach ($names as $name) {
                             if (empty($name)) continue;
 
                             // Ellenőrizzük, hogy már létezik-e
-                            $exists = $project->missingPersons()
+                            $exists = $project->persons()
                                 ->where('name', $name)
                                 ->where('type', $data['type'])
                                 ->exists();
 
                             if (!$exists) {
                                 $maxPosition++;
-                                TabloMissingPerson::create([
+                                TabloPerson::create([
                                     'tablo_project_id' => $project->id,
                                     'name' => $name,
                                     'type' => $data['type'],
@@ -843,7 +843,7 @@ class MissingPersonsRelationManager extends RelationManager
             ->actions([
                 EditAction::make()
                     ->modalWidth('xl')
-                    ->using(function (TabloMissingPerson $record, array $data) {
+                    ->using(function (TabloPerson $record, array $data) {
                         // Handle photo removal
                         if (! empty($data['remove_photo'])) {
                             $record->update(['media_id' => null]);

@@ -3,23 +3,23 @@
 namespace Tests\Unit\Services;
 
 use App\Enums\TabloPersonType;
-use App\Models\TabloMissingPerson;
+use App\Models\TabloPerson;
 use App\Models\TabloProject;
-use App\Services\TabloMissingPersonService;
+use App\Services\TabloPersonService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cache;
 use Tests\TestCase;
 
-class TabloMissingPersonServiceTest extends TestCase
+class TabloPersonServiceTest extends TestCase
 {
     use RefreshDatabase;
 
-    private TabloMissingPersonService $service;
+    private TabloPersonService $service;
 
     protected function setUp(): void
     {
         parent::setUp();
-        $this->service = new TabloMissingPersonService;
+        $this->service = new TabloPersonService;
         Cache::flush();
     }
 
@@ -28,12 +28,12 @@ class TabloMissingPersonServiceTest extends TestCase
         // Arrange
         $project = TabloProject::factory()->create();
 
-        TabloMissingPerson::factory()->count(3)->create([
+        TabloPerson::factory()->count(3)->create([
             'tablo_project_id' => $project->id,
             'type' => TabloPersonType::TEACHER->value,
         ]);
 
-        TabloMissingPerson::factory()->count(5)->create([
+        TabloPerson::factory()->count(5)->create([
             'tablo_project_id' => $project->id,
             'type' => TabloPersonType::STUDENT->value,
         ]);
@@ -53,12 +53,12 @@ class TabloMissingPersonServiceTest extends TestCase
         $project1 = TabloProject::factory()->create();
         $project2 = TabloProject::factory()->create();
 
-        TabloMissingPerson::factory()->count(2)->create([
+        TabloPerson::factory()->count(2)->create([
             'tablo_project_id' => $project1->id,
             'type' => TabloPersonType::TEACHER->value,
         ]);
 
-        TabloMissingPerson::factory()->count(4)->create([
+        TabloPerson::factory()->count(4)->create([
             'tablo_project_id' => $project2->id,
             'type' => TabloPersonType::STUDENT->value,
         ]);
@@ -82,7 +82,7 @@ class TabloMissingPersonServiceTest extends TestCase
         // Arrange
         $project = TabloProject::factory()->create();
 
-        TabloMissingPerson::factory()->create([
+        TabloPerson::factory()->create([
             'tablo_project_id' => $project->id,
             'type' => TabloPersonType::TEACHER->value,
         ]);
@@ -91,7 +91,7 @@ class TabloMissingPersonServiceTest extends TestCase
         $this->service->getTabCounts();
 
         // Új rekord hozzáadása cache után
-        TabloMissingPerson::factory()->create([
+        TabloPerson::factory()->create([
             'tablo_project_id' => $project->id,
             'type' => TabloPersonType::TEACHER->value,
         ]);
@@ -106,7 +106,7 @@ class TabloMissingPersonServiceTest extends TestCase
         // Arrange
         $project = TabloProject::factory()->create();
 
-        TabloMissingPerson::factory()->create([
+        TabloPerson::factory()->create([
             'tablo_project_id' => $project->id,
             'type' => TabloPersonType::TEACHER->value,
         ]);
@@ -115,7 +115,7 @@ class TabloMissingPersonServiceTest extends TestCase
         $this->service->getTabCounts();
 
         // Új rekord hozzáadása
-        TabloMissingPerson::factory()->create([
+        TabloPerson::factory()->create([
             'tablo_project_id' => $project->id,
             'type' => TabloPersonType::TEACHER->value,
         ]);

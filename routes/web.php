@@ -52,11 +52,11 @@ Route::middleware('auth')->group(function () {
     // Manual photo matching for missing persons
     Route::post('/admin/api/missing-person-match', function (\Illuminate\Http\Request $request) {
         $validated = $request->validate([
-            'person_id' => 'required|integer|exists:tablo_missing_persons,id',
+            'person_id' => 'required|integer|exists:tablo_persons,id',
             'media_id' => 'required|integer|exists:media,id',
         ]);
 
-        $person = \App\Models\TabloMissingPerson::find($validated['person_id']);
+        $person = \App\Models\TabloPerson::find($validated['person_id']);
         $person->update(['media_id' => $validated['media_id']]);
 
         return response()->json(['success' => true]);

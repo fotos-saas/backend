@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Filament\Resources\TabloMissingPeople\Tables;
+namespace App\Filament\Resources\TabloPersonResource\Tables;
 
 use App\Enums\TabloPersonType;
 use App\Filament\Resources\TabloProjectResource;
@@ -16,7 +16,7 @@ use Filament\Tables\Grouping\Group;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 
-class TabloMissingPeopleTable
+class TabloPersonsTable
 {
     public static function configure(Table $table): Table
     {
@@ -117,8 +117,8 @@ class TabloMissingPeopleTable
                     DeleteBulkAction::make(),
                 ]),
             ])
-            ->emptyStateHeading('Nincs hiányzó személy')
-            ->emptyStateDescription('Minden személynek van képe.')
+            ->emptyStateHeading('Nincs személy')
+            ->emptyStateDescription('Nincsenek személyek ebben a listában.')
             ->emptyStateIcon('heroicon-o-check-circle');
     }
 }

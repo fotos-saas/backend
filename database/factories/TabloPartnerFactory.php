@@ -26,6 +26,17 @@ class TabloPartnerFactory extends Factory
             'slug' => \Illuminate\Support\Str::slug($name) . '-' . fake()->unique()->numerify('###'),
             'email' => fake()->unique()->safeEmail(),
             'phone' => '+36' . fake()->numerify('##########'),
+            'features' => [],
         ];
+    }
+
+    /**
+     * Configure with client_orders feature enabled.
+     */
+    public function withClientOrders(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'features' => ['client_orders' => true],
+        ]);
     }
 }

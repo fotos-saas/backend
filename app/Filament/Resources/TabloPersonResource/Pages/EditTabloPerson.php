@@ -1,10 +1,10 @@
 <?php
 
-namespace App\Filament\Resources\TabloMissingPeople\Pages;
+namespace App\Filament\Resources\TabloPersonResource\Pages;
 
-use App\Filament\Resources\TabloMissingPeople\TabloMissingPersonResource;
+use App\Filament\Resources\TabloPersonResource\TabloPersonResource;
 use App\Filament\Resources\TabloProjectResource;
-use App\Models\TabloMissingPerson;
+use App\Models\TabloPerson;
 use Filament\Actions\Action;
 use Filament\Actions\DeleteAction;
 use Filament\Forms\Components\Select;
@@ -12,16 +12,16 @@ use Filament\Resources\Pages\EditRecord;
 use Illuminate\Support\Str;
 use Livewire\Features\SupportFileUploads\TemporaryUploadedFile;
 
-class EditTabloMissingPerson extends EditRecord
+class EditTabloPerson extends EditRecord
 {
-    protected static string $resource = TabloMissingPersonResource::class;
+    protected static string $resource = TabloPersonResource::class;
 
     protected function getHeaderActions(): array
     {
         return [
             Action::make('back')
                 ->label('Vissza a listához')
-                ->url(fn () => TabloMissingPersonResource::getUrl('index'))
+                ->url(fn () => TabloPersonResource::getUrl('index'))
                 ->color('gray'),
 
             $this->getGoToProjectAction(),
@@ -47,7 +47,7 @@ class EditTabloMissingPerson extends EditRecord
         }
 
         // Tanár: keressük meg az összes projektet ahol ugyanezzel a névvel szerepel
-        $sameNameEntries = TabloMissingPerson::where('name', $record->name)
+        $sameNameEntries = TabloPerson::where('name', $record->name)
             ->where('type', 'teacher')
             ->with('project.school')
             ->get();
@@ -78,7 +78,7 @@ class EditTabloMissingPerson extends EditRecord
                     ->options($options)
                     ->default($record->tablo_project_id)
                     ->required()
-                    ->helperText('Ez a tanár több osztálynál is szerepel hiányzó képpel.'),
+                    ->helperText('Ez a tanár több osztálynál is szerepel.'),
             ])
             ->action(function (array $data) {
                 return redirect(TabloProjectResource::getUrl('edit', ['record' => $data['project_id']]));
@@ -113,7 +113,7 @@ class EditTabloMissingPerson extends EditRecord
                 $record->update(['media_id' => $media->id]);
 
                 // Jelöljük meg a projektet, hogy új kép érkezett
-                $project->update(['has_new_missing_photos' => true]);
+                $project->update(['has_new_tablo_photos' => true]);
             }
         }
 

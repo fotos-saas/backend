@@ -386,7 +386,7 @@ return [
             ],
             'relations' => [
                 'contacts' => 'Kapcsolattartók',
-                'missing-persons' => 'Hiányzó személyek',
+                'persons' => 'Személyek (diákok/tanárok)',
                 'notes' => 'Megjegyzések',
                 'samples' => 'Minták',
                 'emails' => 'Email-ek',

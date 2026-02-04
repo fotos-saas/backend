@@ -1,12 +1,12 @@
 <?php
 
-namespace App\Filament\Resources\TabloMissingPeople\Pages;
+namespace App\Filament\Resources\TabloPersonResource\Pages;
 
 use App\Enums\TabloPersonType;
 use App\Filament\Actions\PhotoUploadAction;
 use App\Filament\Pages\MissingSummaryPage;
-use App\Filament\Resources\TabloMissingPeople\TabloMissingPersonResource;
-use App\Services\TabloMissingPersonService;
+use App\Filament\Resources\TabloPersonResource\TabloPersonResource;
+use App\Services\TabloPersonService;
 use Filament\Actions\Action;
 use Filament\Resources\Pages\ListRecords;
 use Filament\Schemas\Components\Tabs\Tab;
@@ -14,9 +14,9 @@ use Filament\Tables\Grouping\Group;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 
-class ListTabloMissingPeople extends ListRecords
+class ListTabloPersons extends ListRecords
 {
-    protected static string $resource = TabloMissingPersonResource::class;
+    protected static string $resource = TabloPersonResource::class;
 
     protected function getHeaderActions(): array
     {
@@ -45,9 +45,9 @@ class ListTabloMissingPeople extends ListRecords
     /**
      * Service instance getter (lazy load)
      */
-    protected function getService(): TabloMissingPersonService
+    protected function getService(): TabloPersonService
     {
-        return app(TabloMissingPersonService::class);
+        return app(TabloPersonService::class);
     }
 
     public function getTabs(): array

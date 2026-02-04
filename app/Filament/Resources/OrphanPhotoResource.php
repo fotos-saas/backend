@@ -5,7 +5,7 @@ namespace App\Filament\Resources;
 use App\Filament\Resources\BaseResource;
 use App\Filament\Resources\OrphanPhotoResource\Pages\ListOrphanPhotos;
 use App\Models\OrphanPhoto;
-use App\Models\TabloMissingPerson;
+use App\Models\TabloPerson;
 use App\Models\TabloProject;
 use BackedEnum;
 use Filament\Actions\Action;
@@ -141,7 +141,7 @@ class OrphanPhotoResource extends BaseResource
                                     return [];
                                 }
 
-                                return TabloMissingPerson::where('tablo_project_id', $projectId)
+                                return TabloPerson::where('tablo_project_id', $projectId)
                                     ->whereNull('media_id')
                                     ->orderBy('name')
                                     ->get()
@@ -154,7 +154,7 @@ class OrphanPhotoResource extends BaseResource
                             ->helperText('Csak azok a személyek jelennek meg, akiknek még nincs képük'),
                     ])
                     ->action(function (OrphanPhoto $record, array $data) {
-                        $person = TabloMissingPerson::find($data['person_id']);
+                        $person = TabloPerson::find($data['person_id']);
                         if (! $person) {
                             Notification::make()
                                 ->title('Személy nem található')

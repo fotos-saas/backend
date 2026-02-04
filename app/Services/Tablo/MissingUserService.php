@@ -3,7 +3,7 @@
 namespace App\Services\Tablo;
 
 use App\Models\TabloGuestSession;
-use App\Models\TabloMissingPerson;
+use App\Models\TabloPerson;
 use App\Models\TabloPoke;
 use App\Models\TabloPoll;
 use App\Models\TabloPollVote;
@@ -77,14 +77,14 @@ class MissingUserService
 
     /**
      * Fotózásból hiányzók
-     * Azok akiknek nincs fotója (tablo_missing_persons alapján)
+     * Azok akiknek nincs fotója (tablo_persons alapján)
      * MINDEN hiányzó személy megjelenik, függetlenül attól van-e guest session-jük
      * N+1 optimalizált verzió
      */
     public function getMissingForPhotoshoot(TabloProject $project, ?TabloGuestSession $currentSession = null): array
     {
         // Missing persons akiknek nincs fotója
-        $missingPersonsWithoutPhoto = $project->missingPersons()
+        $missingPersonsWithoutPhoto = $project->persons()
             ->whereNull('media_id')
             ->orderBy('type')
             ->orderBy('name')
@@ -94,9 +94,9 @@ class MissingUserService
         $directMatchSessions = $project->guestSessions()
             ->regularMembers()
             ->verified()
-            ->whereIn('tablo_missing_person_id', $missingPersonsWithoutPhoto->pluck('id'))
+            ->whereIn('tablo_person_id', $missingPersonsWithoutPhoto->pluck('id'))
             ->get()
-            ->keyBy('tablo_missing_person_id');
+            ->keyBy('tablo_person_id');
 
         // Gyűjtsük össze a guest session ID-kat a batch poke státuszhoz
         $guestSessionIds = $directMatchSessions->pluck('id')->toArray();
@@ -108,7 +108,7 @@ class MissingUserService
         }
 
         // Formázzuk a hiányzó személyeket
-        $formattedUsers = $missingPersonsWithoutPhoto->map(function (TabloMissingPerson $person) use ($directMatchSessions, $currentSession, $batchPokeStatus) {
+        $formattedUsers = $missingPersonsWithoutPhoto->map(function (TabloPerson $person) use ($directMatchSessions, $currentSession, $batchPokeStatus) {
             // Keresünk egyező guest session-t a cache-ből
             $guestSession = $directMatchSessions->get($person->id);
 
@@ -124,15 +124,15 @@ class MissingUserService
 
     /**
      * Guest session keresése egy missing person-höz
-     * PRIORITÁS: 1) tablo_missing_person_id párosítás, 2) név/email ILIKE fallback
+     * PRIORITÁS: 1) tablo_person_id párosítás, 2) név/email ILIKE fallback
      */
-    protected function findGuestSessionForPerson(TabloProject $project, TabloMissingPerson $person): ?TabloGuestSession
+    protected function findGuestSessionForPerson(TabloProject $project, TabloPerson $person): ?TabloGuestSession
     {
         // 1. Először a direkt párosítást keressük (verified státuszú)
         $directMatch = $project->guestSessions()
             ->regularMembers()
             ->verified()
-            ->where('tablo_missing_person_id', $person->id)
+            ->where('tablo_person_id', $person->id)
             ->first();
 
         if ($directMatch) {
@@ -157,14 +157,14 @@ class MissingUserService
      * @deprecated Use formatMissingPersonOptimized for better performance
      */
     protected function formatMissingPerson(
-        TabloMissingPerson $person,
+        TabloPerson $person,
         ?TabloGuestSession $guestSession,
         ?TabloGuestSession $currentSession
     ): array {
         $hasGuestSession = $guestSession !== null;
 
         $formatted = [
-            'id' => $person->id,  // TabloMissingPerson ID
+            'id' => $person->id,  // TabloPerson ID
             'name' => $person->name,
             'email' => $person->email,
             'type' => $person->type,  // 'student' | 'teacher'
@@ -193,7 +193,7 @@ class MissingUserService
      * Batch poke státuszt használ a már lekérdezett adatokból
      */
     protected function formatMissingPersonOptimized(
-        TabloMissingPerson $person,
+        TabloPerson $person,
         ?TabloGuestSession $guestSession,
         ?TabloGuestSession $currentSession,
         array $batchPokeStatus
@@ -201,7 +201,7 @@ class MissingUserService
         $hasGuestSession = $guestSession !== null;
 
         $formatted = [
-            'id' => $person->id,  // TabloMissingPerson ID
+            'id' => $person->id,  // TabloPerson ID
             'name' => $person->name,
             'email' => $person->email,
             'type' => $person->type,  // 'student' | 'teacher'
@@ -342,18 +342,18 @@ class MissingUserService
         }
 
         // Fotózás ellenőrzés
-        // PRIORITÁS: 1) tablo_missing_person_id párosítás, 2) név/email ILIKE fallback
+        // PRIORITÁS: 1) tablo_person_id párosítás, 2) név/email ILIKE fallback
         $hasMissingPhoto = false;
 
-        if ($session->tablo_missing_person_id) {
+        if ($session->tablo_person_id) {
             // Direkt párosítás - ellenőrizzük a missing person fotó státuszát
-            $hasMissingPhoto = $project->missingPersons()
+            $hasMissingPhoto = $project->persons()
                 ->whereNull('media_id')
-                ->where('id', $session->tablo_missing_person_id)
+                ->where('id', $session->tablo_person_id)
                 ->exists();
         } else {
             // Fallback: név/email ILIKE keresés
-            $hasMissingPhoto = $project->missingPersons()
+            $hasMissingPhoto = $project->persons()
                 ->whereNull('media_id')
                 ->where(function ($query) use ($session) {
                     $query->where('name', 'ILIKE', $session->guest_name);

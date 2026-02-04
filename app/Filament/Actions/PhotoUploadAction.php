@@ -4,7 +4,7 @@ namespace App\Filament\Actions;
 
 use App\DTOs\PhotoMatchResult;
 use App\Models\OrphanPhoto;
-use App\Models\TabloMissingPerson;
+use App\Models\TabloPerson;
 use App\Models\TabloProject;
 use App\Services\PhotoMatcherService;
 use Filament\Actions\Action;
@@ -68,7 +68,7 @@ class PhotoUploadAction
                     ->label('Projekt (opcionális)')
                     ->placeholder('AI automatikusan detektálja')
                     ->options(fn () => TabloProject::with('school')
-                        ->whereHas('missingPersons', fn ($q) => $q->whereNull('media_id'))
+                        ->whereHas('persons', fn ($q) => $q->whereNull('media_id'))
                         ->get()
                         ->mapWithKeys(fn ($p) => [
                             $p->id => ($p->school?->name ?? 'Ismeretlen iskola') . ' - ' . $p->class_name . ' (' . $p->class_year . ')',
@@ -106,7 +106,7 @@ class PhotoUploadAction
                 $savedMatches = 0;
                 foreach ($result->matches as $match) {
                     if (! empty($match['person_id']) && ! empty($match['media_id'])) {
-                        TabloMissingPerson::where('id', $match['person_id'])
+                        TabloPerson::where('id', $match['person_id'])
                             ->update(['media_id' => $match['media_id']]);
                         $savedMatches++;
 
@@ -485,7 +485,7 @@ class PhotoUploadAction
      */
     protected static function syncTeacherToOtherProjects(string $teacherName, int $mediaId, int $excludeProjectId): void
     {
-        $otherPersons = TabloMissingPerson::where('name', $teacherName)
+        $otherPersons = TabloPerson::where('name', $teacherName)
             ->where('type', 'teacher')
             ->where('tablo_project_id', '!=', $excludeProjectId)
             ->whereNull('media_id')

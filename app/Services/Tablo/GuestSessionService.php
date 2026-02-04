@@ -3,7 +3,7 @@
 namespace App\Services\Tablo;
 
 use App\Models\TabloGuestSession;
-use App\Models\TabloMissingPerson;
+use App\Models\TabloPerson;
 use App\Models\TabloProject;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -277,26 +277,26 @@ class GuestSessionService
     // ==========================================
 
     /**
-     * Hiányzó személyek keresése autocomplete-hez
+     * Személyek keresése autocomplete-hez
      *
      * @param  string  $query  Keresett szöveg
      * @param  int  $limit  Maximum találatok száma
-     * @return Collection<TabloMissingPerson>
+     * @return Collection<TabloPerson>
      */
-    public function searchMissingPersons(TabloProject $project, string $query, int $limit = 10): Collection
+    public function searchPersons(TabloProject $project, string $query, int $limit = 10): Collection
     {
         if (strlen($query) < 2) {
             return collect();
         }
 
         // Keresés név alapján, ILIKE-kal (case-insensitive)
-        return $project->missingPersons()
+        return $project->persons()
             ->where('name', 'ILIKE', '%'.trim($query).'%')
             ->orderBy('type') // student first, then teacher
             ->orderBy('name')
             ->limit($limit)
             ->get()
-            ->map(fn (TabloMissingPerson $person) => [
+            ->map(fn (TabloPerson $person) => [
                 'id' => $person->id,
                 'name' => $person->name,
                 'type' => $person->type,
@@ -307,6 +307,14 @@ class GuestSessionService
     }
 
     /**
+     * @deprecated Use searchPersons() instead
+     */
+    public function searchMissingPersons(TabloProject $project, string $query, int $limit = 10): Collection
+    {
+        return $this->searchPersons($project, $query, $limit);
+    }
+
+    /**
      * Regisztráció személyazonosítással (onboarding flow)
      *
      * @return array{session: TabloGuestSession, has_conflict: bool, conflict_message: string|null}
@@ -314,21 +322,21 @@ class GuestSessionService
     public function registerWithIdentification(
         TabloProject $project,
         string $nickname,
-        ?int $missingPersonId = null,
+        ?int $personId = null,
         ?string $email = null,
         ?string $deviceIdentifier = null,
         ?string $ipAddress = null
     ): array {
-        return DB::transaction(function () use ($project, $nickname, $missingPersonId, $email, $deviceIdentifier, $ipAddress) {
+        return DB::transaction(function () use ($project, $nickname, $personId, $email, $deviceIdentifier, $ipAddress) {
             $hasConflict = false;
             $conflictMessage = null;
             $verificationStatus = TabloGuestSession::VERIFICATION_VERIFIED;
 
             // Ha van kiválasztott személy, ellenőrizzük az ütközést
-            if ($missingPersonId) {
-                $missingPerson = TabloMissingPerson::find($missingPersonId);
+            if ($personId) {
+                $person = TabloPerson::find($personId);
 
-                if ($missingPerson && $missingPerson->isClaimed()) {
+                if ($person && $person->isClaimed()) {
                     // Ütközés: már van verified session ehhez a személyhez
                     $hasConflict = true;
                     $verificationStatus = TabloGuestSession::VERIFICATION_PENDING;
@@ -336,8 +344,8 @@ class GuestSessionService
 
                     Log::info('Guest registration conflict detected', [
                         'project_id' => $project->id,
-                        'missing_person_id' => $missingPersonId,
-                        'existing_session_id' => $missingPerson->guestSession?->id,
+                        'person_id' => $personId,
+                        'existing_session_id' => $person->guestSession?->id,
                     ]);
                 }
             }
@@ -353,7 +361,7 @@ class GuestSessionService
                     // Email alapján frissítjük a meglévő session-t
                     $existingByEmail->update([
                         'guest_name' => $nickname,
-                        'tablo_missing_person_id' => $missingPersonId,
+                        'tablo_person_id' => $personId,
                         'device_identifier' => $deviceIdentifier ?? $existingByEmail->device_identifier,
                         'ip_address' => $ipAddress ?? $existingByEmail->ip_address,
                         'last_activity_at' => now(),
@@ -378,7 +386,7 @@ class GuestSessionService
                 'session_token' => (string) Str::uuid(),
                 'guest_name' => $nickname,
                 'guest_email' => $email,
-                'tablo_missing_person_id' => $missingPersonId,
+                'tablo_person_id' => $personId,
                 'verification_status' => $verificationStatus,
                 'device_identifier' => $deviceIdentifier,
                 'ip_address' => $ipAddress,
@@ -419,14 +427,14 @@ class GuestSessionService
             'is_pending' => $session->isPending(),
             'is_rejected' => $session->isRejected(),
             'is_banned' => $session->is_banned,
-            'missing_person_name' => $session->missingPerson?->name,
+            'person_name' => $session->person?->name,
         ];
     }
 
     /**
      * Ütközés feloldása (admin által)
      * Az új igénylő session-jét verified státuszra állítja,
-     * és a régi session-ről leveszi a missing_person_id-t
+     * és a régi session-ről leveszi a person_id-t
      *
      * @param  TabloGuestSession|int  $pendingSession  Session instance or ID
      * @param  bool|string  $action  true/'approve' for approve, false/'reject' for reject
@@ -460,7 +468,7 @@ class GuestSessionService
             if ($approve) {
                 // Megkeressük a régi verified session-t ugyanahhoz a személyhez
                 $oldSession = TabloGuestSession::where('tablo_project_id', $pendingSession->tablo_project_id)
-                    ->where('tablo_missing_person_id', $pendingSession->tablo_missing_person_id)
+                    ->where('tablo_person_id', $pendingSession->tablo_person_id)
                     ->where('id', '!=', $pendingSession->id)
                     ->verified()
                     ->first();
@@ -468,12 +476,12 @@ class GuestSessionService
                 if ($oldSession) {
                     // A régi session-ről levesszük a párosítást
                     $oldSession->update([
-                        'tablo_missing_person_id' => null,
+                        'tablo_person_id' => null,
                     ]);
 
-                    Log::info('Old session unlinked from missing person', [
+                    Log::info('Old session unlinked from person', [
                         'old_session_id' => $oldSession->id,
-                        'missing_person_id' => $pendingSession->tablo_missing_person_id,
+                        'person_id' => $pendingSession->tablo_person_id,
                     ]);
                 }
 
@@ -489,7 +497,7 @@ class GuestSessionService
                 // Elutasítás: rejected státusz, de a session megmarad (név nélkül)
                 $pendingSession->update([
                     'verification_status' => TabloGuestSession::VERIFICATION_REJECTED,
-                    'tablo_missing_person_id' => null, // Levesszük a párosítást
+                    'tablo_person_id' => null, // Levesszük a párosítást
                 ]);
 
                 Log::info('Pending session rejected', [
@@ -517,7 +525,7 @@ class GuestSessionService
     {
         return $project->guestSessions()
             ->pending()
-            ->with('missingPerson')
+            ->with('person')
             ->orderByDesc('created_at')
             ->get();
     }

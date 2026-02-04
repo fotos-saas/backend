@@ -89,7 +89,7 @@ class TabloProjectRepository extends BaseRepository implements TabloProjectRepos
         $query = $this->query()
             ->where('partner_id', $partnerId)
             ->with(['school', 'contacts'])
-            ->withCount(['guestSessions', 'missingPersons']);
+            ->withCount(['guestSessions', 'persons']);
 
         if ($search) {
             $this->applySearch($query, $search, ['name', 'class_name', 'class_year']);
@@ -101,11 +101,19 @@ class TabloProjectRepository extends BaseRepository implements TabloProjectRepos
     /**
      * {@inheritdoc}
      */
-    public function getWithMissingPersons(int $projectId): ?TabloProject
+    public function getWithPersons(int $projectId): ?TabloProject
     {
         return $this->query()
-            ->with('missingPersons')
+            ->with('persons')
             ->find($projectId);
+    }
+
+    /**
+     * @deprecated Use getWithPersons() instead
+     */
+    public function getWithMissingPersons(int $projectId): ?TabloProject
+    {
+        return $this->getWithPersons($projectId);
     }
 
     /**

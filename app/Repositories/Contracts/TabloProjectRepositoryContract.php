@@ -58,7 +58,12 @@ interface TabloProjectRepositoryContract extends BaseRepositoryContract
     public function getWithStats(int $partnerId, int $perPage = 15, ?string $search = null): LengthAwarePaginator;
 
     /**
-     * Projekt hiányzó személyeivel
+     * Projekt személyeivel (diákok és tanárok)
+     */
+    public function getWithPersons(int $projectId): ?TabloProject;
+
+    /**
+     * @deprecated Use getWithPersons() instead
      */
     public function getWithMissingPersons(int $projectId): ?TabloProject;
 

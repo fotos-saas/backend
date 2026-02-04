@@ -9,11 +9,11 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Spatie\MediaLibrary\MediaCollections\Models\Media;
 
-class TabloMissingPerson extends Model
+class TabloPerson extends Model
 {
     use HasFactory;
 
-    protected $table = 'tablo_missing_persons';
+    protected $table = 'tablo_persons';
 
     protected $fillable = [
         'tablo_project_id',
@@ -125,7 +125,7 @@ class TabloMissingPerson extends Model
      */
     public function guestSession(): HasOne
     {
-        return $this->hasOne(TabloGuestSession::class, 'tablo_missing_person_id')
+        return $this->hasOne(TabloGuestSession::class, 'tablo_person_id')
             ->where('verification_status', TabloGuestSession::VERIFICATION_VERIFIED);
     }
 
@@ -134,7 +134,7 @@ class TabloMissingPerson extends Model
      */
     public function allGuestSessions()
     {
-        return $this->hasMany(TabloGuestSession::class, 'tablo_missing_person_id');
+        return $this->hasMany(TabloGuestSession::class, 'tablo_person_id');
     }
 
     /**

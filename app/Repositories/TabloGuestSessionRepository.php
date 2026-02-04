@@ -73,7 +73,7 @@ class TabloGuestSessionRepository extends BaseRepository implements TabloGuestSe
                 COUNT(*) as total,
                 SUM(CASE WHEN is_banned = false THEN 1 ELSE 0 END) as active,
                 SUM(CASE WHEN is_banned = true THEN 1 ELSE 0 END) as banned,
-                SUM(CASE WHEN tablo_missing_person_id IS NOT NULL THEN 1 ELSE 0 END) as with_selections
+                SUM(CASE WHEN tablo_person_id IS NOT NULL THEN 1 ELSE 0 END) as with_selections
             ')
             ->first();
 

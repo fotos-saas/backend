@@ -212,11 +212,19 @@ class TabloProject extends Model implements HasMedia
     }
 
     /**
-     * Get missing persons for this project
+     * Get persons for this project (diákok és tanárok)
+     */
+    public function persons(): HasMany
+    {
+        return $this->hasMany(TabloPerson::class, 'tablo_project_id');
+    }
+
+    /**
+     * @deprecated Use persons() instead - kept for backward compatibility
      */
     public function missingPersons(): HasMany
     {
-        return $this->hasMany(TabloMissingPerson::class, 'tablo_project_id');
+        return $this->persons();
     }
 
     /**

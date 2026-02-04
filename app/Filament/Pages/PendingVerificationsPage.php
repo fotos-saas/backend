@@ -85,7 +85,7 @@ class PendingVerificationsPage extends Page implements HasTable
                     ->searchable()
                     ->weight('bold'),
 
-                TextColumn::make('missingPerson.name')
+                TextColumn::make('person.name')
                     ->label('Tablón szereplő név')
                     ->sortable()
                     ->searchable()
@@ -94,7 +94,7 @@ class PendingVerificationsPage extends Page implements HasTable
                             return new HtmlString('<span style="color: #6b7280;">Nem azonosított</span>');
                         }
 
-                        $typeLabel = $record->missingPerson?->type_label ?? '';
+                        $typeLabel = $record->person?->type_label ?? '';
 
                         return new HtmlString(
                             e($state) .
@@ -105,13 +105,13 @@ class PendingVerificationsPage extends Page implements HasTable
                 TextColumn::make('existing_owner')
                     ->label('Jelenlegi tulajdonos')
                     ->state(function (TabloGuestSession $record): string {
-                        if (! $record->tablo_missing_person_id) {
+                        if (! $record->tablo_person_id) {
                             return '-';
                         }
 
                         // Keressük meg a verified session-t ugyanahhoz a személyhez
                         $existingSession = TabloGuestSession::query()
-                            ->where('tablo_missing_person_id', $record->tablo_missing_person_id)
+                            ->where('tablo_person_id', $record->tablo_person_id)
                             ->where('verification_status', TabloGuestSession::VERIFICATION_VERIFIED)
                             ->where('id', '!=', $record->id)
                             ->first();
@@ -155,9 +155,9 @@ class PendingVerificationsPage extends Page implements HasTable
                     ->modalHeading('Vendég jóváhagyása')
                     ->modalDescription(function (TabloGuestSession $record): string {
                         $existingSession = null;
-                        if ($record->tablo_missing_person_id) {
+                        if ($record->tablo_person_id) {
                             $existingSession = TabloGuestSession::query()
-                                ->where('tablo_missing_person_id', $record->tablo_missing_person_id)
+                                ->where('tablo_person_id', $record->tablo_person_id)
                                 ->where('verification_status', TabloGuestSession::VERIFICATION_VERIFIED)
                                 ->where('id', '!=', $record->id)
                                 ->first();
@@ -166,7 +166,7 @@ class PendingVerificationsPage extends Page implements HasTable
                         if ($existingSession) {
                             return "Biztosan jóváhagyod \"{$record->guest_name}\" vendéget? " .
                                 "A jelenlegi tulajdonos (\"{$existingSession->guest_name}\") elveszíti a párosítást " .
-                                "és nem lesz bökhető a \"{$record->missingPerson->name}\" személyként.";
+                                "és nem lesz bökhető a \"{$record->person->name}\" személyként.";
                         }
 
                         return "Biztosan jóváhagyod \"{$record->guest_name}\" vendéget?";
@@ -242,21 +242,21 @@ class PendingVerificationsPage extends Page implements HasTable
                         $html .= '</div>';
 
                         // Párosítás
-                        if ($record->missingPerson) {
+                        if ($record->person) {
                             $html .= '<div style="margin-bottom: 16px;">';
                             $html .= '<h3 style="font-weight: 600; margin-bottom: 8px; color: #374151;">Tablón szereplő személy</h3>';
                             $html .= '<div style="background: #fef3c7; padding: 12px; border-radius: 8px;">';
-                            $html .= '<div style="margin-bottom: 4px;"><strong>Név:</strong> ' . e($record->missingPerson->name) . '</div>';
-                            $html .= '<div style="margin-bottom: 4px;"><strong>Típus:</strong> ' . e($record->missingPerson->type_label) . '</div>';
-                            $html .= '<div><strong>Fotó:</strong> ' . ($record->missingPerson->media_id ? 'Van' : 'Nincs') . '</div>';
+                            $html .= '<div style="margin-bottom: 4px;"><strong>Név:</strong> ' . e($record->person->name) . '</div>';
+                            $html .= '<div style="margin-bottom: 4px;"><strong>Típus:</strong> ' . e($record->person->type_label) . '</div>';
+                            $html .= '<div><strong>Fotó:</strong> ' . ($record->person->media_id ? 'Van' : 'Nincs') . '</div>';
                             $html .= '</div>';
                             $html .= '</div>';
                         }
 
                         // Ütközés
-                        if ($record->tablo_missing_person_id) {
+                        if ($record->tablo_person_id) {
                             $existingSession = TabloGuestSession::query()
-                                ->where('tablo_missing_person_id', $record->tablo_missing_person_id)
+                                ->where('tablo_person_id', $record->tablo_person_id)
                                 ->where('verification_status', TabloGuestSession::VERIFICATION_VERIFIED)
                                 ->where('id', '!=', $record->id)
                                 ->first();
@@ -287,7 +287,7 @@ class PendingVerificationsPage extends Page implements HasTable
     protected function getTableQuery(): Builder
     {
         return TabloGuestSession::query()
-            ->with(['project.school', 'missingPerson'])
+            ->with(['project.school', 'person'])
             ->pending();
     }
 
@@ -301,11 +301,11 @@ class PendingVerificationsPage extends Page implements HasTable
         // Pending session-ök, ahol van másik verified session ugyanahhoz a személyhez
         return TabloGuestSession::query()
             ->pending()
-            ->whereNotNull('tablo_missing_person_id')
+            ->whereNotNull('tablo_person_id')
             ->whereExists(function ($query) {
                 $query->selectRaw('1')
                     ->from('tablo_guest_sessions as existing')
-                    ->whereColumn('existing.tablo_missing_person_id', 'tablo_guest_sessions.tablo_missing_person_id')
+                    ->whereColumn('existing.tablo_person_id', 'tablo_guest_sessions.tablo_person_id')
                     ->where('existing.verification_status', TabloGuestSession::VERIFICATION_VERIFIED)
                     ->whereColumn('existing.id', '!=', 'tablo_guest_sessions.id');
             })

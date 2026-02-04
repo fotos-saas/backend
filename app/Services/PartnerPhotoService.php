@@ -3,7 +3,7 @@
 namespace App\Services;
 
 use App\Jobs\GenerateMediaThumbnailJob;
-use App\Models\TabloMissingPerson;
+use App\Models\TabloPerson;
 use App\Models\TabloProject;
 use App\Traits\FileValidation;
 use Illuminate\Http\UploadedFile;
@@ -236,11 +236,11 @@ class PartnerPhotoService
     /**
      * Személyhez kép hozzárendelése (verziózással)
      *
-     * @param  TabloMissingPerson  $person  Személy
+     * @param  TabloPerson  $person  Személy
      * @param  UploadedFile  $file  Új kép
      * @return Media Az új média rekord
      */
-    public function uploadPersonPhoto(TabloMissingPerson $person, UploadedFile $file): Media
+    public function uploadPersonPhoto(TabloPerson $person, UploadedFile $file): Media
     {
         return DB::transaction(function () use ($person, $file) {
             $project = $person->project;
@@ -301,7 +301,7 @@ class PartnerPhotoService
                 $personId = (int) $assignment['personId'];
                 $mediaId = (int) $assignment['mediaId'];
 
-                $person = $project->missingPersons()->find($personId);
+                $person = $project->persons()->find($personId);
 
                 // Közvetlen DB query - a getMedia() cache problémás
                 $media = Media::where('id', $mediaId)
@@ -382,7 +382,7 @@ class PartnerPhotoService
     /**
      * Régi képek archiválása - áthelyezés tablo_archived-ba
      */
-    protected function archiveOldPhotos(TabloMissingPerson $person): void
+    protected function archiveOldPhotos(TabloPerson $person): void
     {
         if (! $person->media_id) {
             return;
@@ -407,7 +407,7 @@ class PartnerPhotoService
     /**
      * Következő verziószám meghatározása
      */
-    protected function getNextPhotoVersion(TabloMissingPerson $person): int
+    protected function getNextPhotoVersion(TabloPerson $person): int
     {
         $project = $person->project;
 

@@ -237,9 +237,17 @@ class PartnerController extends Controller
         return app(PartnerProjectController::class)->projectSamples($projectId);
     }
 
+    public function projectPersons(int $projectId, Request $request): JsonResponse
+    {
+        return app(PartnerProjectController::class)->projectPersons($projectId, $request);
+    }
+
+    /**
+     * @deprecated Use projectPersons() instead
+     */
     public function projectMissingPersons(int $projectId, Request $request): JsonResponse
     {
-        return app(PartnerProjectController::class)->projectMissingPersons($projectId, $request);
+        return $this->projectPersons($projectId, $request);
     }
 
     // ============================================

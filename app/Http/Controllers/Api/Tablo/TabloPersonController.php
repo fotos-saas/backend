@@ -3,17 +3,17 @@
 namespace App\Http\Controllers\Api\Tablo;
 
 use App\Http\Controllers\Controller;
-use App\Models\TabloMissingPerson;
+use App\Models\TabloPerson;
 use App\Models\TabloProject;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 
-class TabloMissingPersonController extends Controller
+class TabloPersonController extends Controller
 {
     /**
-     * List missing persons for a project
+     * List persons for a project
      */
     public function index(int $projectId): JsonResponse
     {
@@ -26,13 +26,13 @@ class TabloMissingPersonController extends Controller
             ], 404);
         }
 
-        $missingPersons = $project->missingPersons()
+        $persons = $project->persons()
             ->orderBy('name', 'asc')
             ->get();
 
         return response()->json([
             'success' => true,
-            'data' => $missingPersons->map(fn ($m) => [
+            'data' => $persons->map(fn ($m) => [
                 'id' => $m->id,
                 'name' => $m->name,
                 'local_id' => $m->local_id,
@@ -43,7 +43,7 @@ class TabloMissingPersonController extends Controller
     }
 
     /**
-     * Add missing person to project
+     * Add person to project
      */
     public function store(Request $request, int $projectId): JsonResponse
     {
@@ -70,7 +70,7 @@ class TabloMissingPersonController extends Controller
             ], 422);
         }
 
-        $missingPerson = $project->missingPersons()->create([
+        $person = $project->persons()->create([
             'name' => $request->input('name'),
             'local_id' => $request->input('local_id'),
             'note' => $request->input('note'),
@@ -78,19 +78,19 @@ class TabloMissingPersonController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Hiányzó személy sikeresen hozzáadva',
+            'message' => 'Személy sikeresen hozzáadva',
             'data' => [
-                'id' => $missingPerson->id,
-                'name' => $missingPerson->name,
-                'local_id' => $missingPerson->local_id,
-                'note' => $missingPerson->note,
-                'created_at' => $missingPerson->created_at->toIso8601String(),
+                'id' => $person->id,
+                'name' => $person->name,
+                'local_id' => $person->local_id,
+                'note' => $person->note,
+                'created_at' => $person->created_at->toIso8601String(),
             ],
         ], 201);
     }
 
     /**
-     * Batch add missing persons
+     * Batch add persons
      */
     public function batchStore(Request $request, int $projectId): JsonResponse
     {
@@ -122,7 +122,7 @@ class TabloMissingPersonController extends Controller
 
         DB::transaction(function () use ($project, $request, &$created) {
             foreach ($request->input('persons') as $personData) {
-                $person = $project->missingPersons()->create([
+                $person = $project->persons()->create([
                     'name' => $personData['name'],
                     'local_id' => $personData['local_id'] ?? null,
                     'note' => $personData['note'] ?? null,
@@ -139,22 +139,22 @@ class TabloMissingPersonController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => count($created).' hiányzó személy sikeresen hozzáadva',
+            'message' => count($created).' személy sikeresen hozzáadva',
             'data' => $created,
         ], 201);
     }
 
     /**
-     * Update missing person
+     * Update person
      */
     public function update(Request $request, int $id): JsonResponse
     {
-        $missingPerson = TabloMissingPerson::find($id);
+        $person = TabloPerson::find($id);
 
-        if (! $missingPerson) {
+        if (! $person) {
             return response()->json([
                 'success' => false,
-                'message' => 'Hiányzó személy nem található',
+                'message' => 'Személy nem található',
             ], 404);
         }
 
@@ -172,48 +172,48 @@ class TabloMissingPersonController extends Controller
             ], 422);
         }
 
-        $missingPerson->update($request->only(['name', 'local_id', 'note']));
+        $person->update($request->only(['name', 'local_id', 'note']));
 
         return response()->json([
             'success' => true,
-            'message' => 'Hiányzó személy sikeresen frissítve',
+            'message' => 'Személy sikeresen frissítve',
             'data' => [
-                'id' => $missingPerson->id,
-                'name' => $missingPerson->name,
-                'local_id' => $missingPerson->local_id,
-                'note' => $missingPerson->note,
+                'id' => $person->id,
+                'name' => $person->name,
+                'local_id' => $person->local_id,
+                'note' => $person->note,
             ],
         ]);
     }
 
     /**
-     * Delete missing person
+     * Delete person
      */
     public function destroy(int $id): JsonResponse
     {
-        $missingPerson = TabloMissingPerson::find($id);
+        $person = TabloPerson::find($id);
 
-        if (! $missingPerson) {
+        if (! $person) {
             return response()->json([
                 'success' => false,
-                'message' => 'Hiányzó személy nem található',
+                'message' => 'Személy nem található',
             ], 404);
         }
 
-        $missingPerson->delete();
+        $person->delete();
 
         return response()->json([
             'success' => true,
-            'message' => 'Hiányzó személy sikeresen törölve',
+            'message' => 'Személy sikeresen törölve',
         ]);
     }
 
     /**
-     * Sync missing persons from legacy system
-     * POST /api/tablo-management/projects/sync-missing-persons
+     * Sync persons from legacy system
+     * POST /api/tablo-management/projects/sync-persons
      * Body: { "project_id": 94, "persons": [{"name": "Kiss Péter"}, {"name": "Nagy Anna", "local_id": "123"}] }
      */
-    public function syncMissingPersons(Request $request): JsonResponse
+    public function syncPersons(Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), [
             'project_id' => 'required|integer',
@@ -249,8 +249,8 @@ class TabloMissingPersonController extends Controller
         $updated = 0;
 
         DB::transaction(function () use ($project, $incomingPersons, &$added, &$removed, &$updated) {
-            // Get current missing persons indexed by local_id
-            $currentPersons = $project->missingPersons()->get()->keyBy('local_id');
+            // Get current persons indexed by local_id
+            $currentPersons = $project->persons()->get()->keyBy('local_id');
 
             // Get incoming local_ids
             $incomingLocalIds = $incomingPersons->pluck('local_id')->toArray();
@@ -288,7 +288,7 @@ class TabloMissingPersonController extends Controller
                     }
                 } else {
                     // Add new
-                    $project->missingPersons()->create([
+                    $project->persons()->create([
                         'name' => $person['name'],
                         'local_id' => $localId,
                         'note' => $person['note'] ?? null,
@@ -301,7 +301,7 @@ class TabloMissingPersonController extends Controller
         });
 
         // Get updated list ordered by position
-        $updatedPersons = $project->missingPersons()->orderBy('position')->get();
+        $updatedPersons = $project->persons()->orderBy('position')->get();
 
         return response()->json([
             'success' => true,
@@ -326,11 +326,11 @@ class TabloMissingPersonController extends Controller
     }
 
     /**
-     * Export missing persons with photos
-     * GET /api/tablo-management/projects/export-missing-persons?external_id=94
+     * Export persons with photos
+     * GET /api/tablo-management/projects/export-persons?external_id=94
      * Returns only persons who have assigned photos
      */
-    public function exportMissingPersons(Request $request): JsonResponse
+    public function exportPersons(Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), [
             'external_id' => 'required|string',
@@ -355,7 +355,7 @@ class TabloMissingPersonController extends Controller
         }
 
         // Only get persons with photos (media_id is not null)
-        $personsWithPhotos = $project->missingPersons()
+        $personsWithPhotos = $project->persons()
             ->whereNotNull('media_id')
             ->with('photo')
             ->orderBy('name')
@@ -377,7 +377,7 @@ class TabloMissingPersonController extends Controller
     }
 
     /**
-     * Batch delete missing persons
+     * Batch delete persons
      */
     public function batchDestroy(Request $request, int $projectId): JsonResponse
     {
@@ -406,13 +406,13 @@ class TabloMissingPersonController extends Controller
         $ids = $request->input('ids');
 
         // Only delete persons that belong to this project
-        $deleted = $project->missingPersons()
+        $deleted = $project->persons()
             ->whereIn('id', $ids)
             ->delete();
 
         return response()->json([
             'success' => true,
-            'message' => $deleted.' hiányzó személy sikeresen törölve',
+            'message' => $deleted.' személy sikeresen törölve',
             'deleted_count' => $deleted,
         ]);
     }

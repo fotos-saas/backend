@@ -2,24 +2,24 @@
 
 namespace App\Observers;
 
-use App\Models\TabloMissingPerson;
-use App\Services\TabloMissingPersonService;
+use App\Models\TabloPerson;
+use App\Services\TabloPersonService;
 
 /**
- * Observer a TabloMissingPerson modellhez - cache invalidálás
+ * Observer a TabloPerson modellhez - cache invalidálás
  */
-class TabloMissingPersonObserver
+class TabloPersonObserver
 {
     public function __construct(
-        private TabloMissingPersonService $service
+        private TabloPersonService $service
     ) {}
 
-    public function created(TabloMissingPerson $person): void
+    public function created(TabloPerson $person): void
     {
         $this->service->clearCountCache($person->tablo_project_id);
     }
 
-    public function updated(TabloMissingPerson $person): void
+    public function updated(TabloPerson $person): void
     {
         $this->service->clearCountCache($person->tablo_project_id);
 
@@ -29,7 +29,7 @@ class TabloMissingPersonObserver
         }
     }
 
-    public function deleted(TabloMissingPerson $person): void
+    public function deleted(TabloPerson $person): void
     {
         $this->service->clearCountCache($person->tablo_project_id);
     }
@@ -37,7 +37,7 @@ class TabloMissingPersonObserver
     /**
      * Soft delete után is töröljük a cache-t
      */
-    public function forceDeleted(TabloMissingPerson $person): void
+    public function forceDeleted(TabloPerson $person): void
     {
         $this->service->clearCountCache($person->tablo_project_id);
     }
@@ -45,7 +45,7 @@ class TabloMissingPersonObserver
     /**
      * Restore után is frissítjük a cache-t
      */
-    public function restored(TabloMissingPerson $person): void
+    public function restored(TabloPerson $person): void
     {
         $this->service->clearCountCache($person->tablo_project_id);
     }

@@ -28,6 +28,10 @@ class SubscriptionStripeService
 
     /**
      * Checkout Session létrehozása regisztrációhoz
+     *
+     * @param array $data Regisztrációs adatok (email, plan, billing_cycle, is_desktop)
+     * @param string $registrationToken Cache-elt regisztrációs adatok tokenje
+     * @return Session Stripe Checkout Session
      */
     public function createCheckoutSession(array $data, string $registrationToken): Session
     {
@@ -37,6 +41,17 @@ class SubscriptionStripeService
             throw new \InvalidArgumentException('A kiválasztott csomag jelenleg nem elérhető.');
         }
 
+        // Desktop app esetén deep link URL-eket használunk
+        $isDesktop = $data['is_desktop'] ?? false;
+
+        if ($isDesktop) {
+            $successUrl = config('stripe.desktop_success_url').'?session_id={CHECKOUT_SESSION_ID}';
+            $cancelUrl = config('stripe.desktop_cancel_url');
+        } else {
+            $successUrl = config('stripe.success_url').'?session_id={CHECKOUT_SESSION_ID}';
+            $cancelUrl = config('stripe.cancel_url');
+        }
+
         return Session::create([
             'payment_method_types' => ['card'],
             'mode' => 'subscription',
@@ -44,13 +59,14 @@ class SubscriptionStripeService
                 'price' => $priceId,
                 'quantity' => 1,
             ]],
-            'success_url' => config('stripe.success_url').'?session_id={CHECKOUT_SESSION_ID}',
-            'cancel_url' => config('stripe.cancel_url'),
+            'success_url' => $successUrl,
+            'cancel_url' => $cancelUrl,
             'customer_email' => $data['email'],
             'metadata' => [
                 'registration_token' => $registrationToken,
                 'plan' => $data['plan'],
                 'billing_cycle' => $data['billing_cycle'],
+                'is_desktop' => $isDesktop ? 'true' : 'false',
             ],
             'subscription_data' => [
                 'trial_period_days' => 14,

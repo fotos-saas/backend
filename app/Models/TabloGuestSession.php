@@ -22,7 +22,7 @@ use Illuminate\Support\Str;
  * @property bool $is_banned Bannolva van-e
  * @property bool $is_extra Extra tag (tanár, egyéb vendég) - nem számít bele a létszámba
  * @property bool $is_coordinator Kapcsolattartó (kóddal belépett) - mindenkit bökhet
- * @property int|null $tablo_missing_person_id Párosított személy ID
+ * @property int|null $tablo_person_id Párosított személy ID
  * @property string $verification_status Verifikáció státusz (verified, pending, rejected)
  * @property \Carbon\Carbon|null $last_activity_at
  * @property \Carbon\Carbon $created_at
@@ -42,7 +42,7 @@ class TabloGuestSession extends Model
         'is_banned',
         'is_extra',
         'is_coordinator',
-        'tablo_missing_person_id',
+        'tablo_person_id',
         'verification_status',
         'restore_token',
         'restore_token_expires_at',
@@ -62,7 +62,7 @@ class TabloGuestSession extends Model
             'is_banned' => 'boolean',
             'is_extra' => 'boolean',
             'is_coordinator' => 'boolean',
-            'tablo_missing_person_id' => 'integer',
+            'tablo_person_id' => 'integer',
             'last_activity_at' => 'datetime',
             'restore_token_expires_at' => 'datetime',
             // Gamification
@@ -96,11 +96,19 @@ class TabloGuestSession extends Model
     }
 
     /**
-     * Get the associated missing person (tablón szereplő személy)
+     * Get the associated person (tablón szereplő személy)
+     */
+    public function person(): BelongsTo
+    {
+        return $this->belongsTo(TabloPerson::class, 'tablo_person_id');
+    }
+
+    /**
+     * @deprecated Use person() instead - kept for backward compatibility
      */
     public function missingPerson(): BelongsTo
     {
-        return $this->belongsTo(TabloMissingPerson::class, 'tablo_missing_person_id');
+        return $this->person();
     }
 
     /**
@@ -356,7 +364,7 @@ class TabloGuestSession extends Model
      */
     public function hasPersonIdentification(): bool
     {
-        return $this->tablo_missing_person_id !== null;
+        return $this->tablo_person_id !== null;
     }
 
     /**
@@ -412,6 +420,6 @@ class TabloGuestSession extends Model
      */
     public function scopeWithPersonIdentification($query)
     {
-        return $query->whereNotNull('tablo_missing_person_id');
+        return $query->whereNotNull('tablo_person_id');
     }
 }

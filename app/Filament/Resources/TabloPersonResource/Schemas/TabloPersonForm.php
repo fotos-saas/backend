@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Filament\Resources\TabloMissingPeople\Schemas;
+namespace App\Filament\Resources\TabloPersonResource\Schemas;
 
 use Filament\Forms\Components\Checkbox;
 use Filament\Forms\Components\FileUpload;
@@ -10,7 +10,7 @@ use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
 use Illuminate\Support\HtmlString;
 
-class TabloMissingPersonForm
+class TabloPersonForm
 {
     public static function configure(Schema $schema): Schema
     {

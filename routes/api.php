@@ -22,7 +22,7 @@ use App\Http\Controllers\Api\Tablo\NewsfeedController;
 use App\Http\Controllers\Api\Tablo\PollController;
 use App\Http\Controllers\Api\Tablo\TabloContactController;
 use App\Http\Controllers\Api\Tablo\TabloFrontendController;
-use App\Http\Controllers\Api\Tablo\TabloMissingPersonController;
+use App\Http\Controllers\Api\Tablo\TabloPersonController;
 use App\Http\Controllers\Api\Tablo\TabloPartnerController;
 use App\Http\Controllers\Api\Tablo\TabloProjectController;
 use App\Http\Controllers\Api\TabloWorkflowController;
@@ -579,7 +579,9 @@ Route::prefix('tablo-management')->middleware([TabloApiKeyAuth::class, SyncFotoc
 
     // Projects
     Route::get('/projects', [TabloProjectController::class, 'index']);
-    Route::get('/projects/export-missing-persons', [TabloMissingPersonController::class, 'exportMissingPersons']);
+    Route::get('/projects/export-persons', [TabloPersonController::class, 'exportPersons']);
+    // Legacy alias for backward compatibility
+    Route::get('/projects/export-missing-persons', [TabloPersonController::class, 'exportPersons']);
     Route::get('/projects/{id}', [TabloProjectController::class, 'show']);
     Route::post('/projects', [TabloProjectController::class, 'store']);
     Route::put('/projects/{id}', [TabloProjectController::class, 'update']);
@@ -594,14 +596,22 @@ Route::prefix('tablo-management')->middleware([TabloApiKeyAuth::class, SyncFotoc
     Route::patch('/projects/{projectId}/samples/{mediaId}', [TabloProjectController::class, 'updateSample']);
     Route::delete('/projects/{projectId}/samples/{mediaId}', [TabloProjectController::class, 'deleteSample']);
 
-    // Missing Persons
-    Route::get('/projects/{projectId}/missing-persons', [TabloMissingPersonController::class, 'index']);
-    Route::post('/projects/{projectId}/missing-persons', [TabloMissingPersonController::class, 'store']);
-    Route::post('/projects/{projectId}/missing-persons/batch', [TabloMissingPersonController::class, 'batchStore']);
-    Route::post('/projects/sync-missing-persons', [TabloMissingPersonController::class, 'syncMissingPersons']);
-    Route::delete('/projects/{projectId}/missing-persons/batch', [TabloMissingPersonController::class, 'batchDestroy']);
-    Route::put('/missing-persons/{id}', [TabloMissingPersonController::class, 'update']);
-    Route::delete('/missing-persons/{id}', [TabloMissingPersonController::class, 'destroy']);
+    // Persons (projekt tagjai: diákok és tanárok)
+    Route::get('/projects/{projectId}/persons', [TabloPersonController::class, 'index']);
+    Route::post('/projects/{projectId}/persons', [TabloPersonController::class, 'store']);
+    Route::post('/projects/{projectId}/persons/batch', [TabloPersonController::class, 'batchStore']);
+    Route::post('/projects/sync-persons', [TabloPersonController::class, 'syncPersons']);
+    Route::delete('/projects/{projectId}/persons/batch', [TabloPersonController::class, 'batchDestroy']);
+    Route::put('/persons/{id}', [TabloPersonController::class, 'update']);
+    Route::delete('/persons/{id}', [TabloPersonController::class, 'destroy']);
+    // Legacy aliases for backward compatibility
+    Route::get('/projects/{projectId}/missing-persons', [TabloPersonController::class, 'index']);
+    Route::post('/projects/{projectId}/missing-persons', [TabloPersonController::class, 'store']);
+    Route::post('/projects/{projectId}/missing-persons/batch', [TabloPersonController::class, 'batchStore']);
+    Route::post('/projects/sync-missing-persons', [TabloPersonController::class, 'syncPersons']);
+    Route::delete('/projects/{projectId}/missing-persons/batch', [TabloPersonController::class, 'batchDestroy']);
+    Route::put('/missing-persons/{id}', [TabloPersonController::class, 'update']);
+    Route::delete('/missing-persons/{id}', [TabloPersonController::class, 'destroy']);
 
     // Contacts
     Route::get('/projects/{projectId}/contacts', [TabloContactController::class, 'index']);

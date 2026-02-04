@@ -158,6 +158,56 @@ return [
                 'Szavazás',
             ],
         ],
+
+        'vip' => [
+            'name' => 'TablóStúdió VIP',
+            'description' => 'Korlátlan tárhely és minden funkció',
+            'popular' => false,
+
+            // Árak (Ft)
+            'monthly_price' => 49990,
+            'yearly_price' => 499900,
+            'paused_price' => 15000,
+
+            // Limitek (null = korlátlan)
+            'limits' => [
+                'storage_gb' => null,      // korlátlan
+                'max_classes' => null,
+                'max_schools' => null,
+                'max_contacts' => null,
+                'max_templates' => null,
+            ],
+
+            // Feature kulcsok
+            'feature_keys' => [
+                'online_selection',
+                'templates',
+                'qr_sharing',
+                'custom_domain',
+                'white_label',
+                'api_access',
+                'dedicated_support',
+                'stripe_payments',
+                'sms_notifications',
+                'forum',
+                'polls',
+                'priority_support',
+                'unlimited_storage',
+            ],
+
+            // Feature címkék
+            'feature_labels' => [
+                'Korlátlan tárhely',
+                'Korlátlan osztály',
+                'Custom domain',
+                'White-label (saját márka)',
+                'API hozzáférés',
+                'Dedikált support',
+                'Prioritás támogatás',
+                'Fórum',
+                'Szavazás',
+            ],
+        ],
     ],
 
     /*

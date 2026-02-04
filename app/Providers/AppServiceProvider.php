@@ -3,12 +3,12 @@
 namespace App\Providers;
 
 use App\Models\Photo;
-use App\Models\TabloMissingPerson;
 use App\Models\TabloNotification;
+use App\Models\TabloPerson;
 use App\Models\WorkSession;
 use App\Observers\PhotoObserver;
-use App\Observers\TabloMissingPersonObserver;
 use App\Observers\TabloNotificationObserver;
+use App\Observers\TabloPersonObserver;
 use App\Observers\WorkSessionObserver;
 use App\Repositories\Contracts\TabloContactRepositoryContract;
 use App\Repositories\Contracts\TabloGuestSessionRepositoryContract;
@@ -44,7 +44,7 @@ class AppServiceProvider extends ServiceProvider
     {
         Photo::observe(PhotoObserver::class);
         WorkSession::observe(WorkSessionObserver::class);
-        TabloMissingPerson::observe(TabloMissingPersonObserver::class);
+        TabloPerson::observe(TabloPersonObserver::class);
         TabloNotification::observe(TabloNotificationObserver::class);
 
         $branding = $this->app->make(BrandingService::class);

@@ -93,4 +93,16 @@ return [
     */
     'success_url' => env('FRONTEND_URL', 'https://tablostudio.hu') . '/register-success',
     'cancel_url' => env('FRONTEND_URL', 'https://tablostudio.hu') . '/register-app?cancelled=true',
+
+    /*
+    |--------------------------------------------------------------------------
+    | Desktop App (Electron) Deep Link URLs
+    |--------------------------------------------------------------------------
+    | Desktop alkalmazásból indított fizetések esetén deep link URL-eket
+    | használunk a visszairányításhoz, hogy az app megkapja az eredményt.
+    |
+    | Protocol: photostack://
+    */
+    'desktop_success_url' => 'photostack://payment/success',
+    'desktop_cancel_url' => 'photostack://payment/cancel',
 ];

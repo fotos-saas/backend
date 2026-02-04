@@ -3,7 +3,7 @@
 namespace App\Services;
 
 use App\DTOs\PhotoMatchResult;
-use App\Models\TabloMissingPerson;
+use App\Models\TabloPerson;
 use App\Models\TabloProject;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
@@ -116,12 +116,12 @@ PROMPT;
     public function matchToProject(TabloProject $project, array $files, string $type): PhotoMatchResult
     {
         // Hiányzó személyek az adott projektben
-        $missingPersons = $project->missingPersons()
+        $persons = $project->persons()
             ->whereNull('media_id')
             ->where('type', $type)
             ->get();
 
-        if ($missingPersons->isEmpty()) {
+        if ($persons->isEmpty()) {
             // Nincs hiányzó személy → mind orphan
             $orphans = array_map(fn ($f) => [
                 'filename' => $f['filename'],
@@ -134,7 +134,7 @@ PROMPT;
         }
 
         // Név-fájlnév párosítás
-        $names = $missingPersons->pluck('name')->toArray();
+        $names = $persons->pluck('name')->toArray();
         $nameMatchResult = $this->nameMatcher->match($names, $files);
 
         $matches = [];
@@ -143,7 +143,7 @@ PROMPT;
 
         // Sikeres párosítások
         foreach ($nameMatchResult->matches as $match) {
-            $person = $missingPersons->first(fn ($p) =>
+            $person = $persons->first(fn ($p) =>
                 mb_strtolower(trim($p->name)) === mb_strtolower(trim($match['name']))
             );
 
@@ -193,7 +193,7 @@ PROMPT;
     {
         // Összes aktív projekt lekérése
         $projects = TabloProject::with('school')
-            ->whereHas('missingPersons', fn ($q) => $q->whereNull('media_id'))
+            ->whereHas('persons', fn ($q) => $q->whereNull('media_id'))
             ->get();
 
         if ($projects->isEmpty()) {
@@ -300,11 +300,11 @@ PROMPT;
     /**
      * Tanárok keresése más projektekben (szinkronizáláshoz).
      *
-     * @return Collection<int, TabloMissingPerson>
+     * @return Collection<int, TabloPerson>
      */
     public function findTeacherInOtherProjects(string $teacherName, int $excludeProjectId): Collection
     {
-        return TabloMissingPerson::where('name', $teacherName)
+        return TabloPerson::where('name', $teacherName)
             ->where('type', 'teacher')
             ->where('tablo_project_id', '!=', $excludeProjectId)
             ->whereNull('media_id')
