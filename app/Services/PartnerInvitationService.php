@@ -88,6 +88,11 @@ class PartnerInvitationService
             // Csapattag meghívó esetén: hozzáadás a partner csapatához
             if ($invitation->isTeamMemberInvitation()) {
                 $this->addUserToTeam($invitation->partner, $user, $invitation->role);
+
+                // Spatie 'partner' role hozzáadása (ha még nincs)
+                if (! $user->hasRole('partner')) {
+                    $user->assignRole('partner');
+                }
             }
         });
     }
