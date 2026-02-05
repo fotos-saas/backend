@@ -94,6 +94,8 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::patch('/projects/{projectId}/toggle-aware', [PartnerProjectController::class, 'toggleAware']);
         Route::delete('/projects/{projectId}', [PartnerProjectController::class, 'deleteProject']);
         Route::get('/projects/{projectId}', [PartnerDashboardController::class, 'projectDetails']);
+        Route::get('/projects/{projectId}/order-data', [PartnerDashboardController::class, 'getProjectOrderData']);
+        Route::post('/projects/{projectId}/order-data/view-pdf', [PartnerDashboardController::class, 'viewProjectOrderPdf']);
         Route::get('/projects/{projectId}/samples', [PartnerProjectController::class, 'projectSamples']);
         Route::get('/projects/{projectId}/missing-persons', [PartnerProjectController::class, 'projectMissingPersons']);
         Route::get('/projects/{projectId}/qr-code', [PartnerQrController::class, 'getQrCode']);
