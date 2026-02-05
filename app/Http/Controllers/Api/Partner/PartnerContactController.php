@@ -8,6 +8,7 @@ use App\Models\TabloContact;
 use App\Models\TabloProject;
 use App\Services\Search\SearchService;
 use Illuminate\Http\JsonResponse;
+use App\Helpers\QueryHelper;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 
@@ -107,9 +108,9 @@ class PartnerContactController extends Controller
 
         if ($search) {
             $query->where(function ($q) use ($search) {
-                $q->where('name', 'ILIKE', "%{$search}%")
-                    ->orWhere('email', 'ILIKE', "%{$search}%")
-                    ->orWhere('phone', 'ILIKE', "%{$search}%");
+                $q->where('name', 'ILIKE', QueryHelper::safeLikePattern($search))
+                    ->orWhere('email', 'ILIKE', QueryHelper::safeLikePattern($search))
+                    ->orWhere('phone', 'ILIKE', QueryHelper::safeLikePattern($search));
             });
         }
 

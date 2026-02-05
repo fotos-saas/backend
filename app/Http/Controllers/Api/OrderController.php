@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Events\OrderPlaced;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Api\Order\StoreOrderRequest;
 use App\Models\Order;
 use App\Models\OrderItem;
 use App\Services\InvoicingService;
@@ -13,7 +14,6 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Validator;
 
 class OrderController extends Controller
 {
@@ -82,62 +82,10 @@ class OrderController extends Controller
     /**
      * Create a new order
      */
-    public function store(Request $request): JsonResponse
+    public function store(StoreOrderRequest $request): JsonResponse
     {
         $user = $request->user();
         $isGuest = ! $user;
-
-        // Validation rules
-        $rules = [
-            'work_session_id' => 'nullable|exists:work_sessions,id',
-            'package_id' => 'nullable|exists:packages,id',
-            'coupon_id' => 'nullable|exists:coupons,id',
-            'coupon_discount' => 'nullable|integer|min:0',
-            'subtotal_huf' => 'required|integer|min:0',
-            'discount_huf' => 'required|integer|min:0',
-            'total_gross_huf' => 'required|integer|min:175', // Stripe minimum
-            'items' => 'required|array|min:1',
-            'items.*.photo_id' => 'nullable|exists:photos,id',
-            'items.*.size' => 'required|string',
-            'items.*.quantity' => 'required|integer|min:1',
-            'items.*.unit_price_huf' => 'required|integer|min:0',
-            'items.*.total_price_huf' => 'required|integer|min:0',
-            'payment_method_id' => 'required|exists:payment_methods,id',
-            'shipping_method_id' => 'required|exists:shipping_methods,id',
-            'package_point_id' => 'nullable|exists:package_points,id',
-            'shipping_address' => 'nullable|string',
-            'shipping_cost_huf' => 'required|integer|min:0',
-            'cod_fee_huf' => 'nullable|integer|min:0',
-        ];
-
-        // Add guest data validation if user is not authenticated
-        if ($isGuest) {
-            $rules = array_merge($rules, [
-                'guest_name' => 'required|string|max:255',
-                'guest_email' => 'required|email|max:255',
-                'guest_phone' => 'required|string|max:20',
-                'guest_address' => 'required|string',
-            ]);
-        }
-
-        // Company purchase fields (optional for both guest and registered)
-        $rules = array_merge($rules, [
-            'is_company_purchase' => 'nullable|boolean',
-            'company_name' => 'nullable|required_if:is_company_purchase,true|string|max:255',
-            'tax_number' => 'nullable|required_if:is_company_purchase,true|string|max:50',
-            'billing_address' => 'nullable|string',
-        ]);
-
-        $validator = Validator::make($request->all(), $rules, [
-            'total_gross_huf.min' => 'A végösszeg legalább 175 Ft kell legyen. Kérlek adj hozzá több tételt vagy módosítsd a kupont.',
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json([
-                'message' => 'Validation failed',
-                'errors' => $validator->errors(),
-            ], 422);
-        }
 
         try {
             DB::beginTransaction();

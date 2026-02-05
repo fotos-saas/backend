@@ -3,12 +3,16 @@
 namespace App\Services;
 
 use Illuminate\Support\Facades\Log;
+use Symfony\Component\Process\Process;
 
 /**
  * IPTC/EXIF metaadat olvasó service.
  *
  * Képfájlokból kinyeri a Title/ObjectName mezőt a név-fájl párosításhoz.
  * Preferálja az exiftool-t ha elérhető, különben PHP fallback-et használ.
+ *
+ * SECURITY: Symfony Process komponenst használ shell_exec helyett
+ * a parancs injekció megelőzésére.
  */
 class MetadataReaderService
 {
@@ -23,10 +27,15 @@ class MetadataReaderService
 
     /**
      * Check if exiftool is available
+     *
+     * SECURITY: Symfony Process használata shell_exec helyett
      */
     public function isExifToolAvailable(): bool
     {
-        return ! empty(shell_exec('which exiftool 2>/dev/null'));
+        $process = new Process(['which', 'exiftool']);
+        $process->run();
+
+        return $process->isSuccessful() && ! empty(trim($process->getOutput()));
     }
 
     /**
@@ -57,18 +66,43 @@ class MetadataReaderService
 
     /**
      * Extract title using exiftool (more reliable)
+     *
+     * SECURITY: Symfony Process használata shell_exec helyett
+     * a parancs injekció megelőzésére.
      */
     protected function extractTitleWithExiftool(string $filePath): ?string
     {
-        $escapedPath = escapeshellarg($filePath);
+        // SECURITY: Process parancs-lista formában - nincs shell interpoláció
+        $process = new Process([
+            'exiftool',
+            '-s3',           // csak érték, nincs tag név
+            '-ObjectName',
+            '-Title',
+            '-Headline',
+            '-Description',
+            '-XMP:Title',
+            '-IPTC:Headline',
+            $filePath,       // fájl útvonal biztonságosan átadva
+        ]);
 
-        // Több mezőt is lekérünk prioritási sorrendben
-        // -s3: csak érték, nincs tag név
-        $command = "exiftool -s3 -ObjectName -Title -Headline -Description -XMP:Title -IPTC:Headline {$escapedPath} 2>/dev/null | head -1";
+        $process->run();
 
-        $output = trim((string) shell_exec($command));
+        if (! $process->isSuccessful()) {
+            return null;
+        }
 
-        if (! empty($output) && $output !== '-') {
+        // Az első nem üres sort vesszük
+        $lines = explode("\n", trim($process->getOutput()));
+        $output = '';
+        foreach ($lines as $line) {
+            $line = trim($line);
+            if (! empty($line) && $line !== '-') {
+                $output = $line;
+                break;
+            }
+        }
+
+        if (! empty($output)) {
             Log::debug('MetadataReader: Extracted title with exiftool', [
                 'file' => basename($filePath),
                 'title' => $output,
@@ -158,6 +192,8 @@ class MetadataReaderService
 
     /**
      * Extract all relevant metadata (for debugging/admin)
+     *
+     * SECURITY: Symfony Process használata shell_exec helyett
      */
     public function extractAllMetadata(string $filePath): array
     {
@@ -168,11 +204,12 @@ class MetadataReaderService
         $metadata = [];
 
         if ($this->isExifToolAvailable()) {
-            $escapedPath = escapeshellarg($filePath);
-            $command = "exiftool -json {$escapedPath} 2>/dev/null";
-            $output = shell_exec($command);
+            // SECURITY: Process parancs-lista formában
+            $process = new Process(['exiftool', '-json', $filePath]);
+            $process->run();
 
-            if ($output) {
+            if ($process->isSuccessful()) {
+                $output = $process->getOutput();
                 $decoded = json_decode($output, true);
                 if (is_array($decoded) && isset($decoded[0])) {
                     $metadata = $decoded[0];

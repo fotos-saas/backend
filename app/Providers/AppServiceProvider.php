@@ -58,9 +58,17 @@ class AppServiceProvider extends ServiceProvider
             return Limit::perMinute(120)->by($request->ip());
         });
 
-        // Rate limiting for tablo login (brute force protection: 20 attempts / 15 min / IP)
+        // Rate limiting for tablo login (brute force protection)
+        // SECURITY: Dual rate limit - IP + kód alapú
         RateLimiter::for('tablo-login', function (Request $request) {
-            return Limit::perMinutes(15, 20)->by($request->ip());
+            return [
+                // IP alapú: 15 kísérlet / 15 perc
+                Limit::perMinutes(15, 15)->by($request->ip()),
+                // Kód alapú: 5 kísérlet / 15 perc (brute force védelem)
+                Limit::perMinutes(15, 5)->by(
+                    $request->input('code', $request->ip()) . '|code'
+                ),
+            ];
         });
 
         // Rate limiting for newsfeed post creation (10/hour per session)
@@ -76,6 +84,21 @@ class AppServiceProvider extends ServiceProvider
         // Rate limiting for newsfeed likes (30/minute per session)
         RateLimiter::for('newsfeed-like', function (Request $request) {
             return Limit::perMinute(30)->by($request->header('X-Guest-Session', $request->ip()));
+        });
+
+        // Rate limiting for login (brute force protection)
+        // SECURITY: Dual rate limit - IP + email alapú
+        RateLimiter::for('login', function (Request $request) {
+            $email = strtolower($request->input('email', 'unknown'));
+
+            return [
+                // IP alapú: 10 kísérlet / perc
+                Limit::perMinute(10)->by($request->ip()),
+                // Email alapú: 5 kísérlet / perc (brute force védelem)
+                Limit::perMinute(5)->by($email . '|login'),
+                // IP+email exponential cooldown: 20 kísérlet / 15 perc
+                Limit::perMinutes(15, 20)->by($request->ip() . '|' . $email),
+            ];
         });
 
         // Rate limiting for registration (5/hour per IP)

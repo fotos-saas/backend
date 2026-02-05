@@ -10,6 +10,7 @@ use App\Models\TabloPartner;
 use App\Models\TabloProject;
 use App\Models\TabloSchool;
 use App\Services\Search\SearchService;
+use App\Helpers\QueryHelper;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -91,8 +92,8 @@ class PartnerSchoolController extends Controller
 
         if ($search) {
             $query->where(function ($q) use ($search) {
-                $q->where('name', 'ILIKE', "%{$search}%")
-                    ->orWhere('city', 'ILIKE', "%{$search}%");
+                $q->where('name', 'ILIKE', QueryHelper::safeLikePattern($search))
+                    ->orWhere('city', 'ILIKE', QueryHelper::safeLikePattern($search));
             });
         }
 

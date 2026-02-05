@@ -2,12 +2,17 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Helpers\QueryHelper;
 use App\Http\Controllers\Controller;
+use App\Http\Controllers\Api\Partner\Traits\PartnerAuthTrait;
+use App\Http\Requests\Api\Client\ExtendCodeRequest;
+use App\Http\Requests\Api\Client\GenerateCodeRequest;
+use App\Http\Requests\Api\Client\StoreClientRequest;
+use App\Http\Requests\Api\Client\UpdateClientRequest;
 use App\Models\PartnerClient;
 use App\Models\TabloPartner;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Validator;
 
 /**
  * Partner Client Controller
@@ -16,19 +21,7 @@ use Illuminate\Support\Facades\Validator;
  */
 class PartnerClientController extends Controller
 {
-    /**
-     * Get the authenticated user's partner ID or fail with 403.
-     */
-    private function getPartnerIdOrFail(): int
-    {
-        $partnerId = auth()->user()->tablo_partner_id;
-
-        if (!$partnerId) {
-            abort(403, 'Nincs partnerhez rendelve');
-        }
-
-        return $partnerId;
-    }
+    use PartnerAuthTrait;
 
     /**
      * List all clients for the partner.
@@ -44,10 +37,12 @@ class PartnerClientController extends Controller
             ->withCount('albums');
 
         if ($search) {
-            $query->where(function ($q) use ($search) {
-                $q->where('name', 'ILIKE', "%{$search}%")
-                    ->orWhere('email', 'ILIKE', "%{$search}%")
-                    ->orWhere('phone', 'ILIKE', "%{$search}%");
+            // SECURITY: QueryHelper::safeLikePattern használata SQL injection ellen
+            $pattern = QueryHelper::safeLikePattern($search);
+            $query->where(function ($q) use ($pattern) {
+                $q->where('name', 'ILIKE', $pattern)
+                    ->orWhere('email', 'ILIKE', $pattern)
+                    ->orWhere('phone', 'ILIKE', $pattern);
             });
         }
 
@@ -124,31 +119,9 @@ class PartnerClientController extends Controller
     /**
      * Create a new client.
      */
-    public function store(Request $request): JsonResponse
+    public function store(StoreClientRequest $request): JsonResponse
     {
         $partnerId = $this->getPartnerIdOrFail();
-
-        $validator = Validator::make($request->all(), [
-            'name' => 'required|string|max:255',
-            'email' => 'nullable|email|max:255',
-            'phone' => 'nullable|string|max:50',
-            'note' => 'nullable|string|max:1000',
-        ], [
-            'name.required' => 'A név megadása kötelező.',
-            'name.max' => 'A név maximum 255 karakter lehet.',
-            'email.email' => 'Érvénytelen email cím.',
-            'email.max' => 'Az email maximum 255 karakter lehet.',
-            'phone.max' => 'A telefonszám maximum 50 karakter lehet.',
-            'note.max' => 'A megjegyzés maximum 1000 karakter lehet.',
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Validációs hiba',
-                'errors' => $validator->errors(),
-            ], 422);
-        }
 
         $client = PartnerClient::create([
             'tablo_partner_id' => $partnerId,
@@ -176,33 +149,11 @@ class PartnerClientController extends Controller
     /**
      * Update a client.
      */
-    public function update(Request $request, int $id): JsonResponse
+    public function update(UpdateClientRequest $request, int $id): JsonResponse
     {
         $partnerId = $this->getPartnerIdOrFail();
 
         $client = PartnerClient::byPartner($partnerId)->findOrFail($id);
-
-        $validator = Validator::make($request->all(), [
-            'name' => 'sometimes|string|max:255',
-            'email' => 'nullable|email|max:255',
-            'phone' => 'nullable|string|max:50',
-            'note' => 'nullable|string|max:1000',
-            'allow_registration' => 'boolean',
-        ], [
-            'name.max' => 'A név maximum 255 karakter lehet.',
-            'email.email' => 'Érvénytelen email cím.',
-            'email.max' => 'Az email maximum 255 karakter lehet.',
-            'phone.max' => 'A telefonszám maximum 50 karakter lehet.',
-            'note.max' => 'A megjegyzés maximum 1000 karakter lehet.',
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Validációs hiba',
-                'errors' => $validator->errors(),
-            ], 422);
-        }
 
         $updateData = [
             'name' => $request->input('name', $client->name),
@@ -261,26 +212,11 @@ class PartnerClientController extends Controller
     /**
      * Generate access code for a client.
      */
-    public function generateCode(Request $request, int $id): JsonResponse
+    public function generateCode(GenerateCodeRequest $request, int $id): JsonResponse
     {
         $partnerId = $this->getPartnerIdOrFail();
 
         $client = PartnerClient::byPartner($partnerId)->findOrFail($id);
-
-        $validator = Validator::make($request->all(), [
-            'expires_at' => 'nullable|date|after:now',
-        ], [
-            'expires_at.date' => 'Érvénytelen dátum.',
-            'expires_at.after' => 'A lejárati dátumnak a jövőben kell lennie.',
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Validációs hiba',
-                'errors' => $validator->errors(),
-            ], 422);
-        }
 
         // Generate new unique code
         $code = $client->generateAccessCode();
@@ -310,27 +246,11 @@ class PartnerClientController extends Controller
     /**
      * Extend access code expiry for a client.
      */
-    public function extendCode(Request $request, int $id): JsonResponse
+    public function extendCode(ExtendCodeRequest $request, int $id): JsonResponse
     {
         $partnerId = $this->getPartnerIdOrFail();
 
         $client = PartnerClient::byPartner($partnerId)->findOrFail($id);
-
-        $validator = Validator::make($request->all(), [
-            'expires_at' => 'required|date|after:now',
-        ], [
-            'expires_at.required' => 'A lejárati dátum megadása kötelező.',
-            'expires_at.date' => 'Érvénytelen dátum.',
-            'expires_at.after' => 'A lejárati dátumnak a jövőben kell lennie.',
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Validációs hiba',
-                'errors' => $validator->errors(),
-            ], 422);
-        }
 
         $client->update([
             'access_code_expires_at' => \Carbon\Carbon::parse($request->input('expires_at')),

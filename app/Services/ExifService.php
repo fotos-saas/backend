@@ -3,7 +3,14 @@
 namespace App\Services;
 
 use Illuminate\Support\Facades\Log;
+use Symfony\Component\Process\Process;
 
+/**
+ * EXIF metaadat kezelő service.
+ *
+ * SECURITY: Symfony Process komponenst használ shell_exec helyett
+ * a parancs injekció megelőzésére.
+ */
 class ExifService
 {
     /**
@@ -19,10 +26,15 @@ class ExifService
 
     /**
      * Check if exiftool is available
+     *
+     * SECURITY: Symfony Process használata shell_exec helyett
      */
     public function isExifToolAvailable(): bool
     {
-        return !empty(shell_exec('which exiftool 2>/dev/null'));
+        $process = new Process(['which', 'exiftool']);
+        $process->run();
+
+        return $process->isSuccessful() && !empty(trim($process->getOutput()));
     }
 
     /**
@@ -54,23 +66,24 @@ class ExifService
             return false;
         }
 
+        // SECURITY: Symfony Process használata shell_exec helyett
         // Write EXIF metadata (multiple tags for maximum compatibility)
-        $escapedPath = escapeshellarg($destPath);
-        $escapedTitle = escapeshellarg($title);
+        $process = new Process([
+            'exiftool',
+            "-Title={$title}",           // EXIF Title
+            "-XMP:Title={$title}",       // XMP Title
+            "-IPTC:Headline={$title}",   // IPTC Headline
+            "-Description={$title}",     // EXIF Description
+            "-XMP:Description={$title}", // XMP Description
+            "-Creator={$title}",         // EXIF Creator
+            "-XMP:Creator={$title}",     // XMP Creator
+            "-Artist={$title}",          // EXIF Artist
+            '-overwrite_original',
+            $destPath,
+        ]);
 
-        // Write to multiple EXIF/XMP/IPTC tags for compatibility with different viewers
-        $command = "exiftool " .
-            "-Title={$escapedTitle} " .                  // EXIF Title
-            "-XMP:Title={$escapedTitle} " .              // XMP Title
-            "-IPTC:Headline={$escapedTitle} " .          // IPTC Headline
-            "-Description={$escapedTitle} " .            // EXIF Description
-            "-XMP:Description={$escapedTitle} " .        // XMP Description
-            "-Creator={$escapedTitle} " .                // EXIF Creator
-            "-XMP:Creator={$escapedTitle} " .            // XMP Creator
-            "-Artist={$escapedTitle} " .                 // EXIF Artist
-            "-overwrite_original {$escapedPath} 2>&1";
-
-        $output = shell_exec($command);
+        $process->run();
+        $output = $process->getOutput() . $process->getErrorOutput();
 
         Log::info('EXIF metadata written', [
             'file' => basename($destPath),

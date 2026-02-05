@@ -3,12 +3,17 @@
 namespace App\Http\Controllers\Api\Tablo;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Api\Tablo\BatchDestroyPersonRequest;
+use App\Http\Requests\Api\Tablo\BatchStorePersonRequest;
+use App\Http\Requests\Api\Tablo\ExportPersonsRequest;
+use App\Http\Requests\Api\Tablo\StorePersonRequest;
+use App\Http\Requests\Api\Tablo\SyncPersonsRequest;
+use App\Http\Requests\Api\Tablo\UpdatePersonRequest;
 use App\Models\TabloPerson;
 use App\Models\TabloProject;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Validator;
 
 class TabloPersonController extends Controller
 {
@@ -45,7 +50,7 @@ class TabloPersonController extends Controller
     /**
      * Add person to project
      */
-    public function store(Request $request, int $projectId): JsonResponse
+    public function store(StorePersonRequest $request, int $projectId): JsonResponse
     {
         $project = TabloProject::find($projectId);
 
@@ -54,20 +59,6 @@ class TabloPersonController extends Controller
                 'success' => false,
                 'message' => 'Projekt nem található',
             ], 404);
-        }
-
-        $validator = Validator::make($request->all(), [
-            'name' => 'required|string|max:255',
-            'local_id' => 'nullable|string|max:255',
-            'note' => 'nullable|string',
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Validációs hiba',
-                'errors' => $validator->errors(),
-            ], 422);
         }
 
         $person = $project->persons()->create([
@@ -92,7 +83,7 @@ class TabloPersonController extends Controller
     /**
      * Batch add persons
      */
-    public function batchStore(Request $request, int $projectId): JsonResponse
+    public function batchStore(BatchStorePersonRequest $request, int $projectId): JsonResponse
     {
         $project = TabloProject::find($projectId);
 
@@ -101,21 +92,6 @@ class TabloPersonController extends Controller
                 'success' => false,
                 'message' => 'Projekt nem található',
             ], 404);
-        }
-
-        $validator = Validator::make($request->all(), [
-            'persons' => 'required|array|min:1',
-            'persons.*.name' => 'required|string|max:255',
-            'persons.*.local_id' => 'nullable|string|max:255',
-            'persons.*.note' => 'nullable|string',
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Validációs hiba',
-                'errors' => $validator->errors(),
-            ], 422);
         }
 
         $created = [];
@@ -147,7 +123,7 @@ class TabloPersonController extends Controller
     /**
      * Update person
      */
-    public function update(Request $request, int $id): JsonResponse
+    public function update(UpdatePersonRequest $request, int $id): JsonResponse
     {
         $person = TabloPerson::find($id);
 
@@ -156,20 +132,6 @@ class TabloPersonController extends Controller
                 'success' => false,
                 'message' => 'Személy nem található',
             ], 404);
-        }
-
-        $validator = Validator::make($request->all(), [
-            'name' => 'sometimes|string|max:255',
-            'local_id' => 'nullable|string|max:255',
-            'note' => 'nullable|string',
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Validációs hiba',
-                'errors' => $validator->errors(),
-            ], 422);
         }
 
         $person->update($request->only(['name', 'local_id', 'note']));
@@ -213,26 +175,8 @@ class TabloPersonController extends Controller
      * POST /api/tablo-management/projects/sync-persons
      * Body: { "project_id": 94, "persons": [{"name": "Kiss Péter"}, {"name": "Nagy Anna", "local_id": "123"}] }
      */
-    public function syncPersons(Request $request): JsonResponse
+    public function syncPersons(SyncPersonsRequest $request): JsonResponse
     {
-        $validator = Validator::make($request->all(), [
-            'project_id' => 'required|integer',
-            'persons' => 'required|array',
-            'persons.*.name' => 'required|string|max:255',
-            'persons.*.local_id' => 'required|string|max:255',
-            'persons.*.type' => 'nullable|string|in:student,teacher',
-            'persons.*.position' => 'nullable|integer',
-            'persons.*.note' => 'nullable|string',
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Validációs hiba',
-                'errors' => $validator->errors(),
-            ], 422);
-        }
-
         $externalId = (string) $request->input('project_id');
         $project = TabloProject::where('external_id', $externalId)->first();
 
@@ -330,20 +274,8 @@ class TabloPersonController extends Controller
      * GET /api/tablo-management/projects/export-persons?external_id=94
      * Returns only persons who have assigned photos
      */
-    public function exportPersons(Request $request): JsonResponse
+    public function exportPersons(ExportPersonsRequest $request): JsonResponse
     {
-        $validator = Validator::make($request->all(), [
-            'external_id' => 'required|string',
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Validációs hiba',
-                'errors' => $validator->errors(),
-            ], 422);
-        }
-
         $externalId = $request->input('external_id');
         $project = TabloProject::where('external_id', $externalId)->first();
 
@@ -379,7 +311,7 @@ class TabloPersonController extends Controller
     /**
      * Batch delete persons
      */
-    public function batchDestroy(Request $request, int $projectId): JsonResponse
+    public function batchDestroy(BatchDestroyPersonRequest $request, int $projectId): JsonResponse
     {
         $project = TabloProject::find($projectId);
 
@@ -388,19 +320,6 @@ class TabloPersonController extends Controller
                 'success' => false,
                 'message' => 'Projekt nem található',
             ], 404);
-        }
-
-        $validator = Validator::make($request->all(), [
-            'ids' => 'required|array|min:1',
-            'ids.*' => 'required|integer',
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Validációs hiba',
-                'errors' => $validator->errors(),
-            ], 422);
         }
 
         $ids = $request->input('ids');

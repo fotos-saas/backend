@@ -2,14 +2,18 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Helpers\QueryHelper;
 use App\Http\Controllers\Controller;
+use App\Http\Controllers\Api\Partner\Traits\PartnerAuthTrait;
 use App\Models\QrRegistrationCode;
 use App\Models\TabloContact;
 use App\Models\TabloProject;
 use App\Models\TabloSchool;
+use App\Http\Requests\Api\Marketer\AddContactRequest;
+use App\Http\Requests\Api\Marketer\UpdateContactRequest;
+use App\Http\Requests\Api\Marketer\StoreProjectRequest;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Validator;
 
 /**
  * Marketer Controller for frontend-tablo marketer dashboard.
@@ -19,29 +23,7 @@ use Illuminate\Support\Facades\Validator;
  */
 class MarketerController extends Controller
 {
-    /**
-     * Get the authenticated user's partner ID or fail with 403.
-     */
-    private function getPartnerIdOrFail(): int
-    {
-        $partnerId = auth()->user()->tablo_partner_id;
-
-        if (!$partnerId) {
-            abort(403, 'Nincs partnerhez rendelve');
-        }
-
-        return $partnerId;
-    }
-
-    /**
-     * Get a project that belongs to the user's partner.
-     */
-    private function getProjectForPartner(int $projectId): TabloProject
-    {
-        return TabloProject::where('id', $projectId)
-            ->where('partner_id', $this->getPartnerIdOrFail())
-            ->firstOrFail();
-    }
+    use PartnerAuthTrait;
 
     /**
      * Dashboard statistics.
@@ -100,13 +82,15 @@ class MarketerController extends Controller
             ->where('partner_id', $partnerId);
 
         // Search by school name or class name
+        // SECURITY: QueryHelper::safeLikePattern használata
         if ($search) {
-            $query->where(function ($q) use ($search) {
-                $q->where('class_name', 'ILIKE', "%{$search}%")
-                    ->orWhere('name', 'ILIKE', "%{$search}%")
-                    ->orWhereHas('school', function ($sq) use ($search) {
-                        $sq->where('name', 'ILIKE', "%{$search}%")
-                            ->orWhere('city', 'ILIKE', "%{$search}%");
+            $pattern = QueryHelper::safeLikePattern($search);
+            $query->where(function ($q) use ($pattern) {
+                $q->where('class_name', 'ILIKE', $pattern)
+                    ->orWhere('name', 'ILIKE', $pattern)
+                    ->orWhereHas('school', function ($sq) use ($pattern) {
+                        $sq->where('name', 'ILIKE', $pattern)
+                            ->orWhere('city', 'ILIKE', $pattern);
                     });
             });
         }
@@ -337,14 +321,15 @@ class MarketerController extends Controller
             ->withCount(['projects' => fn ($q) => $q->where('partner_id', $partnerId)]);
 
         if ($search) {
-            $query->where(function ($q) use ($search) {
-                $q->where('name', 'ILIKE', "%{$search}%")
-                    ->orWhere('city', 'ILIKE', "%{$search}%");
+            $pattern = QueryHelper::safeLikePattern($search);
+            $query->where(function ($q) use ($pattern) {
+                $q->where('name', 'ILIKE', $pattern)
+                    ->orWhere('city', 'ILIKE', $pattern);
             });
         }
 
         if ($city) {
-            $query->where('city', 'ILIKE', "%{$city}%");
+            $query->where('city', 'ILIKE', QueryHelper::safeLikePattern($city));
         }
 
         $schools = $query->orderBy('name')->paginate($perPage);
@@ -385,24 +370,9 @@ class MarketerController extends Controller
     /**
      * Add contact to project.
      */
-    public function addContact(Request $request, int $projectId): JsonResponse
+    public function addContact(AddContactRequest $request, int $projectId): JsonResponse
     {
         $project = $this->getProjectForPartner($projectId);
-
-        $validator = Validator::make($request->all(), [
-            'name' => 'required|string|max:255',
-            'email' => 'nullable|email|max:255',
-            'phone' => 'nullable|string|max:50',
-            'isPrimary' => 'nullable|boolean',
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Validációs hiba',
-                'errors' => $validator->errors(),
-            ], 422);
-        }
 
         // Ha ez lesz az elsődleges, többi elsődleges flag törlése
         if ($request->boolean('isPrimary')) {
@@ -432,25 +402,10 @@ class MarketerController extends Controller
     /**
      * Update contact.
      */
-    public function updateContact(Request $request, int $projectId, int $contactId): JsonResponse
+    public function updateContact(UpdateContactRequest $request, int $projectId, int $contactId): JsonResponse
     {
         $project = $this->getProjectForPartner($projectId);
         $contact = $project->contacts()->findOrFail($contactId);
-
-        $validator = Validator::make($request->all(), [
-            'name' => 'sometimes|string|max:255',
-            'email' => 'nullable|email|max:255',
-            'phone' => 'nullable|string|max:50',
-            'isPrimary' => 'nullable|boolean',
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Validációs hiba',
-                'errors' => $validator->errors(),
-            ], 422);
-        }
 
         // Ha ez lesz az elsődleges, többi elsődleges flag törlése
         if ($request->boolean('isPrimary')) {
@@ -511,9 +466,10 @@ class MarketerController extends Controller
         $query = TabloSchool::query();
 
         if ($search) {
-            $query->where(function ($q) use ($search) {
-                $q->where('name', 'ILIKE', "%{$search}%")
-                    ->orWhere('city', 'ILIKE', "%{$search}%");
+            $pattern = QueryHelper::safeLikePattern($search);
+            $query->where(function ($q) use ($pattern) {
+                $q->where('name', 'ILIKE', $pattern)
+                    ->orWhere('city', 'ILIKE', $pattern);
             });
         }
 
@@ -532,27 +488,9 @@ class MarketerController extends Controller
     /**
      * Create a new project for the user's partner.
      */
-    public function storeProject(Request $request): JsonResponse
+    public function storeProject(StoreProjectRequest $request): JsonResponse
     {
         $partnerId = $this->getPartnerIdOrFail();
-
-        $validator = Validator::make($request->all(), [
-            'school_id' => 'nullable|exists:tablo_schools,id',
-            'class_name' => 'nullable|string|max:255',
-            'class_year' => 'nullable|string|max:50',
-        ], [
-            'school_id.exists' => 'A megadott iskola nem található.',
-            'class_name.max' => 'Az osztály neve maximum 255 karakter lehet.',
-            'class_year.max' => 'Az évfolyam maximum 50 karakter lehet.',
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Validációs hiba',
-                'errors' => $validator->errors(),
-            ], 422);
-        }
 
         // Create the project
         $project = TabloProject::create([

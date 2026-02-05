@@ -2,7 +2,14 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Helpers\QueryHelper;
 use App\Http\Controllers\Controller;
+use App\Http\Controllers\Api\Partner\Traits\PartnerAuthTrait;
+use App\Http\Requests\Api\Partner\DownloadZipRequest;
+use App\Http\Requests\Api\Partner\ExtendExpiryRequest;
+use App\Http\Requests\Api\Partner\StoreOrderAlbumRequest;
+use App\Http\Requests\Api\Partner\UpdateOrderAlbumRequest;
+use App\Http\Requests\Api\Partner\UploadAlbumPhotosRequest;
 use App\Models\PartnerAlbum;
 use App\Models\PartnerClient;
 use App\Services\ExcelExportService;
@@ -10,7 +17,6 @@ use App\Services\MediaZipService;
 use App\Services\PartnerAlbumZipService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Validator;
 use Spatie\MediaLibrary\MediaCollections\Models\Media;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
@@ -21,19 +27,7 @@ use Symfony\Component\HttpFoundation\BinaryFileResponse;
  */
 class PartnerOrderAlbumController extends Controller
 {
-    /**
-     * Get the authenticated user's partner ID or fail with 403.
-     */
-    private function getPartnerIdOrFail(): int
-    {
-        $partnerId = auth()->user()->tablo_partner_id;
-
-        if (!$partnerId) {
-            abort(403, 'Nincs partnerhez rendelve');
-        }
-
-        return $partnerId;
-    }
+    use PartnerAuthTrait;
 
     /**
      * List all albums for the partner.
@@ -64,10 +58,12 @@ class PartnerOrderAlbumController extends Controller
         }
 
         if ($search) {
-            $query->where(function ($q) use ($search) {
-                $q->where('name', 'ILIKE', "%{$search}%")
-                    ->orWhereHas('client', function ($cq) use ($search) {
-                        $cq->where('name', 'ILIKE', "%{$search}%");
+            // SECURITY: QueryHelper::safeLikePattern használata SQL injection ellen
+            $pattern = QueryHelper::safeLikePattern($search);
+            $query->where(function ($q) use ($pattern) {
+                $q->where('name', 'ILIKE', $pattern)
+                    ->orWhereHas('client', function ($cq) use ($pattern) {
+                        $cq->where('name', 'ILIKE', $pattern);
                     });
             });
         }
@@ -142,37 +138,9 @@ class PartnerOrderAlbumController extends Controller
     /**
      * Create a new album.
      */
-    public function store(Request $request): JsonResponse
+    public function store(StoreOrderAlbumRequest $request): JsonResponse
     {
         $partnerId = $this->getPartnerIdOrFail();
-
-        $validator = Validator::make($request->all(), [
-            'client_id' => 'required|integer|exists:partner_clients,id',
-            'name' => 'required|string|max:255',
-            'type' => 'required|in:selection,tablo',
-            'max_selections' => 'nullable|integer|min:1',
-            'min_selections' => 'nullable|integer|min:1',
-            'max_retouch_photos' => 'nullable|integer|min:1|max:20',
-        ], [
-            'client_id.required' => 'Az ügyfél kiválasztása kötelező.',
-            'client_id.exists' => 'A megadott ügyfél nem található.',
-            'name.required' => 'Az album neve kötelező.',
-            'name.max' => 'Az album neve maximum 255 karakter lehet.',
-            'type.required' => 'Az album típusa kötelező.',
-            'type.in' => 'Érvénytelen album típus. Használható: selection, tablo.',
-            'max_selections.min' => 'A maximum kiválasztás minimum 1 lehet.',
-            'min_selections.min' => 'A minimum kiválasztás minimum 1 lehet.',
-            'max_retouch_photos.min' => 'A maximum retusálandó kép minimum 1 lehet.',
-            'max_retouch_photos.max' => 'A maximum retusálandó kép maximum 20 lehet.',
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Validációs hiba',
-                'errors' => $validator->errors(),
-            ], 422);
-        }
 
         // Verify client belongs to partner
         $client = PartnerClient::byPartner($partnerId)->find($request->input('client_id'));
@@ -212,7 +180,7 @@ class PartnerOrderAlbumController extends Controller
     /**
      * Update an album.
      */
-    public function update(Request $request, int $id): JsonResponse
+    public function update(UpdateOrderAlbumRequest $request, int $id): JsonResponse
     {
         $partnerId = $this->getPartnerIdOrFail();
 
@@ -223,24 +191,6 @@ class PartnerOrderAlbumController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Csak piszkozat státuszú album módosítható.',
-            ], 422);
-        }
-
-        $validator = Validator::make($request->all(), [
-            'name' => 'sometimes|string|max:255',
-            'max_selections' => 'nullable|integer|min:1',
-            'min_selections' => 'nullable|integer|min:1',
-            'max_retouch_photos' => 'nullable|integer|min:1|max:20',
-            'status' => 'sometimes|in:draft,claiming',
-        ], [
-            'name.max' => 'Az album neve maximum 255 karakter lehet.',
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Validációs hiba',
-                'errors' => $validator->errors(),
             ], 422);
         }
 
@@ -296,7 +246,7 @@ class PartnerOrderAlbumController extends Controller
      * Upload photos to an album.
      * Supports individual images and ZIP archives.
      */
-    public function uploadPhotos(Request $request, int $id): JsonResponse
+    public function uploadPhotos(UploadAlbumPhotosRequest $request, int $id): JsonResponse
     {
         $partnerId = $this->getPartnerIdOrFail();
 
@@ -307,24 +257,6 @@ class PartnerOrderAlbumController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Csak piszkozat státuszú albumba lehet képet feltölteni.',
-            ], 422);
-        }
-
-        $validator = Validator::make($request->all(), [
-            'photos' => 'required|array|min:1|max:50',
-            'photos.*' => 'file|mimes:jpg,jpeg,png,webp,zip|max:51200', // 50MB for ZIP
-        ], [
-            'photos.required' => 'Legalább egy kép feltöltése kötelező.',
-            'photos.max' => 'Maximum 50 fájl tölthető fel egyszerre.',
-            'photos.*.mimes' => 'Csak JPG, PNG, WebP képek és ZIP archívumok engedélyezettek.',
-            'photos.*.max' => 'Maximum fájlméret: 50MB.',
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Validációs hiba',
-                'errors' => $validator->errors(),
             ], 422);
         }
 
@@ -465,27 +397,11 @@ class PartnerOrderAlbumController extends Controller
     /**
      * Extend album expiry date.
      */
-    public function extendExpiry(Request $request, int $id): JsonResponse
+    public function extendExpiry(ExtendExpiryRequest $request, int $id): JsonResponse
     {
         $partnerId = $this->getPartnerIdOrFail();
 
         $album = PartnerAlbum::byPartner($partnerId)->findOrFail($id);
-
-        $validator = Validator::make($request->all(), [
-            'expires_at' => 'required|date|after:now',
-        ], [
-            'expires_at.required' => 'A lejárati dátum megadása kötelező.',
-            'expires_at.date' => 'Érvénytelen dátum formátum.',
-            'expires_at.after' => 'A lejárati dátum nem lehet a múltban.',
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Validációs hiba',
-                'errors' => $validator->errors(),
-            ], 422);
-        }
 
         $album->update([
             'expires_at' => $request->input('expires_at'),
@@ -558,28 +474,11 @@ class PartnerOrderAlbumController extends Controller
     /**
      * Download selected photos as ZIP.
      */
-    public function downloadZip(Request $request, int $id): JsonResponse|BinaryFileResponse
+    public function downloadZip(DownloadZipRequest $request, int $id): JsonResponse|BinaryFileResponse
     {
         $partnerId = $this->getPartnerIdOrFail();
 
         $album = PartnerAlbum::byPartner($partnerId)->findOrFail($id);
-
-        $validator = Validator::make($request->all(), [
-            'photo_ids' => 'required|array|min:1',
-            'photo_ids.*' => 'integer',
-        ], [
-            'photo_ids.required' => 'Legalább egy kép kiválasztása kötelező.',
-            'photo_ids.min' => 'Legalább egy képet ki kell választani.',
-            'photo_ids.*.integer' => 'Érvénytelen kép azonosító.',
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Validációs hiba',
-                'errors' => $validator->errors(),
-            ], 422);
-        }
 
         $photoIds = array_map('intval', $request->input('photo_ids'));
 

@@ -8,6 +8,7 @@ use App\Models\QrRegistrationCode;
 use App\Models\TabloProject;
 use App\Models\TabloSchool;
 use App\Services\Search\SearchService;
+use App\Helpers\QueryHelper;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -321,10 +322,10 @@ class PartnerDashboardController extends Controller
 
         if ($search) {
             $query->where(function ($q) use ($search) {
-                $q->where('class_name', 'ILIKE', "%{$search}%")
-                    ->orWhere('name', 'ILIKE', "%{$search}%")
+                $q->where('class_name', 'ILIKE', QueryHelper::safeLikePattern($search))
+                    ->orWhere('name', 'ILIKE', QueryHelper::safeLikePattern($search))
                     ->orWhereHas('school', function ($sq) use ($search) {
-                        $sq->where('name', 'ILIKE', "%{$search}%");
+                        $sq->where('name', 'ILIKE', QueryHelper::safeLikePattern($search));
                     });
             });
         }

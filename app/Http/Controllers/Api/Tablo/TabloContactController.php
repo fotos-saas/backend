@@ -3,11 +3,12 @@
 namespace App\Http\Controllers\Api\Tablo;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Api\Tablo\StoreContactRequest;
+use App\Http\Requests\Api\Tablo\UpdateContactRequest;
 use App\Models\TabloContact;
 use App\Models\TabloProject;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Validator;
 
 class TabloContactController extends Controller
 {
@@ -46,7 +47,7 @@ class TabloContactController extends Controller
     /**
      * Add contact to project.
      */
-    public function store(Request $request, int $projectId): JsonResponse
+    public function store(StoreContactRequest $request, int $projectId): JsonResponse
     {
         $project = TabloProject::find($projectId);
 
@@ -55,21 +56,6 @@ class TabloContactController extends Controller
                 'success' => false,
                 'message' => 'Projekt nem található',
             ], 404);
-        }
-
-        $validator = Validator::make($request->all(), [
-            'name' => 'required|string|max:255',
-            'email' => 'nullable|email|max:255',
-            'phone' => 'nullable|string|max:50',
-            'note' => 'nullable|string',
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Validációs hiba',
-                'errors' => $validator->errors(),
-            ], 422);
         }
 
         // Create contact with partner_id from project
@@ -102,7 +88,7 @@ class TabloContactController extends Controller
     /**
      * Update contact.
      */
-    public function update(Request $request, int $id): JsonResponse
+    public function update(UpdateContactRequest $request, int $id): JsonResponse
     {
         $contact = TabloContact::find($id);
 
@@ -111,21 +97,6 @@ class TabloContactController extends Controller
                 'success' => false,
                 'message' => 'Kapcsolattartó nem található',
             ], 404);
-        }
-
-        $validator = Validator::make($request->all(), [
-            'name' => 'sometimes|string|max:255',
-            'email' => 'nullable|email|max:255',
-            'phone' => 'nullable|string|max:50',
-            'note' => 'nullable|string',
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Validációs hiba',
-                'errors' => $validator->errors(),
-            ], 422);
         }
 
         $contact->update($request->only(['name', 'email', 'phone', 'note']));

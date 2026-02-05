@@ -21,6 +21,7 @@ return Application::configure(basePath: dirname(__DIR__))
         // Enable CORS for API routes
         $middleware->api(prepend: [
             \Illuminate\Http\Middleware\HandleCors::class,
+            \App\Http\Middleware\SecurityHeaders::class,
         ]);
 
         // Check work session status for digit code guests
@@ -64,4 +65,6 @@ return Application::configure(basePath: dirname(__DIR__))
                 ], 401);
             }
         });
+
+        \Sentry\Laravel\Integration::handles($exceptions);
     })->create();
