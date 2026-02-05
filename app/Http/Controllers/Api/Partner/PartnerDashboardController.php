@@ -237,6 +237,7 @@ class PartnerDashboardController extends Controller
             'partner',
             'contacts',
             'tabloStatus',
+            'gallery',
             'qrCodes' => function ($q) {
                 $q->orderBy('created_at', 'desc');
             },
@@ -309,6 +310,8 @@ class PartnerDashboardController extends Controller
                 'usageCount' => $qr->usage_count,
                 'createdAt' => $qr->created_at->toIso8601String(),
             ]),
+            'tabloGalleryId' => $project->tablo_gallery_id,
+            'galleryPhotosCount' => $project->gallery?->getMedia('photos')->count() ?? 0,
             'createdAt' => $project->created_at->toIso8601String(),
             'updatedAt' => $project->updated_at->toIso8601String(),
         ]);

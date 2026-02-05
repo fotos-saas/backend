@@ -3,6 +3,7 @@
 use App\Http\Controllers\Api\BugReportController;
 use App\Http\Controllers\Api\Partner\InvitationController as PartnerInvitationController;
 use App\Http\Controllers\Api\Partner\PartnerAlbumController;
+use App\Http\Controllers\Api\Partner\PartnerGalleryController;
 use App\Http\Controllers\Api\Partner\PartnerContactController;
 use App\Http\Controllers\Api\Partner\PartnerDashboardController;
 use App\Http\Controllers\Api\Partner\PartnerProjectContactController;
@@ -110,6 +111,16 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/projects/{projectId}/qr-code', [PartnerQrController::class, 'getQrCode']);
         Route::post('/projects/{projectId}/qr-code', [PartnerQrController::class, 'generateQrCode']);
         Route::delete('/projects/{projectId}/qr-code', [PartnerQrController::class, 'deactivateQrCode']);
+
+        // Gallery management (project-specific)
+        Route::get('/projects/{projectId}/gallery', [PartnerGalleryController::class, 'getGallery']);
+        Route::post('/projects/{projectId}/gallery', [PartnerGalleryController::class, 'createOrGetGallery']);
+        Route::get('/projects/{projectId}/gallery/progress', [PartnerGalleryController::class, 'getProgress']);
+        Route::middleware('throttle:10,1')->group(function () {
+            Route::post('/projects/{projectId}/gallery/photos', [PartnerGalleryController::class, 'uploadPhotos']);
+        });
+        Route::delete('/projects/{projectId}/gallery/photos', [PartnerGalleryController::class, 'deletePhotos']);
+        Route::delete('/projects/{projectId}/gallery/photos/{mediaId}', [PartnerGalleryController::class, 'deletePhoto']);
 
         // Contact management (project-specific)
         Route::post('/projects/{projectId}/contacts', [PartnerProjectContactController::class, 'addContact']);
