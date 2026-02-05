@@ -38,11 +38,12 @@ RUN docker-php-ext-configure gd --with-freetype --with-jpeg --with-webp \
         bcmath \
         ffi
 
-# Install Redis extension
-RUN apk add --no-cache --virtual .build-deps $PHPIZE_DEPS \
-    && pecl install redis \
-    && docker-php-ext-enable redis \
-    && apk del .build-deps
+# Install Redis + Imagick extensions
+RUN apk add --no-cache --virtual .build-deps $PHPIZE_DEPS imagemagick-dev \
+    && pecl install redis imagick \
+    && docker-php-ext-enable redis imagick \
+    && apk del .build-deps \
+    && apk add --no-cache imagemagick-libs
 
 # Install Composer
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer

@@ -116,9 +116,8 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/projects/{projectId}/gallery', [PartnerGalleryController::class, 'getGallery']);
         Route::post('/projects/{projectId}/gallery', [PartnerGalleryController::class, 'createOrGetGallery']);
         Route::get('/projects/{projectId}/gallery/progress', [PartnerGalleryController::class, 'getProgress']);
-        Route::middleware('throttle:10,1')->group(function () {
-            Route::post('/projects/{projectId}/gallery/photos', [PartnerGalleryController::class, 'uploadPhotos']);
-        });
+        Route::post('/projects/{projectId}/gallery/photos', [PartnerGalleryController::class, 'uploadPhotos'])
+            ->middleware('throttle:60,1');
         Route::delete('/projects/{projectId}/gallery/photos', [PartnerGalleryController::class, 'deletePhotos']);
         Route::delete('/projects/{projectId}/gallery/photos/{mediaId}', [PartnerGalleryController::class, 'deletePhoto']);
 
