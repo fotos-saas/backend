@@ -45,7 +45,22 @@
 </head>
 <body>
     <div class="header">
-        <h1>Photo Stack</h1>
+        <div style="margin-bottom: 12px;">
+            <!--[if !mso]><!-->
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="64" height="64" style="display: inline-block; vertical-align: middle;">
+                <rect width="512" height="512" rx="96" fill="#2563eb"/>
+                <rect x="96" y="176" width="320" height="224" rx="32" fill="#fff" opacity="0.95"/>
+                <rect x="192" y="144" width="96" height="48" rx="12" fill="#fff" opacity="0.95"/>
+                <circle cx="256" cy="288" r="80" fill="#1d4ed8" opacity="0.9"/>
+                <circle cx="256" cy="288" r="60" fill="#bfdbfe"/>
+                <circle cx="256" cy="288" r="28" fill="#1e40af"/>
+                <circle cx="242" cy="274" r="10" fill="#fff" opacity="0.6"/>
+                <circle cx="352" cy="200" r="12" fill="#fbbf24"/>
+                <rect x="296" y="152" width="40" height="16" rx="8" fill="#dbeafe"/>
+            </svg>
+            <!--<![endif]-->
+        </div>
+        <h1>TablóStúdió</h1>
         <h2>Jelszó visszaállítás</h2>
     </div>
     
@@ -65,7 +80,7 @@
         <p>A link 60 percig érvényes.</p>
         
         <div class="footer">
-            <p>Üdvözlettel,<br>Photo Stack csapat</p>
+            <p>Üdvözlettel,<br>TablóStúdió csapat</p>
         </div>
     </div>
 </body>

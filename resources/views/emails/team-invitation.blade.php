@@ -99,6 +99,19 @@
 <div class="wrapper">
     <div class="card">
         <div class="logo">
+            <!--[if !mso]><!-->
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="48" height="48" style="display: inline-block; vertical-align: middle; margin-right: 8px;">
+                <rect width="512" height="512" rx="96" fill="#2563eb"/>
+                <rect x="96" y="176" width="320" height="224" rx="32" fill="#fff" opacity="0.95"/>
+                <rect x="192" y="144" width="96" height="48" rx="12" fill="#fff" opacity="0.95"/>
+                <circle cx="256" cy="288" r="80" fill="#1d4ed8" opacity="0.9"/>
+                <circle cx="256" cy="288" r="60" fill="#bfdbfe"/>
+                <circle cx="256" cy="288" r="28" fill="#1e40af"/>
+                <circle cx="242" cy="274" r="10" fill="#fff" opacity="0.6"/>
+                <circle cx="352" cy="200" r="12" fill="#fbbf24"/>
+                <rect x="296" y="152" width="40" height="16" rx="8" fill="#dbeafe"/>
+            </svg>
+            <!--<![endif]-->
             <span>Tablóstúdió</span>
         </div>
         <div class="content">
