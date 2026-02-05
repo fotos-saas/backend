@@ -33,6 +33,8 @@ class Partner extends Model
         'paused_at',
         'storage_limit_gb',
         'additional_storage_gb',
+        'storage_used_bytes',
+        'storage_calculated_at',
         'max_classes',
         'features',
         'deletion_scheduled_at',
@@ -46,6 +48,8 @@ class Partner extends Model
         'features' => 'array',
         'storage_limit_gb' => 'integer',
         'additional_storage_gb' => 'integer',
+        'storage_used_bytes' => 'integer',
+        'storage_calculated_at' => 'datetime',
         'max_classes' => 'integer',
     ];
 

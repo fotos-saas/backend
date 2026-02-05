@@ -41,3 +41,9 @@ Schedule::command('accounts:cleanup-deleted')
     ->at('05:00')
     ->withoutOverlapping()
     ->onOneServer();
+
+// Tárhely használat újraszámolása óránként
+Schedule::command('storage:recalculate')
+    ->hourly()
+    ->withoutOverlapping()
+    ->onOneServer();
