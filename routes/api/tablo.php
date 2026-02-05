@@ -1,15 +1,22 @@
 <?php
 
 use App\Http\Controllers\Api\Auth\SessionController;
-use App\Http\Controllers\Api\Tablo\DiscussionController;
-use App\Http\Controllers\Api\Tablo\GuestSessionController;
-use App\Http\Controllers\Api\Tablo\NewsfeedController;
+use App\Http\Controllers\Api\Tablo\DiscussionPostController;
+use App\Http\Controllers\Api\Tablo\DiscussionThreadController;
+use App\Http\Controllers\Api\Tablo\GuestAdminController;
+use App\Http\Controllers\Api\Tablo\GuestRegistrationController;
+use App\Http\Controllers\Api\Tablo\NewsfeedCommentController;
+use App\Http\Controllers\Api\Tablo\NewsfeedPostController;
 use App\Http\Controllers\Api\Tablo\PollController;
 use App\Http\Controllers\Api\Tablo\TabloContactController;
+use App\Http\Controllers\Api\Tablo\TabloFinalizationController;
 use App\Http\Controllers\Api\Tablo\TabloFrontendController;
+use App\Http\Controllers\Api\Tablo\TabloOrderViewController;
 use App\Http\Controllers\Api\Tablo\TabloPartnerController;
+use App\Http\Controllers\Api\Tablo\TabloSampleController;
 use App\Http\Controllers\Api\Tablo\TabloPersonController;
 use App\Http\Controllers\Api\Tablo\TabloProjectController;
+use App\Http\Controllers\Api\Tablo\TabloProjectSampleController;
 use App\Http\Middleware\SyncFotocmsId;
 use App\Http\Middleware\TabloApiKeyAuth;
 use Illuminate\Http\Request;
@@ -50,11 +57,11 @@ Route::prefix('tablo-management')->middleware([TabloApiKeyAuth::class, SyncFotoc
     Route::delete('/projects/{id}', [TabloProjectController::class, 'destroy']);
 
     // Samples (Media)
-    Route::get('/projects/{id}/samples', [TabloProjectController::class, 'getSamples']);
-    Route::post('/projects/{id}/samples', [TabloProjectController::class, 'uploadSamples']);
-    Route::post('/projects/sync-samples', [TabloProjectController::class, 'syncSamples']);
-    Route::patch('/projects/{projectId}/samples/{mediaId}', [TabloProjectController::class, 'updateSample']);
-    Route::delete('/projects/{projectId}/samples/{mediaId}', [TabloProjectController::class, 'deleteSample']);
+    Route::get('/projects/{id}/samples', [TabloProjectSampleController::class, 'getSamples']);
+    Route::post('/projects/{id}/samples', [TabloProjectSampleController::class, 'uploadSamples']);
+    Route::post('/projects/sync-samples', [TabloProjectSampleController::class, 'syncSamples']);
+    Route::patch('/projects/{projectId}/samples/{mediaId}', [TabloProjectSampleController::class, 'updateSample']);
+    Route::delete('/projects/{projectId}/samples/{mediaId}', [TabloProjectSampleController::class, 'deleteSample']);
 
     // Persons (projekt tagjai: diákok és tanárok)
     Route::get('/projects/{projectId}/persons', [TabloPersonController::class, 'index']);
@@ -252,12 +259,12 @@ Route::prefix('tablo-frontend')
 
         // Project data endpoints (olvasás - vendég is elérheti)
         Route::get('/project-info', [TabloFrontendController::class, 'getProjectInfo']);
-        Route::get('/samples', [TabloFrontendController::class, 'getSamples']);
-        Route::get('/order-data', [TabloFrontendController::class, 'getOrderData']);
+        Route::get('/samples', [TabloSampleController::class, 'getSamples']);
+        Route::get('/order-data', [TabloOrderViewController::class, 'getOrderData']);
         Route::get('/gallery-photos', [TabloFrontendController::class, 'getGalleryPhotos']);
 
         // Order sheet PDF
-        Route::post('/order-data/view-pdf', [TabloFrontendController::class, 'viewOrderPdf']);
+        Route::post('/order-data/view-pdf', [TabloOrderViewController::class, 'viewOrderPdf']);
 
         // Protected endpoints - csak teljes jogú felhasználók (kódos belépés)
         Route::middleware(\App\Http\Middleware\RequireFullAccess::class)->group(function () {
@@ -313,12 +320,12 @@ Route::prefix('tablo-frontend')
         Route::prefix('finalization')
             ->middleware(\App\Http\Middleware\CheckFinalizationAccess::class)
             ->group(function () {
-                Route::get('/', [TabloFrontendController::class, 'getFinalizationData']);
-                Route::post('/', [TabloFrontendController::class, 'saveFinalizationData']);
-                Route::post('/draft', [TabloFrontendController::class, 'saveDraft']);
-                Route::post('/upload', [TabloFrontendController::class, 'uploadFinalizationFile']);
-                Route::delete('/file', [TabloFrontendController::class, 'deleteFinalizationFile']);
-                Route::post('/preview-pdf', [TabloFrontendController::class, 'generatePreviewPdf']);
+                Route::get('/', [TabloFinalizationController::class, 'getFinalizationData']);
+                Route::post('/', [TabloFinalizationController::class, 'saveFinalizationData']);
+                Route::post('/draft', [TabloFinalizationController::class, 'saveDraft']);
+                Route::post('/upload', [TabloFinalizationController::class, 'uploadFinalizationFile']);
+                Route::delete('/file', [TabloFinalizationController::class, 'deleteFinalizationFile']);
+                Route::post('/preview-pdf', [TabloFinalizationController::class, 'generatePreviewPdf']);
             });
 
         // Template chooser endpoints
@@ -337,28 +344,28 @@ Route::prefix('tablo-frontend')
 
         // Guest Session Management
         Route::prefix('guest')->group(function () {
-            Route::post('/register', [GuestSessionController::class, 'register'])
+            Route::post('/register', [GuestRegistrationController::class, 'register'])
                 ->middleware('throttle:20,1');
-            Route::post('/validate', [GuestSessionController::class, 'validate'])
+            Route::post('/validate', [GuestRegistrationController::class, 'validate'])
                 ->middleware('throttle:60,1');
-            Route::put('/update', [GuestSessionController::class, 'update'])
+            Route::put('/update', [GuestRegistrationController::class, 'update'])
                 ->middleware('throttle:30,1');
-            Route::post('/send-link', [GuestSessionController::class, 'sendLink'])
+            Route::post('/send-link', [GuestRegistrationController::class, 'sendLink'])
                 ->middleware('throttle:5,1');
-            Route::post('/heartbeat', [GuestSessionController::class, 'heartbeat'])
+            Route::post('/heartbeat', [GuestRegistrationController::class, 'heartbeat'])
                 ->middleware('throttle:30,1');
 
-            Route::get('/session-status', [GuestSessionController::class, 'sessionStatus'])
+            Route::get('/session-status', [GuestRegistrationController::class, 'sessionStatus'])
                 ->middleware('throttle:120,1');
 
-            Route::get('/missing-persons/search', [GuestSessionController::class, 'searchMissingPersons'])
+            Route::get('/missing-persons/search', [GuestRegistrationController::class, 'searchMissingPersons'])
                 ->middleware('throttle:60,1');
-            Route::post('/register-with-identification', [GuestSessionController::class, 'registerWithIdentification'])
+            Route::post('/register-with-identification', [GuestRegistrationController::class, 'registerWithIdentification'])
                 ->middleware('throttle:20,1');
-            Route::get('/verification-status', [GuestSessionController::class, 'checkVerificationStatus'])
+            Route::get('/verification-status', [GuestRegistrationController::class, 'checkVerificationStatus'])
                 ->middleware('throttle:120,1');
 
-            Route::post('/request-restore-link', [GuestSessionController::class, 'requestRestoreLink'])
+            Route::post('/request-restore-link', [GuestRegistrationController::class, 'requestRestoreLink'])
                 ->middleware('throttle:5,1');
         });
 
@@ -384,80 +391,80 @@ Route::prefix('tablo-frontend')
                 });
             });
 
-        // Discussions (Forum)
+        // Discussions (Forum) - Thread CRUD + moderation
         Route::prefix('discussions')
             ->middleware('partner.feature:forum')
             ->group(function () {
-                Route::get('/', [DiscussionController::class, 'index']);
-                Route::get('/{slugOrId}', [DiscussionController::class, 'show']);
+                Route::get('/', [DiscussionThreadController::class, 'index']);
+                Route::get('/{slugOrId}', [DiscussionThreadController::class, 'show']);
 
                 Route::middleware(\App\Http\Middleware\RequireFullAccess::class)->group(function () {
-                    Route::post('/', [DiscussionController::class, 'store']);
-                    Route::put('/{id}', [DiscussionController::class, 'update']);
-                    Route::delete('/{id}', [DiscussionController::class, 'destroy']);
-                    Route::post('/{id}/lock', [DiscussionController::class, 'lock']);
-                    Route::post('/{id}/unlock', [DiscussionController::class, 'unlock']);
-                    Route::post('/{id}/pin', [DiscussionController::class, 'pin']);
-                    Route::post('/{id}/unpin', [DiscussionController::class, 'unpin']);
+                    Route::post('/', [DiscussionThreadController::class, 'store']);
+                    Route::put('/{id}', [DiscussionThreadController::class, 'update']);
+                    Route::delete('/{id}', [DiscussionThreadController::class, 'destroy']);
+                    Route::post('/{id}/lock', [DiscussionThreadController::class, 'lock']);
+                    Route::post('/{id}/unlock', [DiscussionThreadController::class, 'unlock']);
+                    Route::post('/{id}/pin', [DiscussionThreadController::class, 'pin']);
+                    Route::post('/{id}/unpin', [DiscussionThreadController::class, 'unpin']);
                 });
 
-                Route::post('/{id}/posts', [DiscussionController::class, 'createPost'])
+                Route::post('/{id}/posts', [DiscussionPostController::class, 'createPost'])
                     ->middleware('throttle:60,1');
             });
 
-        // Discussion posts
+        // Discussion posts - Post CRUD + reactions
         Route::prefix('posts')
             ->middleware('partner.feature:forum')
             ->group(function () {
-                Route::put('/{id}', [DiscussionController::class, 'updatePost']);
-                Route::delete('/{id}', [DiscussionController::class, 'deletePost']);
-                Route::post('/{id}/like', [DiscussionController::class, 'toggleLike'])
+                Route::put('/{id}', [DiscussionPostController::class, 'updatePost']);
+                Route::delete('/{id}', [DiscussionPostController::class, 'deletePost']);
+                Route::post('/{id}/like', [DiscussionPostController::class, 'toggleLike'])
                     ->middleware('throttle:60,1');
             });
 
         // Newsfeed
         Route::prefix('newsfeed')->group(function () {
-            Route::get('/', [NewsfeedController::class, 'index']);
-            Route::get('/events/upcoming', [NewsfeedController::class, 'upcomingEvents']);
-            Route::delete('/media/{mediaId}', [NewsfeedController::class, 'deleteMedia']);
-            Route::get('/{id}', [NewsfeedController::class, 'show']);
-            Route::get('/{id}/comments', [NewsfeedController::class, 'getComments']);
-            Route::post('/', [NewsfeedController::class, 'store'])
+            Route::get('/', [NewsfeedPostController::class, 'index']);
+            Route::get('/events/upcoming', [NewsfeedPostController::class, 'upcomingEvents']);
+            Route::delete('/media/{mediaId}', [NewsfeedPostController::class, 'deleteMedia']);
+            Route::get('/{id}', [NewsfeedPostController::class, 'show']);
+            Route::get('/{id}/comments', [NewsfeedCommentController::class, 'getComments']);
+            Route::post('/', [NewsfeedPostController::class, 'store'])
                 ->middleware('throttle:newsfeed-post');
-            Route::put('/{id}', [NewsfeedController::class, 'update']);
-            Route::post('/{id}', [NewsfeedController::class, 'update']);
-            Route::delete('/{id}', [NewsfeedController::class, 'destroy']);
-            Route::post('/{id}/like', [NewsfeedController::class, 'toggleLike'])
+            Route::put('/{id}', [NewsfeedPostController::class, 'update']);
+            Route::post('/{id}', [NewsfeedPostController::class, 'update']);
+            Route::delete('/{id}', [NewsfeedPostController::class, 'destroy']);
+            Route::post('/{id}/like', [NewsfeedCommentController::class, 'toggleLike'])
                 ->middleware('throttle:newsfeed-like');
-            Route::post('/{id}/comments', [NewsfeedController::class, 'createComment'])
+            Route::post('/{id}/comments', [NewsfeedCommentController::class, 'createComment'])
                 ->middleware('throttle:newsfeed-comment');
 
             Route::middleware(\App\Http\Middleware\RequireFullAccess::class)->group(function () {
-                Route::post('/{id}/pin', [NewsfeedController::class, 'pin']);
-                Route::post('/{id}/unpin', [NewsfeedController::class, 'unpin']);
+                Route::post('/{id}/pin', [NewsfeedPostController::class, 'pin']);
+                Route::post('/{id}/unpin', [NewsfeedPostController::class, 'unpin']);
             });
         });
 
-        Route::delete('/newsfeed-comments/{id}', [NewsfeedController::class, 'deleteComment']);
-        Route::post('/newsfeed-comments/{id}/like', [NewsfeedController::class, 'toggleCommentLike'])
+        Route::delete('/newsfeed-comments/{id}', [NewsfeedCommentController::class, 'deleteComment']);
+        Route::post('/newsfeed-comments/{id}/like', [NewsfeedCommentController::class, 'toggleCommentLike'])
             ->middleware('throttle:newsfeed-like');
 
         // Admin - Guest Management (Kapcsolattartó only)
         Route::prefix('admin')
             ->middleware(\App\Http\Middleware\RequireFullAccess::class)
             ->group(function () {
-                Route::get('/guests', [GuestSessionController::class, 'getGuests']);
-                Route::post('/guests/{id}/ban', [GuestSessionController::class, 'ban']);
-                Route::post('/guests/{id}/unban', [GuestSessionController::class, 'unban']);
-                Route::put('/guests/{id}/extra', [GuestSessionController::class, 'toggleExtra']);
-                Route::put('/class-size', [GuestSessionController::class, 'setClassSize']);
-                Route::get('/pending-sessions', [GuestSessionController::class, 'getPendingSessions']);
-                Route::post('/guests/{id}/resolve-conflict', [GuestSessionController::class, 'resolveConflict']);
+                Route::get('/guests', [GuestAdminController::class, 'getGuests']);
+                Route::post('/guests/{id}/ban', [GuestAdminController::class, 'ban']);
+                Route::post('/guests/{id}/unban', [GuestAdminController::class, 'unban']);
+                Route::put('/guests/{id}/extra', [GuestAdminController::class, 'toggleExtra']);
+                Route::put('/class-size', [GuestAdminController::class, 'setClassSize']);
+                Route::get('/pending-sessions', [GuestAdminController::class, 'getPendingSessions']);
+                Route::post('/guests/{id}/resolve-conflict', [GuestAdminController::class, 'resolveConflict']);
             });
 
         // Public participants list
-        Route::get('/participants', [GuestSessionController::class, 'getGuests']);
-        Route::get('/participants/search', [GuestSessionController::class, 'searchParticipants'])
+        Route::get('/participants', [GuestAdminController::class, 'getGuests']);
+        Route::get('/participants/search', [GuestRegistrationController::class, 'searchParticipants'])
             ->middleware('throttle:60,1');
 
         // Notifications

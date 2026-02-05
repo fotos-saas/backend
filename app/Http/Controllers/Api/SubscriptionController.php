@@ -4,157 +4,20 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Partner;
-use App\Services\Subscription\PartnerRegistrationService;
+use App\Models\TabloPartner;
+use App\Models\User;
+use App\Services\Subscription\SubscriptionResponseBuilder;
 use App\Services\Subscription\SubscriptionStripeService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 
-/**
- * Subscription Controller
- *
- * Partner előfizetés kezelés:
- * - Checkout és regisztráció
- * - Előfizetés állapot lekérdezés
- * - Subscription management (cancel, resume, pause, unpause)
- * - Számlák
- */
 class SubscriptionController extends Controller
 {
     public function __construct(
         private readonly SubscriptionStripeService $stripeService,
-        private readonly PartnerRegistrationService $registrationService,
+        private readonly SubscriptionResponseBuilder $responseBuilder,
     ) {}
-
-    /**
-     * Create Stripe Checkout Session for partner registration
-     */
-    public function createCheckoutSession(Request $request): JsonResponse
-    {
-        $validated = $request->validate([
-            'name' => ['required', 'string', 'min:2', 'max:255'],
-            'email' => ['required', 'email', 'unique:users,email'],
-            'password' => ['required', 'string', 'min:8'],
-            'billing.company_name' => ['required', 'string', 'max:255'],
-            'billing.tax_number' => ['nullable', 'string', 'max:50'],
-            'billing.country' => ['required', 'string', 'max:100'],
-            'billing.postal_code' => ['required', 'string', 'max:10'],
-            'billing.city' => ['required', 'string', 'max:100'],
-            'billing.address' => ['required', 'string', 'max:255'],
-            'billing.phone' => ['required', 'string', 'max:50'],
-            'plan' => ['required', 'string', 'in:alap,iskola,studio'],
-            'billing_cycle' => ['required', 'string', 'in:monthly,yearly'],
-            'is_desktop' => ['nullable', 'boolean'],
-        ]);
-
-        try {
-            $registrationToken = $this->registrationService->prepareRegistration($validated);
-
-            $session = $this->stripeService->createCheckoutSession([
-                'email' => $validated['email'],
-                'plan' => $validated['plan'],
-                'billing_cycle' => $validated['billing_cycle'],
-                'is_desktop' => $validated['is_desktop'] ?? false,
-            ], $registrationToken);
-
-            Log::info('Stripe Checkout Session created for subscription', [
-                'session_id' => $session->id,
-                'email' => $validated['email'],
-                'plan' => $validated['plan'],
-            ]);
-
-            return response()->json([
-                'checkout_url' => $session->url,
-                'session_id' => $session->id,
-            ]);
-        } catch (\InvalidArgumentException $e) {
-            return response()->json(['message' => $e->getMessage()], 400);
-        } catch (\Exception $e) {
-            Log::error('Failed to create Stripe Checkout Session', [
-                'error' => $e->getMessage(),
-                'email' => $validated['email'],
-            ]);
-
-            return response()->json([
-                'message' => 'Hiba történt a fizetési munkamenet létrehozásakor.',
-                'error' => config('app.debug') ? $e->getMessage() : null,
-            ], 500);
-        }
-    }
-
-    /**
-     * Complete registration after successful subscription payment
-     */
-    public function completeRegistration(Request $request): JsonResponse
-    {
-        $request->validate(['session_id' => ['required', 'string']]);
-
-        try {
-            $session = $this->stripeService->retrieveCheckoutSession($request->input('session_id'));
-
-            if ($session->status !== 'complete') {
-                return response()->json(['message' => 'A fizetés még nem fejeződött be.'], 400);
-            }
-
-            $registrationToken = $session->metadata->registration_token ?? null;
-            if (! $registrationToken) {
-                return response()->json(['message' => 'Érvénytelen munkamenet.'], 400);
-            }
-
-            $registrationData = $this->registrationService->getRegistrationData($registrationToken);
-            if (! $registrationData) {
-                return response()->json([
-                    'message' => 'A regisztrációs adatok lejártak. Kérjük, kezdd újra a regisztrációt.',
-                ], 400);
-            }
-
-            // Double-submit protection
-            if ($this->registrationService->isEmailRegistered($registrationData['email'])) {
-                $this->registrationService->clearRegistrationCache($registrationToken);
-
-                return response()->json([
-                    'message' => 'A regisztráció már megtörtént. Jelentkezz be!',
-                    'already_registered' => true,
-                ]);
-            }
-
-            $customerId = is_string($session->customer) ? $session->customer : $session->customer->id;
-            $subscriptionId = is_string($session->subscription) ? $session->subscription : $session->subscription->id;
-
-            $result = $this->registrationService->createPartnerWithUser(
-                $registrationData,
-                $customerId,
-                $subscriptionId
-            );
-
-            $this->registrationService->clearRegistrationCache($registrationToken);
-
-            Log::info('Partner registration completed', [
-                'user_id' => $result['user']->id,
-                'partner_id' => $result['partner']->id,
-                'plan' => $registrationData['plan'],
-            ]);
-
-            return response()->json([
-                'message' => 'Sikeres regisztráció! Most már bejelentkezhetsz.',
-                'user' => [
-                    'id' => $result['user']->id,
-                    'name' => $result['user']->name,
-                    'email' => $result['user']->email,
-                ],
-            ]);
-        } catch (\Exception $e) {
-            Log::error('Failed to complete registration', [
-                'session_id' => $request->input('session_id'),
-                'error' => $e->getMessage(),
-            ]);
-
-            return response()->json([
-                'message' => 'Hiba történt a regisztráció véglegesítésekor.',
-                'error' => config('app.debug') ? $e->getMessage() : null,
-            ], 500);
-        }
-    }
 
     /**
      * Get subscription details for the current partner
@@ -167,9 +30,8 @@ class SubscriptionController extends Controller
             return response()->json(['message' => 'Partner profil nem található.'], 404);
         }
 
-        $response = $this->buildSubscriptionResponse($partner);
+        $response = $this->responseBuilder->build($partner);
 
-        // Stripe details (cached)
         if ($partner->stripe_subscription_id) {
             try {
                 $stripeData = $this->stripeService->getSubscriptionDetails($partner->stripe_subscription_id);
@@ -383,26 +245,6 @@ class SubscriptionController extends Controller
         }
     }
 
-    /**
-     * Verify checkout session status
-     */
-    public function verifySession(Request $request): JsonResponse
-    {
-        $request->validate(['session_id' => ['required', 'string']]);
-
-        try {
-            return response()->json(
-                $this->stripeService->verifySession($request->input('session_id'))
-            );
-        } catch (\Exception $e) {
-            return response()->json(['message' => 'Érvénytelen munkamenet.'], 400);
-        }
-    }
-
-    // =========================================================================
-    // PRIVATE HELPERS
-    // =========================================================================
-
     private function getPartner(int $userId): ?Partner
     {
         return Partner::where('user_id', $userId)->first();
@@ -410,7 +252,6 @@ class SubscriptionController extends Controller
 
     private function getPartnerWithAddons(int $userId): ?Partner
     {
-        // Először próbáljuk tulajdonosként
         $partner = Partner::with(['addons' => fn ($q) => $q->where('status', 'active')])
             ->where('user_id', $userId)
             ->first();
@@ -419,13 +260,11 @@ class SubscriptionController extends Controller
             return $partner;
         }
 
-        // Ha nem tulajdonos, csapattagként keresünk
-        // A user-ből vesszük a tablo_partner_id-t, majd a TabloPartner email alapján a Partner-t
-        $user = \App\Models\User::find($userId);
+        $user = User::find($userId);
         if ($user && $user->tablo_partner_id) {
-            $tabloPartner = \App\Models\TabloPartner::find($user->tablo_partner_id);
+            $tabloPartner = TabloPartner::find($user->tablo_partner_id);
             if ($tabloPartner && $tabloPartner->email) {
-                $ownerUser = \App\Models\User::where('email', $tabloPartner->email)->first();
+                $ownerUser = User::where('email', $tabloPartner->email)->first();
                 if ($ownerUser) {
                     return Partner::with(['addons' => fn ($q) => $q->where('status', 'active')])
                         ->where('user_id', $ownerUser->id)
@@ -435,69 +274,5 @@ class SubscriptionController extends Controller
         }
 
         return null;
-    }
-
-    private function buildSubscriptionResponse(Partner $partner): array
-    {
-        $planConfig = config("plans.plans.{$partner->plan}");
-        $storageAddonConfig = config('plans.storage_addon');
-        $addonsConfig = config('plans.addons');
-
-        // Usage stats
-        $usage = $this->getUsageStats($partner->user->tablo_partner_id ?? null);
-
-        // Addon calculations
-        $hasExtraStorage = ($partner->extra_storage_gb ?? 0) > 0;
-        $activeAddons = $partner->addons;
-        $hasAddons = $activeAddons->count() > 0;
-
-        $addonPrices = [];
-        foreach ($activeAddons as $addon) {
-            $addonConfig = $addonsConfig[$addon->addon_key] ?? null;
-            if ($addonConfig) {
-                $addonPrices[$addon->addon_key] = [
-                    'monthly' => $addonConfig['monthly_price'] ?? 0,
-                    'yearly' => $addonConfig['yearly_price'] ?? 0,
-                ];
-            }
-        }
-
-        return [
-            'partner_name' => $partner->company_name,
-            'plan' => $partner->plan,
-            'plan_name' => $planConfig['name'] ?? $partner->plan,
-            'billing_cycle' => $partner->billing_cycle,
-            'status' => $partner->subscription_status,
-            'started_at' => $partner->subscription_started_at,
-            'ends_at' => $partner->subscription_ends_at,
-            'features' => $planConfig['feature_labels'] ?? [],
-            'limits' => $planConfig['limits'] ?? [],
-            'usage' => $usage,
-            'is_modified' => $hasExtraStorage || $hasAddons,
-            'has_extra_storage' => $hasExtraStorage,
-            'extra_storage_gb' => $partner->extra_storage_gb ?? 0,
-            'has_addons' => $hasAddons,
-            'active_addons' => $activeAddons->pluck('addon_key')->toArray(),
-            'prices' => [
-                'plan_monthly' => $planConfig['monthly_price'] ?? 0,
-                'plan_yearly' => $planConfig['yearly_price'] ?? 0,
-                'storage_monthly' => $storageAddonConfig['unit_price_monthly'] ?? 150,
-                'storage_yearly' => $storageAddonConfig['unit_price_yearly'] ?? 1620,
-                'addons' => $addonPrices,
-            ],
-        ];
-    }
-
-    private function getUsageStats(?int $tabloPartnerId): array
-    {
-        if (! $tabloPartnerId) {
-            return ['schools' => 0, 'classes' => 0, 'templates' => 0];
-        }
-
-        return [
-            'schools' => \App\Models\TabloSchool::whereHas('projects', fn ($q) => $q->where('partner_id', $tabloPartnerId))->count(),
-            'classes' => \App\Models\TabloProject::where('partner_id', $tabloPartnerId)->count(),
-            'templates' => 0,
-        ];
     }
 }

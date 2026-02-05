@@ -4,6 +4,7 @@ use App\Http\Controllers\Api\Partner\InvitationController as PartnerInvitationCo
 use App\Http\Controllers\Api\Partner\PartnerAlbumController;
 use App\Http\Controllers\Api\Partner\PartnerContactController;
 use App\Http\Controllers\Api\Partner\PartnerDashboardController;
+use App\Http\Controllers\Api\Partner\PartnerProjectContactController;
 use App\Http\Controllers\Api\Partner\PartnerPhotoController;
 use App\Http\Controllers\Api\Partner\PartnerProjectController;
 use App\Http\Controllers\Api\Partner\PartnerQrController;
@@ -11,6 +12,7 @@ use App\Http\Controllers\Api\Partner\PartnerSchoolController;
 use App\Http\Controllers\Api\Partner\TeamController as PartnerTeamController;
 use App\Http\Controllers\Api\PartnerClientController;
 use App\Http\Controllers\Api\PartnerOrderAlbumController;
+use App\Http\Controllers\Api\PartnerOrderAlbumPhotoController;
 use App\Http\Controllers\Api\StorageController;
 use Illuminate\Support\Facades\Route;
 
@@ -99,9 +101,9 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::delete('/projects/{projectId}/qr-code', [PartnerQrController::class, 'deactivateQrCode']);
 
         // Contact management (project-specific)
-        Route::post('/projects/{projectId}/contacts', [PartnerContactController::class, 'addContact']);
-        Route::put('/projects/{projectId}/contacts/{contactId}', [PartnerContactController::class, 'updateContact']);
-        Route::delete('/projects/{projectId}/contacts/{contactId}', [PartnerContactController::class, 'deleteContact']);
+        Route::post('/projects/{projectId}/contacts', [PartnerProjectContactController::class, 'addContact']);
+        Route::put('/projects/{projectId}/contacts/{contactId}', [PartnerProjectContactController::class, 'updateContact']);
+        Route::delete('/projects/{projectId}/contacts/{contactId}', [PartnerProjectContactController::class, 'deleteContact']);
 
         // Schools management
         Route::get('/schools', [PartnerSchoolController::class, 'schools']);
@@ -163,12 +165,12 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::post('/albums/{id}/toggle-download', [PartnerOrderAlbumController::class, 'toggleDownload']);
 
             // Album photo management
-            Route::post('/albums/{id}/photos', [PartnerOrderAlbumController::class, 'uploadPhotos']);
-            Route::delete('/albums/{albumId}/photos/{mediaId}', [PartnerOrderAlbumController::class, 'deletePhoto']);
+            Route::post('/albums/{id}/photos', [PartnerOrderAlbumPhotoController::class, 'uploadPhotos']);
+            Route::delete('/albums/{albumId}/photos/{mediaId}', [PartnerOrderAlbumPhotoController::class, 'deletePhoto']);
 
             // Album export (ZIP, Excel)
-            Route::post('/albums/{id}/download-zip', [PartnerOrderAlbumController::class, 'downloadZip']);
-            Route::post('/albums/{id}/export-excel', [PartnerOrderAlbumController::class, 'exportExcel']);
+            Route::post('/albums/{id}/download-zip', [PartnerOrderAlbumPhotoController::class, 'downloadZip']);
+            Route::post('/albums/{id}/export-excel', [PartnerOrderAlbumPhotoController::class, 'exportExcel']);
         });
     });
 });

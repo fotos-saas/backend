@@ -2,24 +2,20 @@
 
 namespace App\Http\Controllers\Api;
 
-use App\Events\OrderPlaced;
+use App\Actions\Order\CreateOrderAction;
+use App\Actions\Order\VerifyOrderPaymentAction;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\Order\StoreOrderRequest;
 use App\Models\Order;
-use App\Models\OrderItem;
 use App\Services\InvoicingService;
 use App\Services\StripeService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 class OrderController extends Controller
 {
-    /**
-     * StripeService and InvoicingService instances
-     */
     public function __construct(
         private readonly StripeService $stripeService,
         private readonly InvoicingService $invoicingService
@@ -47,32 +43,10 @@ class OrderController extends Controller
 
     /**
      * Get order details
-     * SECURITY: Only order owner or guest with matching email can view
      */
     public function show(Request $request, Order $order): JsonResponse
     {
-        $user = $request->user();
-
-        // Authorization check
-        if ($order->user_id) {
-            // Authenticated order - must be owner or admin
-            if (! $user) {
-                return response()->json(['message' => 'Unauthorized'], 401);
-            }
-
-            if ($user->id !== $order->user_id && ! $user->hasRole('admin')) {
-                return response()->json(['message' => 'Forbidden'], 403);
-            }
-        } else {
-            // Guest order - verify email
-            $guestEmail = $request->query('guest_email') ?? $request->input('guest_email');
-
-            if (! $guestEmail || strtolower($guestEmail) !== strtolower($order->guest_email)) {
-                return response()->json([
-                    'message' => 'Forbidden. Guest email verification required.',
-                ], 403);
-            }
-        }
+        $this->authorizeOrderAccess($request, $order);
 
         $order->load(['items.photo', 'user', 'coupon', 'package', 'workSession']);
 
@@ -84,133 +58,25 @@ class OrderController extends Controller
      */
     public function store(StoreOrderRequest $request): JsonResponse
     {
-        $user = $request->user();
-        $isGuest = ! $user;
-
-        try {
-            DB::beginTransaction();
-
-            // Create order
-            $orderData = [
-                'user_id' => $user?->id,
-                'work_session_id' => $request->work_session_id,
-                'package_id' => $request->package_id,
-                'coupon_id' => $request->coupon_id,
-                'coupon_discount' => $request->coupon_discount,
-                'subtotal_huf' => $request->subtotal_huf,
-                'discount_huf' => $request->discount_huf,
-                'total_gross_huf' => $request->total_gross_huf,
-                'payment_method_id' => $request->payment_method_id,
-                'shipping_method_id' => $request->shipping_method_id,
-                'package_point_id' => $request->package_point_id,
-                'shipping_address' => $request->shipping_address,
-                'shipping_cost_huf' => $request->shipping_cost_huf,
-                'cod_fee_huf' => $request->cod_fee_huf ?? 0,
-                'status' => 'payment_pending',
-            ];
-
-            // Add guest data if applicable
-            if ($isGuest) {
-                $orderData = array_merge($orderData, [
-                    'guest_name' => $request->guest_name,
-                    'guest_email' => $request->guest_email,
-                    'guest_phone' => $request->guest_phone,
-                    'guest_address' => $request->guest_address,
-                ]);
-            }
-
-            // Add company purchase data if applicable
-            if ($request->is_company_purchase) {
-                $orderData = array_merge($orderData, [
-                    'is_company_purchase' => true,
-                    'company_name' => $request->company_name,
-                    'tax_number' => $request->tax_number,
-                    'billing_address' => $request->billing_address,
-                ]);
-            }
-
-            $order = Order::create($orderData);
-
-            // Create order items
-            foreach ($request->items as $itemData) {
-                OrderItem::create([
-                    'order_id' => $order->id,
-                    'photo_id' => $itemData['photo_id'] ?? null,
-                    'size' => $itemData['size'],
-                    'quantity' => $itemData['quantity'],
-                    'unit_price_huf' => $itemData['unit_price_huf'],
-                    'total_price_huf' => $itemData['total_price_huf'],
-                ]);
-            }
-
-            DB::commit();
-
-            // Load relationships
-            $order->load(['items.photo', 'user', 'coupon', 'package', 'workSession', 'paymentMethod', 'shippingMethod', 'packagePoint']);
-
-            // Trigger OrderPlaced event for email notification
-            event(new OrderPlaced($order));
-
-            Log::info('Order created', [
-                'order_id' => $order->id,
-                'user_id' => $user?->id,
-                'is_guest' => $isGuest,
-                'total' => $order->total_gross_huf,
-            ]);
-
-            return response()->json($order, 201);
-        } catch (\Exception $e) {
-            DB::rollBack();
-
-            Log::error('Order creation failed', [
-                'error' => $e->getMessage(),
-                'user_id' => $user?->id,
-            ]);
-
-            return response()->json([
-                'message' => 'Order creation failed',
-                'error' => $e->getMessage(),
-            ], 500);
-        }
+        return app(CreateOrderAction::class)->execute($request);
     }
 
     /**
      * Create Stripe Checkout Session for order
-     * SECURITY: Only order owner or guest with matching email can checkout
      */
     public function checkout(Request $request, Order $order): JsonResponse
     {
-        $user = $request->user();
-
-        // Authorization check
-        if ($order->user_id) {
-            // Authenticated order - must be owner
-            if (! $user || $user->id !== $order->user_id) {
-                return response()->json(['message' => 'Forbidden'], 403);
-            }
-        } else {
-            // Guest order - verify email
-            $guestEmail = $request->query('guest_email') ?? $request->input('guest_email');
-
-            if (! $guestEmail || strtolower($guestEmail) !== strtolower($order->guest_email)) {
-                return response()->json([
-                    'message' => 'Forbidden. Guest email verification required.',
-                ], 403);
-            }
-        }
+        $this->authorizeOrderAccess($request, $order);
 
         try {
-            // Check if order is already paid
             if ($order->isPaid()) {
                 return response()->json([
                     'message' => 'Order is already paid',
                 ], 400);
             }
 
-            // Load relationships needed for Stripe checkout
             $order->load(['items', 'coupon']);
 
-            // Create Stripe Checkout Session
             $checkoutUrl = $this->stripeService->createCheckoutSession($order);
 
             return response()->json([
@@ -231,28 +97,10 @@ class OrderController extends Controller
 
     /**
      * Verify payment status for an order
-     * SECURITY: Only order owner or guest with matching email can verify payment
      */
     public function verifyPayment(Request $request, Order $order): JsonResponse
     {
-        $user = $request->user();
-
-        // Authorization check
-        if ($order->user_id) {
-            // Authenticated order - must be owner or admin
-            if (! $user || ($user->id !== $order->user_id && ! $user->hasRole('admin'))) {
-                return response()->json(['message' => 'Forbidden'], 403);
-            }
-        } else {
-            // Guest order - verify email
-            $guestEmail = $request->query('guest_email') ?? $request->input('guest_email');
-
-            if (! $guestEmail || strtolower($guestEmail) !== strtolower($order->guest_email)) {
-                return response()->json([
-                    'message' => 'Forbidden. Guest email verification required.',
-                ], 403);
-            }
-        }
+        $this->authorizeOrderAccess($request, $order);
 
         $sessionId = $request->query('session_id');
 
@@ -262,81 +110,19 @@ class OrderController extends Controller
             ], 400);
         }
 
-        try {
-            // Retrieve Stripe session and verify payment
-            $session = \Stripe\Checkout\Session::retrieve($sessionId);
-
-            // Verify that this session belongs to this order
-            $orderIdFromSession = $session->metadata->order_id ?? $session->client_reference_id;
-
-            if ((int) $orderIdFromSession !== $order->id) {
-                return response()->json([
-                    'message' => 'Session does not match order',
-                ], 400);
-            }
-
-            // Update order status if payment successful
-            if ($session->payment_status === 'paid' && $order->status === 'payment_pending') {
-                $order->update([
-                    'status' => 'paid',
-                    'stripe_pi' => $session->payment_intent,
-                ]);
-
-                Log::info('Order payment verified', [
-                    'order_id' => $order->id,
-                    'session_id' => $sessionId,
-                ]);
-            }
-
-            return response()->json([
-                'order' => $order->load(['items.photo', 'user', 'coupon', 'package', 'workSession']),
-                'payment_status' => $session->payment_status,
-            ]);
-        } catch (\Exception $e) {
-            Log::error('Payment verification failed', [
-                'order_id' => $order->id,
-                'session_id' => $sessionId,
-                'error' => $e->getMessage(),
-            ]);
-
-            return response()->json([
-                'message' => 'Payment verification failed',
-                'error' => $e->getMessage(),
-            ], 500);
-        }
+        return app(VerifyOrderPaymentAction::class)->execute($order, $sessionId);
     }
 
     /**
      * Download invoice PDF for an order
-     * SECURITY: Only order owner or guest with matching email can download invoice
      */
     public function downloadInvoice(Request $request, Order $order): Response
     {
-        // Check if invoice exists
         if (! $order->invoice_no) {
             abort(404, 'Számla nem található');
         }
 
-        $user = $request->user();
-
-        // Authorization check
-        if ($order->user_id) {
-            // Authenticated order - must be owner or admin
-            if (! $user) {
-                abort(401, 'Bejelentkezés szükséges');
-            }
-
-            if ($user->id !== $order->user_id && ! $user->hasRole('admin')) {
-                abort(403, 'Nincs jogosultság');
-            }
-        } else {
-            // Guest order - verify email
-            $guestEmail = $request->query('guest_email') ?? $request->input('guest_email');
-
-            if (! $guestEmail || strtolower($guestEmail) !== strtolower($order->guest_email)) {
-                abort(403, 'Vendég email ellenőrzése szükséges');
-            }
-        }
+        $this->authorizeOrderAccess($request, $order);
 
         try {
             $pdfContent = $this->invoicingService->getInvoicePdf($order);
@@ -351,6 +137,28 @@ class OrderController extends Controller
             ]);
 
             abort(500, 'Számla letöltése sikertelen');
+        }
+    }
+
+    /**
+     * Authorize access to an order (owner, admin, or guest with matching email).
+     */
+    private function authorizeOrderAccess(Request $request, Order $order): void
+    {
+        $user = $request->user();
+
+        if ($order->user_id) {
+            if (! $user) {
+                abort(401, 'Unauthorized');
+            }
+            if ($user->id !== $order->user_id && ! $user->hasRole('admin')) {
+                abort(403, 'Forbidden');
+            }
+        } else {
+            $guestEmail = $request->query('guest_email') ?? $request->input('guest_email');
+            if (! $guestEmail || strtolower($guestEmail) !== strtolower($order->guest_email)) {
+                abort(403, 'Forbidden. Guest email verification required.');
+            }
         }
     }
 }
