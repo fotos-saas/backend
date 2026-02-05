@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\BugReportController;
 use App\Http\Controllers\Api\MarketerController;
 use App\Http\Controllers\Api\Marketer\MarketerProjectController;
 use App\Http\Controllers\Api\Marketer\MarketerQrCodeController;
@@ -14,6 +15,14 @@ use Illuminate\Support\Facades\Route;
 */
 
 Route::middleware('auth:sanctum')->group(function () {
+    // Bug Reports (Hibajelentések - Marketer)
+    Route::prefix('marketer/bug-reports')->middleware('role:marketer')->group(function () {
+        Route::get('/', [BugReportController::class, 'index']);
+        Route::post('/', [BugReportController::class, 'store']);
+        Route::get('/{bugReport}', [BugReportController::class, 'show']);
+        Route::post('/{bugReport}/comments', [BugReportController::class, 'addComment']);
+    });
+
     Route::prefix('marketer')->middleware('role:marketer')->group(function () {
         // Dashboard & schools
         Route::get('/stats', [MarketerController::class, 'stats']);

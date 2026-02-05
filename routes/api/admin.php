@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\Admin\BugReportController as AdminBugReportController;
 use App\Http\Controllers\Api\SuperAdminController;
 use App\Http\Controllers\Api\SuperAdminSubscriberController;
 use Illuminate\Support\Facades\Route;
@@ -13,6 +14,16 @@ use Illuminate\Support\Facades\Route;
 
 Route::middleware('auth:sanctum')->group(function () {
     Route::prefix('super-admin')->middleware('role:super_admin')->group(function () {
+        // Bug Reports (Hibajelentések kezelése)
+        Route::prefix('bug-reports')->group(function () {
+            Route::get('/', [AdminBugReportController::class, 'index']);
+            Route::get('/unread-count', [AdminBugReportController::class, 'unreadCount']);
+            Route::get('/{bugReport}', [AdminBugReportController::class, 'show']);
+            Route::patch('/{bugReport}/status', [AdminBugReportController::class, 'updateStatus']);
+            Route::patch('/{bugReport}/priority', [AdminBugReportController::class, 'updatePriority']);
+            Route::post('/{bugReport}/comments', [AdminBugReportController::class, 'addComment']);
+        });
+
         Route::get('/stats', [SuperAdminController::class, 'stats']);
         Route::get('/partners', [SuperAdminController::class, 'partners']);
         Route::get('/settings', [SuperAdminController::class, 'getSettings']);

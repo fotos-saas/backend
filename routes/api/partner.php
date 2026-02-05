@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\BugReportController;
 use App\Http\Controllers\Api\Partner\InvitationController as PartnerInvitationController;
 use App\Http\Controllers\Api\Partner\PartnerAlbumController;
 use App\Http\Controllers\Api\Partner\PartnerContactController;
@@ -69,6 +70,14 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/active', [\App\Http\Controllers\Api\AddonController::class, 'active']);
         Route::post('/{key}/subscribe', [\App\Http\Controllers\Api\AddonController::class, 'subscribe']);
         Route::delete('/{key}', [\App\Http\Controllers\Api\AddonController::class, 'cancel']);
+    });
+
+    // Bug Reports (Hibajelentések - Partner + Csapattagok)
+    Route::prefix('bug-reports')->middleware('role:partner|designer|printer|assistant')->group(function () {
+        Route::get('/', [BugReportController::class, 'index']);
+        Route::post('/', [BugReportController::class, 'store']);
+        Route::get('/{bugReport}', [BugReportController::class, 'show']);
+        Route::post('/{bugReport}/comments', [BugReportController::class, 'addComment']);
     });
 
     // Partner Routes (Fotós/Partner + Csapattagok)
