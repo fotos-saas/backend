@@ -43,7 +43,7 @@ RUN apk add --no-cache --virtual .build-deps $PHPIZE_DEPS imagemagick-dev \
     && pecl install redis imagick \
     && docker-php-ext-enable redis imagick \
     && apk del .build-deps \
-    && apk add --no-cache imagemagick-libs
+    && apk add --no-cache imagemagick
 
 # Install Composer
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
