@@ -61,6 +61,10 @@ RUN composer install --no-dev --optimize-autoloader --no-scripts --no-interactio
 RUN chown -R www-data:www-data ./storage ./bootstrap/cache \
     && chmod -R 775 ./storage ./bootstrap/cache
 
+# Copy configs
+COPY docker/php/php.ini /usr/local/etc/php/php.ini
+COPY docker/php/php-ffi.ini /usr/local/etc/php/conf.d/99-ffi.ini
+
 # Copy entrypoint script
 COPY docker/entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN chmod +x /usr/local/bin/entrypoint.sh
