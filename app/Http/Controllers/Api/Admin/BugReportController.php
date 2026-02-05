@@ -10,6 +10,7 @@ use App\Http\Requests\Api\BugReport\UpdateBugReportPriorityRequest;
 use App\Http\Requests\Api\BugReport\UpdateBugReportStatusRequest;
 use App\Models\BugReport;
 use App\Services\BugReportService;
+use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -20,7 +21,7 @@ use Illuminate\Http\Request;
  */
 class BugReportController extends Controller
 {
-    use HasPagination;
+    use AuthorizesRequests, HasPagination;
 
     public function __construct(
         private readonly BugReportService $bugReportService
