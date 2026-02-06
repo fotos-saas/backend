@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\Auth;
 
+use App\Http\Controllers\Api\Concerns\ResolvesPartner;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\LoginCodeRequest;
 use App\Http\Requests\Api\LoginRequest;
@@ -27,6 +28,8 @@ use Illuminate\Support\Str;
  */
 class LoginController extends Controller
 {
+    use ResolvesPartner;
+
     public function __construct(
         private AuthenticationService $authService
     ) {}
@@ -99,6 +102,12 @@ class LoginController extends Controller
             user: $user
         );
 
+        $roles = $user->getRoleNames()->toArray();
+        $partnerRoles = ['partner', 'designer', 'marketer', 'printer', 'assistant'];
+        $hasPartnerRole = ! empty(array_intersect($roles, $partnerRoles));
+
+        $partner = $hasPartnerRole ? $this->resolvePartner($user->id) : null;
+
         $response = [
             'user' => [
                 'id' => $user->id,
@@ -107,8 +116,10 @@ class LoginController extends Controller
                 'phone' => $user->phone,
                 'address' => $user->address,
                 'type' => $user->isMarketer() ? 'marketer' : 'registered',
-                'roles' => $user->getRoleNames()->toArray(),
+                'roles' => $roles,
                 'passwordSet' => (bool) $user->password_set,
+                'has_partner' => (bool) $partner,
+                'partner_id' => $partner?->id,
             ],
             'token' => $token,
         ];
