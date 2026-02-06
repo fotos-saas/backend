@@ -136,7 +136,7 @@ class PartnerSamplePackageController extends Controller
 
         $version = $package->versions()->create([
             'version_number' => $package->getNextVersionNumber(),
-            'description' => $request->validated('description'),
+            'description' => $request->validated('description') ?? '',
         ]);
 
         foreach ($request->file('images', []) as $file) {
