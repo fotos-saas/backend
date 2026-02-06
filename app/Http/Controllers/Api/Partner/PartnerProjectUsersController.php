@@ -62,6 +62,10 @@ class PartnerProjectUsersController extends Controller
                 'points' => $session->points ?? 0,
                 'rankLevel' => $session->rank_level ?? 1,
                 'rankName' => $session->rank_name,
+                'registrationType' => $session->registration_type,
+                'registrationTypeLabel' => $session->registration_type
+                    ? \App\Enums\QrCodeType::tryFrom($session->registration_type)?->label()
+                    : null,
                 'lastActivityAt' => $session->last_activity_at?->toIso8601String(),
                 'createdAt' => $session->created_at->toIso8601String(),
             ];

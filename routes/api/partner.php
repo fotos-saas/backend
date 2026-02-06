@@ -110,9 +110,10 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/projects/{projectId}/order-data/view-pdf', [PartnerDashboardController::class, 'viewProjectOrderPdf']);
         Route::get('/projects/{projectId}/samples', [PartnerProjectController::class, 'projectSamples']);
         Route::get('/projects/{projectId}/missing-persons', [PartnerProjectController::class, 'projectMissingPersons']);
-        Route::get('/projects/{projectId}/qr-code', [PartnerQrController::class, 'getQrCode']);
-        Route::post('/projects/{projectId}/qr-code', [PartnerQrController::class, 'generateQrCode']);
-        Route::delete('/projects/{projectId}/qr-code', [PartnerQrController::class, 'deactivateQrCode']);
+        Route::get('/projects/{projectId}/qr-codes', [PartnerQrController::class, 'getQrCodes']);
+        Route::post('/projects/{projectId}/qr-codes', [PartnerQrController::class, 'generateQrCode']);
+        Route::delete('/projects/{projectId}/qr-codes/{codeId}', [PartnerQrController::class, 'deactivateQrCode']);
+        Route::post('/projects/{projectId}/qr-codes/{codeId}/pin', [PartnerQrController::class, 'pinQrCode']);
 
         // Guest session management (project users)
         Route::get('/projects/{projectId}/guest-sessions', [PartnerProjectUsersController::class, 'index']);

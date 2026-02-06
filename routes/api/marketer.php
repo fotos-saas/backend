@@ -36,9 +36,10 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/projects/{projectId}', [MarketerProjectController::class, 'projectDetails']);
 
         // QR code management
-        Route::get('/projects/{projectId}/qr-code', [MarketerQrCodeController::class, 'getQrCode']);
-        Route::post('/projects/{projectId}/qr-code', [MarketerQrCodeController::class, 'generateQrCode']);
-        Route::delete('/projects/{projectId}/qr-code', [MarketerQrCodeController::class, 'deactivateQrCode']);
+        Route::get('/projects/{projectId}/qr-codes', [MarketerQrCodeController::class, 'getQrCodes']);
+        Route::post('/projects/{projectId}/qr-codes', [MarketerQrCodeController::class, 'generateQrCode']);
+        Route::delete('/projects/{projectId}/qr-codes/{codeId}', [MarketerQrCodeController::class, 'deactivateQrCode']);
+        Route::post('/projects/{projectId}/qr-codes/{codeId}/pin', [MarketerQrCodeController::class, 'pinQrCode']);
 
         // Contact management
         Route::post('/projects/{projectId}/contacts', [MarketerProjectContactController::class, 'addContact']);

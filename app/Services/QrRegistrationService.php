@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\QrCodeType;
 use App\Models\QrRegistrationCode;
 use App\Models\TabloContact;
 use App\Models\TabloGuestSession;
@@ -32,22 +33,40 @@ class QrRegistrationService
      */
     public function generateCode(
         TabloProject $project,
+        QrCodeType $type = QrCodeType::Coordinator,
         ?int $maxUsages = null,
         ?int $expiresInHours = null
     ): QrRegistrationCode {
+        // Deactivate only active codes of the SAME type
+        $project->qrCodes()
+            ->where('is_active', true)
+            ->where('type', $type->value)
+            ->update(['is_active' => false]);
+
         $code = QrRegistrationCode::generateCode();
+
+        // Auto-pin if no other pinned code exists for this project
+        $hasPinned = $project->qrCodes()->where('is_pinned', true)->where('is_active', true)->exists();
+
+        // Multi-use types default to unlimited usages
+        if ($type->isMultiUse() && $maxUsages === null) {
+            $maxUsages = null; // unlimited
+        }
 
         $qrCode = QrRegistrationCode::create([
             'tablo_project_id' => $project->id,
             'code' => $code,
+            'type' => $type,
             'is_active' => true,
             'expires_at' => $expiresInHours ? now()->addHours($expiresInHours) : null,
             'max_usages' => $maxUsages,
+            'is_pinned' => ! $hasPinned,
         ]);
 
         Log::info('[QR] Registration code generated', [
             'project_id' => $project->id,
             'code' => $code,
+            'type' => $type->value,
             'max_usages' => $maxUsages,
             'expires_at' => $qrCode->expires_at,
         ]);
@@ -86,6 +105,8 @@ class QrRegistrationService
             'valid' => true,
             'project' => $project,
             'qr_code' => $qrCode,
+            'type' => $qrCode->type->value,
+            'typeLabel' => $qrCode->type->label(),
             'error' => null,
         ];
     }
@@ -125,6 +146,8 @@ class QrRegistrationService
         }
 
         return DB::transaction(function () use ($project, $qrCode, $name, $email, $phone, $ipAddress, $userAgent) {
+            $type = $qrCode->type;
+
             // Create guest user (like code login)
             $guestEmail = 'tablo-guest-'.$project->id.'-'.Str::random(8).'@internal.local';
 
@@ -137,7 +160,7 @@ class QrRegistrationService
             // Assign guest role
             $user->assignRole(User::ROLE_GUEST);
 
-            // Create TabloGuestSession with is_coordinator: true
+            // Create TabloGuestSession - flags based on QR code type
             $guestSession = TabloGuestSession::create([
                 'tablo_project_id' => $project->id,
                 'session_token' => Str::uuid()->toString(),
@@ -146,44 +169,50 @@ class QrRegistrationService
                 'guest_phone' => $phone,
                 'device_identifier' => $userAgent,
                 'ip_address' => $ipAddress,
-                'is_coordinator' => true,
+                'is_coordinator' => $type->isCoordinator(),
+                'is_extra' => $type->isExtra(),
+                'qr_registration_code_id' => $qrCode->id,
+                'registration_type' => $type->value,
                 'verification_status' => TabloGuestSession::VERIFICATION_VERIFIED,
                 'last_activity_at' => now(),
             ]);
 
-            // Create TabloContact and link to project
-            // Check if contact with same email already exists for this partner
-            $existingContact = TabloContact::where('partner_id', $project->partner_id)
-                ->where('email', $email)
-                ->first();
+            // Create TabloContact only if the type requires it
+            $contact = null;
+            if ($type->shouldCreateContact()) {
+                $existingContact = TabloContact::where('partner_id', $project->partner_id)
+                    ->where('email', $email)
+                    ->first();
 
-            if ($existingContact) {
-                // Link existing contact to project if not already linked
-                if (! $existingContact->projects()->where('tablo_projects.id', $project->id)->exists()) {
-                    $existingContact->projects()->attach($project->id, [
-                        'is_primary' => ! $project->contacts()->exists(), // Primary if no other contacts
+                if ($existingContact) {
+                    if (! $existingContact->projects()->where('tablo_projects.id', $project->id)->exists()) {
+                        $existingContact->projects()->attach($project->id, [
+                            'is_primary' => ! $project->contacts()->exists(),
+                        ]);
+                    }
+                    $contact = $existingContact;
+                } else {
+                    $contact = TabloContact::create([
+                        'partner_id' => $project->partner_id,
+                        'name' => $name,
+                        'email' => $email,
+                        'phone' => $phone,
+                        'note' => $type->contactNote(),
+                    ]);
+
+                    $contact->projects()->attach($project->id, [
+                        'is_primary' => ! $project->contacts()->exists(),
                     ]);
                 }
-                $contact = $existingContact;
-            } else {
-                // Create new contact
-                $contact = TabloContact::create([
-                    'partner_id' => $project->partner_id,
-                    'name' => $name,
-                    'email' => $email,
-                    'phone' => $phone,
-                    'note' => 'QR kóddal regisztrált ügyintéző',
-                ]);
-
-                // Link to project (primary if no other contacts exist)
-                $contact->projects()->attach($project->id, [
-                    'is_primary' => ! $project->contacts()->exists(),
-                ]);
             }
 
-            // Increment QR code usage and deactivate (single-use)
+            // Increment usage count
             $qrCode->incrementUsage();
-            $qrCode->deactivate();
+
+            // Single-use types: deactivate after use
+            if (! $type->isMultiUse()) {
+                $qrCode->deactivate();
+            }
 
             // Create token with metadata
             $token = $this->authService->createTokenWithMetadata(
@@ -205,6 +234,7 @@ class QrRegistrationService
                 user: $user,
                 metadata: [
                     'qr_code' => $qrCode->code,
+                    'qr_type' => $type->value,
                     'project_id' => $project->id,
                     'guest_session_id' => $guestSession->id,
                 ]
@@ -214,8 +244,9 @@ class QrRegistrationService
                 'project_id' => $project->id,
                 'user_id' => $user->id,
                 'guest_session_id' => $guestSession->id,
-                'contact_id' => $contact->id,
+                'contact_id' => $contact?->id,
                 'qr_code' => $qrCode->code,
+                'qr_type' => $type->value,
             ]);
 
             return [
@@ -223,25 +254,71 @@ class QrRegistrationService
                 'session' => $guestSession,
                 'token' => $token,
                 'project' => $project,
+                'registrationType' => $type->value,
+                'registrationTypeLabel' => $type->label(),
             ];
         });
     }
 
     /**
-     * Get active codes for a project.
+     * Get all active codes for a project (with registered sessions).
      *
      * @return Collection<QrRegistrationCode>
      */
     public function getActiveCodesForProject(TabloProject $project): Collection
     {
         return $project->qrCodes()
-            ->valid()
+            ->where('is_active', true)
+            ->with(['registeredSessions' => fn ($q) => $q->select('id', 'qr_registration_code_id', 'guest_name', 'guest_email', 'created_at')->latest()->limit(5)])
+            ->orderByDesc('is_pinned')
             ->orderByDesc('created_at')
             ->get();
     }
 
     /**
-     * Deactivate a QR code.
+     * Deactivate a QR code by ID (for a specific project).
+     */
+    public function deactivateCodeForProject(TabloProject $project, int $codeId): bool
+    {
+        $qrCode = $project->qrCodes()->find($codeId);
+
+        if (! $qrCode) {
+            return false;
+        }
+
+        $qrCode->deactivate();
+
+        Log::info('[QR] Registration code deactivated', [
+            'id' => $codeId,
+            'code' => $qrCode->code,
+            'project_id' => $project->id,
+        ]);
+
+        return true;
+    }
+
+    /**
+     * Pin a QR code (unpin all others for the project).
+     */
+    public function pinCode(TabloProject $project, int $codeId): bool
+    {
+        $qrCode = $project->qrCodes()->where('is_active', true)->find($codeId);
+
+        if (! $qrCode) {
+            return false;
+        }
+
+        // Unpin all others
+        $project->qrCodes()->where('id', '!=', $codeId)->update(['is_pinned' => false]);
+
+        // Pin this one
+        $qrCode->update(['is_pinned' => true]);
+
+        return true;
+    }
+
+    /**
+     * Deactivate a QR code by code string.
      */
     public function deactivateCode(string $code): bool
     {

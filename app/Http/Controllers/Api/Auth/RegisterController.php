@@ -67,6 +67,8 @@ class RegisterController extends Controller
                 'className' => $project->class_name,
                 'classYear' => $project->class_year,
             ],
+            'type' => $result['type'] ?? 'coordinator',
+            'typeLabel' => $result['typeLabel'] ?? 'Kapcsolattartó',
         ]);
     }
 
@@ -114,6 +116,8 @@ class RegisterController extends Controller
                     'guestName' => $session->guest_name,
                     'guestEmail' => $session->guest_email,
                 ],
+                'registrationType' => $result['registrationType'] ?? 'coordinator',
+                'registrationTypeLabel' => $result['registrationTypeLabel'] ?? 'Kapcsolattartó',
             ]);
 
         } catch (\InvalidArgumentException $e) {

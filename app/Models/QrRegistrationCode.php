@@ -2,9 +2,11 @@
 
 namespace App\Models;
 
+use App\Enums\QrCodeType;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
  * QR Registration Code model for guest self-registration.
@@ -26,16 +28,20 @@ class QrRegistrationCode extends Model
     protected $fillable = [
         'tablo_project_id',
         'code',
+        'type',
         'is_active',
         'expires_at',
         'usage_count',
         'max_usages',
+        'is_pinned',
     ];
 
     protected function casts(): array
     {
         return [
+            'type' => QrCodeType::class,
             'is_active' => 'boolean',
+            'is_pinned' => 'boolean',
             'expires_at' => 'datetime',
             'usage_count' => 'integer',
             'max_usages' => 'integer',
@@ -115,6 +121,30 @@ class QrRegistrationCode extends Model
     public function getRegistrationUrl(): string
     {
         return config('app.frontend_tablo_url').'/tablo/register?code='.$this->code;
+    }
+
+    /**
+     * Get guest sessions that registered with this code.
+     */
+    public function registeredSessions(): HasMany
+    {
+        return $this->hasMany(TabloGuestSession::class, 'qr_registration_code_id');
+    }
+
+    /**
+     * Scope for a specific type.
+     */
+    public function scopeOfType($query, QrCodeType $type)
+    {
+        return $query->where('type', $type->value);
+    }
+
+    /**
+     * Scope for pinned codes.
+     */
+    public function scopePinned($query)
+    {
+        return $query->where('is_pinned', true);
     }
 
     /**

@@ -45,6 +45,8 @@ class TabloGuestSession extends Model
         'is_coordinator',
         'tablo_person_id',
         'verification_status',
+        'qr_registration_code_id',
+        'registration_type',
         'restore_token',
         'restore_token_expires_at',
         'last_activity_at',
@@ -86,6 +88,14 @@ class TabloGuestSession extends Model
                 $session->session_token = (string) Str::uuid();
             }
         });
+    }
+
+    /**
+     * Get the QR registration code used for registration.
+     */
+    public function qrCode(): BelongsTo
+    {
+        return $this->belongsTo(QrRegistrationCode::class, 'qr_registration_code_id');
     }
 
     /**
