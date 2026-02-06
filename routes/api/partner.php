@@ -9,7 +9,9 @@ use App\Http\Controllers\Api\Partner\PartnerDashboardController;
 use App\Http\Controllers\Api\Partner\PartnerProjectContactController;
 use App\Http\Controllers\Api\Partner\PartnerPhotoController;
 use App\Http\Controllers\Api\Partner\PartnerProjectController;
+use App\Http\Controllers\Api\Partner\PartnerProjectUsersController;
 use App\Http\Controllers\Api\Partner\PartnerQrController;
+use App\Http\Controllers\Api\Partner\PartnerSamplePackageController;
 use App\Http\Controllers\Api\Partner\PartnerSchoolController;
 use App\Http\Controllers\Api\Partner\TeamController as PartnerTeamController;
 use App\Http\Controllers\Api\PartnerClientController;
@@ -111,6 +113,21 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/projects/{projectId}/qr-code', [PartnerQrController::class, 'getQrCode']);
         Route::post('/projects/{projectId}/qr-code', [PartnerQrController::class, 'generateQrCode']);
         Route::delete('/projects/{projectId}/qr-code', [PartnerQrController::class, 'deactivateQrCode']);
+
+        // Guest session management (project users)
+        Route::get('/projects/{projectId}/guest-sessions', [PartnerProjectUsersController::class, 'index']);
+        Route::put('/projects/{projectId}/guest-sessions/{sessionId}', [PartnerProjectUsersController::class, 'update']);
+        Route::delete('/projects/{projectId}/guest-sessions/{sessionId}', [PartnerProjectUsersController::class, 'destroy']);
+        Route::patch('/projects/{projectId}/guest-sessions/{sessionId}/ban', [PartnerProjectUsersController::class, 'toggleBan']);
+
+        // Sample packages management
+        Route::get('/projects/{projectId}/sample-packages', [PartnerSamplePackageController::class, 'index']);
+        Route::post('/projects/{projectId}/sample-packages', [PartnerSamplePackageController::class, 'store']);
+        Route::put('/projects/{projectId}/sample-packages/{pkgId}', [PartnerSamplePackageController::class, 'update']);
+        Route::delete('/projects/{projectId}/sample-packages/{pkgId}', [PartnerSamplePackageController::class, 'destroy']);
+        Route::post('/projects/{projectId}/sample-packages/{pkgId}/versions', [PartnerSamplePackageController::class, 'storeVersion']);
+        Route::put('/projects/{projectId}/sample-packages/{pkgId}/versions/{verId}', [PartnerSamplePackageController::class, 'updateVersion']);
+        Route::delete('/projects/{projectId}/sample-packages/{pkgId}/versions/{verId}', [PartnerSamplePackageController::class, 'destroyVersion']);
 
         // Gallery management (project-specific)
         Route::get('/projects/{projectId}/gallery', [PartnerGalleryController::class, 'getGallery']);

@@ -252,6 +252,14 @@ class TabloProject extends Model implements HasMedia
     }
 
     /**
+     * Get sample packages for this project
+     */
+    public function samplePackages(): HasMany
+    {
+        return $this->hasMany(TabloSamplePackage::class, 'tablo_project_id');
+    }
+
+    /**
      * Get QR registration codes for this project
      */
     public function qrCodes(): HasMany
