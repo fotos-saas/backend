@@ -42,6 +42,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'role_or_permission' => \Spatie\Permission\Middleware\RoleOrPermissionMiddleware::class,
             'partner.feature' => \App\Http\Middleware\CheckPartnerFeature::class,
             'auth.client' => \App\Http\Middleware\AuthenticateClient::class,
+            'dev.local'   => \App\Http\Middleware\EnsureLocalEnvironment::class,
         ]);
     })
     ->withSchedule(function ($schedule) {

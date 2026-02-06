@@ -21,3 +21,7 @@ require __DIR__.'/api/partner.php';
 require __DIR__.'/api/marketer.php';
 require __DIR__.'/api/admin.php';
 require __DIR__.'/api/tablo.php';
+
+if (app()->environment('local')) {
+    require __DIR__.'/api/dev.php';
+}
