@@ -88,7 +88,7 @@ class TabloApiService
 
         try {
             $result = $claudeService->chatJson($prompt, $systemPrompt, [
-                'model' => 'claude-haiku-4-20250514',
+                'model' => 'claude-sonnet-4-5-20250929',
                 'max_tokens' => 2048,
                 'temperature' => 0.0,
             ]);

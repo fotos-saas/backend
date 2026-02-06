@@ -232,7 +232,7 @@ class ClaudeService
                 userPrompt: "Név: \"{$fullName}\"\n\nMi a keresztnév? Csak a keresztnevet írd, semmi mást!",
                 systemPrompt: "Magyar nevek keresztnevét kell kinyerned. A magyar névsorrendben általában a vezetéknév van elöl, a keresztnév hátul (pl. \"Kovács Anna\" -> \"Anna\", \"Nagy Péter\" -> \"Péter\"). De néha fordítva is lehet. Csak a keresztnevet válaszold, semmi mást, semmi magyarázatot!",
                 options: [
-                    'model' => 'claude-haiku-4-20250514',
+                    'model' => 'claude-sonnet-4-5-20250929',
                     'max_tokens' => 50,
                     'temperature' => 0.0,
                 ]
