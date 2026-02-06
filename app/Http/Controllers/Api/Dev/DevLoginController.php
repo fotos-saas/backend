@@ -45,7 +45,12 @@ class DevLoginController extends Controller
             'identifier' => $identifier,
         ], now()->addMinutes(5));
 
-        $frontendUrl = config('app.frontend_url', 'http://localhost:4205');
+        // Frontend URL a request origin-jéből (localhost vs szerver)
+        $origin = $request->header('Origin', $request->header('Referer', ''));
+        $frontendUrl = preg_replace('#/+$#', '', parse_url($origin, PHP_URL_SCHEME) . '://' . parse_url($origin, PHP_URL_HOST) . (parse_url($origin, PHP_URL_PORT) ? ':' . parse_url($origin, PHP_URL_PORT) : ''));
+        if (!$frontendUrl || $frontendUrl === '://') {
+            $frontendUrl = config('app.frontend_url', 'http://localhost:4205');
+        }
 
         return response()->json([
             'url' => "{$frontendUrl}/dev-login/{$token}",
@@ -105,7 +110,7 @@ class DevLoginController extends Controller
                 'address' => $user->address,
                 'type' => $user->isMarketer() ? 'marketer' : 'registered',
                 'roles' => $roles,
-                'passwordSet' => (bool) $user->password_set,
+                'passwordSet' => true,
                 'has_partner' => (bool) $partner,
                 'partner_id' => $partner?->id,
             ],
@@ -146,7 +151,7 @@ class DevLoginController extends Controller
                 'name' => $tabloGuestUser->name,
                 'email' => $tabloGuestUser->email,
                 'type' => 'tablo-guest',
-                'passwordSet' => false,
+                'passwordSet' => true,
             ],
             'project' => [
                 'id' => $project->id,
