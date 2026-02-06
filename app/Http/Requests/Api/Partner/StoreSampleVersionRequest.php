@@ -16,7 +16,7 @@ class StoreSampleVersionRequest extends FormRequest
         return [
             'images' => ['required', 'array', 'min:1'],
             'images.*' => ['image', 'max:10240', 'mimetypes:image/jpeg,image/png,image/webp'],
-            'description' => ['required', 'string', 'max:2000'],
+            'description' => ['nullable', 'string', 'max:2000'],
         ];
     }
 
