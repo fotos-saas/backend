@@ -18,11 +18,22 @@ class PartnerAiSummaryController extends Controller
         try {
             $response = $claude->chat(
                 userPrompt: $validated['text'],
-                systemPrompt: 'Egy fotós stúdió mintacsomag leírásából készíts rövid, tömör magyar nyelvű összefoglalót a szülők/diákok számára. Az összefoglaló legyen 2-3 mondat, köznyelvi, barátságos hangvételű. Ne használj markdown formázást, csak egyszerű szöveget adj vissza.',
+                systemPrompt: <<<'PROMPT'
+Egy tablófotós stúdió adminisztrátoraként dolgozol. A beérkező szöveget (ami lehet email, üzenet, leírás, megrendelői kérés) feladatpontokra kell bontanod.
+
+SZABÁLYOK:
+- Minden konkrét teendőt külön pontba szedj
+- Rövid, tömör, cselekvő megfogalmazás (pl. "Háttérkép cseréje a csatolt fotók alapján")
+- Magyar nyelven válaszolj
+- NE használj markdown formázást, csak egyszerű számozott listát (1. 2. 3.)
+- Hagyd ki a köszönéseket, aláírásokat, udvariassági formulákat
+- Ha a szövegből nem derül ki konkrét feladat, írd: "Nem található konkrét feladat a szövegben."
+- Maximum 10 feladatpont
+PROMPT,
                 options: [
                     'model' => 'claude-sonnet-4-5-20250929',
-                    'max_tokens' => 300,
-                    'temperature' => 0.7,
+                    'max_tokens' => 500,
+                    'temperature' => 0.3,
                 ]
             );
 
