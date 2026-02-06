@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Http\Controllers\Api\Concerns\ResolvesPartner;
 use App\Http\Controllers\Controller;
 use App\Services\Storage\StorageAddonService;
 use App\Services\Storage\StorageUsageService;
@@ -19,6 +20,7 @@ use Illuminate\Support\Facades\Log;
  */
 class StorageController extends Controller
 {
+    use ResolvesPartner;
     public function __construct(
         private readonly StorageUsageService $usageService,
         private readonly StorageAddonService $addonService,
@@ -31,7 +33,7 @@ class StorageController extends Controller
      */
     public function usage(Request $request): JsonResponse
     {
-        $partner = $request->user()->partner;
+        $partner = $this->resolvePartner($request->user()->id);
 
         if (! $partner) {
             return response()->json([
@@ -66,7 +68,7 @@ class StorageController extends Controller
             'gb.max' => 'Maximum 500 GB extra tárhely vásárolható.',
         ]);
 
-        $partner = $request->user()->partner;
+        $partner = $this->resolvePartner($request->user()->id);
 
         if (! $partner) {
             return response()->json([
@@ -121,7 +123,7 @@ class StorageController extends Controller
      */
     public function removeAddon(Request $request): JsonResponse
     {
-        $partner = $request->user()->partner;
+        $partner = $this->resolvePartner($request->user()->id);
 
         if (! $partner) {
             return response()->json([

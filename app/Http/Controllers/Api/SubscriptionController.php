@@ -2,10 +2,8 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Http\Controllers\Api\Concerns\ResolvesPartner;
 use App\Http\Controllers\Controller;
-use App\Models\Partner;
-use App\Models\TabloPartner;
-use App\Models\User;
 use App\Services\Subscription\SubscriptionResponseBuilder;
 use App\Services\Subscription\SubscriptionStripeService;
 use Illuminate\Http\JsonResponse;
@@ -14,6 +12,7 @@ use Illuminate\Support\Facades\Log;
 
 class SubscriptionController extends Controller
 {
+    use ResolvesPartner;
     public function __construct(
         private readonly SubscriptionStripeService $stripeService,
         private readonly SubscriptionResponseBuilder $responseBuilder,
@@ -24,7 +23,7 @@ class SubscriptionController extends Controller
      */
     public function getSubscription(Request $request): JsonResponse
     {
-        $partner = $this->getPartnerWithAddons($request->user()->id);
+        $partner = $this->resolvePartnerWithAddons($request->user()->id);
 
         if (! $partner) {
             return response()->json(['message' => 'Partner profil nem található.'], 404);
@@ -53,7 +52,7 @@ class SubscriptionController extends Controller
      */
     public function createPortalSession(Request $request): JsonResponse
     {
-        $partner = $this->getPartner($request->user()->id);
+        $partner = $this->resolvePartner($request->user()->id);
 
         if (! $partner?->stripe_customer_id) {
             return response()->json(['message' => 'Nincs aktív előfizetésed.'], 400);
@@ -81,7 +80,7 @@ class SubscriptionController extends Controller
      */
     public function cancelSubscription(Request $request): JsonResponse
     {
-        $partner = $this->getPartner($request->user()->id);
+        $partner = $this->resolvePartner($request->user()->id);
 
         if (! $partner?->stripe_subscription_id) {
             return response()->json(['message' => 'Nincs aktív előfizetésed.'], 400);
@@ -112,7 +111,7 @@ class SubscriptionController extends Controller
      */
     public function resumeSubscription(Request $request): JsonResponse
     {
-        $partner = $this->getPartner($request->user()->id);
+        $partner = $this->resolvePartner($request->user()->id);
 
         if (! $partner?->stripe_subscription_id) {
             return response()->json(['message' => 'Nincs aktív előfizetésed.'], 400);
@@ -137,7 +136,7 @@ class SubscriptionController extends Controller
      */
     public function pauseSubscription(Request $request): JsonResponse
     {
-        $partner = $this->getPartner($request->user()->id);
+        $partner = $this->resolvePartner($request->user()->id);
 
         if (! $partner?->stripe_subscription_id) {
             return response()->json(['message' => 'Nincs aktív előfizetésed.'], 400);
@@ -173,7 +172,7 @@ class SubscriptionController extends Controller
      */
     public function unpauseSubscription(Request $request): JsonResponse
     {
-        $partner = $this->getPartner($request->user()->id);
+        $partner = $this->resolvePartner($request->user()->id);
 
         if (! $partner?->stripe_subscription_id) {
             return response()->json(['message' => 'Nincs aktív előfizetésed.'], 400);
@@ -204,7 +203,7 @@ class SubscriptionController extends Controller
      */
     public function getInvoices(Request $request): JsonResponse
     {
-        $partner = $this->getPartner($request->user()->id);
+        $partner = $this->resolvePartner($request->user()->id);
 
         if (! $partner?->stripe_customer_id) {
             return response()->json(['invoices' => [], 'has_more' => false]);
@@ -245,34 +244,4 @@ class SubscriptionController extends Controller
         }
     }
 
-    private function getPartner(int $userId): ?Partner
-    {
-        return Partner::where('user_id', $userId)->first();
-    }
-
-    private function getPartnerWithAddons(int $userId): ?Partner
-    {
-        $partner = Partner::with(['addons' => fn ($q) => $q->where('status', 'active')])
-            ->where('user_id', $userId)
-            ->first();
-
-        if ($partner) {
-            return $partner;
-        }
-
-        $user = User::find($userId);
-        if ($user && $user->tablo_partner_id) {
-            $tabloPartner = TabloPartner::find($user->tablo_partner_id);
-            if ($tabloPartner && $tabloPartner->email) {
-                $ownerUser = User::where('email', $tabloPartner->email)->first();
-                if ($ownerUser) {
-                    return Partner::with(['addons' => fn ($q) => $q->where('status', 'active')])
-                        ->where('user_id', $ownerUser->id)
-                        ->first();
-                }
-            }
-        }
-
-        return null;
-    }
 }
