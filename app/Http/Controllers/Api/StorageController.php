@@ -36,19 +36,10 @@ class StorageController extends Controller
         $partner = $this->resolvePartner($request->user()->id);
 
         if (! $partner) {
-            $defaultLimitGb = config('plans.plans.alap.limits.storage_gb', 5);
-
             return response()->json([
-                'used_gb' => 0,
-                'plan_limit_gb' => $defaultLimitGb,
-                'additional_gb' => 0,
-                'total_limit_gb' => $defaultLimitGb,
-                'usage_percent' => 0,
-                'is_near_limit' => false,
-                'addon_price_monthly' => $this->addonService->getMonthlyPrice(),
-                'addon_price_yearly' => $this->addonService->getYearlyPrice(),
-                'billing_cycle' => 'monthly',
-            ]);
+                'message' => 'Inaktív fiók. Kérjük, jelentkezz be újra.',
+                'code' => 'no_partner',
+            ], 403);
         }
 
         $stats = $this->usageService->getUsageStats($partner);
