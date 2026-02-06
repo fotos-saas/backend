@@ -3,6 +3,7 @@
 namespace App\Jobs;
 
 use App\Models\WorkSession;
+use App\Services\FileStorageService;
 use App\Services\WorkSessionZipService;
 use App\Notifications\ZipReadyNotification;
 use Illuminate\Bus\Queueable;
@@ -55,7 +56,7 @@ class GenerateManagerZipJob implements ShouldQueue
     /**
      * Execute the job
      */
-    public function handle(WorkSessionZipService $zipService): void
+    public function handle(WorkSessionZipService $zipService, FileStorageService $fileStorage): void
     {
         try {
             Log::info('GenerateManagerZipJob started', [
@@ -85,7 +86,7 @@ class GenerateManagerZipJob implements ShouldQueue
             $filename = basename($zipPath);
             $storagePath = "temp/zips/{$this->workSession->id}/{$filename}";
 
-            Storage::put($storagePath, file_get_contents($zipPath));
+            $fileStorage->storeFromLocalPath($zipPath, $storagePath, 'local');
 
             // Delete original temp file
             if (file_exists($zipPath)) {

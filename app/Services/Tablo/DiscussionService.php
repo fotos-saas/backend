@@ -12,6 +12,7 @@ use App\Models\TabloDiscussionPost;
 use App\Models\TabloGuestSession;
 use App\Models\TabloPostMedia;
 use App\Models\TabloProject;
+use App\Services\FileStorageService;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -45,7 +46,7 @@ class DiscussionService
         protected BadgeService $badgeService,
         protected NotificationService $notificationService,
         protected LeaderboardService $leaderboardService,
-        protected TabloMediaService $mediaService
+        protected FileStorageService $fileStorage
     ) {}
 
     /**
@@ -338,20 +339,20 @@ class DiscussionService
      */
     public function uploadMedia(TabloDiscussionPost $post, UploadedFile $file): TabloPostMedia
     {
-        $stored = $this->mediaService->validateAndStore(
+        $directory = self::MEDIA_DIRECTORY . '/' . $post->discussion->tablo_project_id;
+        $result = $this->fileStorage->validateAndStore(
             $file,
-            self::MEDIA_DIRECTORY,
-            $post->discussion->tablo_project_id,
-            TabloMediaService::DEFAULT_ALLOWED_MIMES,
+            $directory,
+            FileStorageService::IMAGE_MIMES,
             self::MAX_MEDIA_SIZE
         );
 
         return TabloPostMedia::create([
             'tablo_discussion_post_id' => $post->id,
-            'file_path' => $stored['path'],
-            'file_name' => $stored['original_name'],
-            'mime_type' => $stored['mime_type'],
-            'file_size' => $stored['size'],
+            'file_path' => $result->path,
+            'file_name' => $result->originalName,
+            'mime_type' => $result->mimeType,
+            'file_size' => $result->size,
         ]);
     }
 

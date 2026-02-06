@@ -2,7 +2,9 @@
 
 namespace App\Actions\Tablo;
 
+use App\Exceptions\FileValidationException;
 use App\Models\TabloProject;
+use App\Services\FileStorageService;
 use App\Services\Tablo\FinalizationSecurityService;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
@@ -11,6 +13,7 @@ class UploadFinalizationFileAction
 {
     public function __construct(
         private FinalizationSecurityService $security,
+        private FileStorageService $fileStorage,
     ) {}
 
     /**
@@ -20,108 +23,66 @@ class UploadFinalizationFileAction
      */
     public function execute(TabloProject $tabloProject, UploadedFile $file, string $type, string $ip): array
     {
-        $extension = strtolower($file->getClientOriginalExtension());
         $projectId = $tabloProject->id;
 
-        $validationResult = $this->validateFile($file, $type, $extension, $projectId, $ip);
-        if ($validationResult !== null) {
-            return $validationResult;
+        try {
+            if ($type === 'background') {
+                $this->fileStorage->validateImage($file, $this->security->getAllowedImageExtensions(), 16 * 1024 * 1024, true);
+            } else {
+                $this->fileStorage->validateArchive($file, $this->security->getAllowedArchiveExtensions());
+            }
+        } catch (FileValidationException $e) {
+            if (str_contains($e->getMessage(), 'tartalma nem egyezik')) {
+                $eventType = $type === 'background' ? 'invalid_image_magic_bytes' : 'invalid_archive_magic_bytes';
+                $this->security->logSecurityEvent($eventType, $projectId, [
+                    'filename' => $file->getClientOriginalName(),
+                    'mime' => $file->getMimeType(),
+                    'ip' => $ip,
+                ]);
+            }
+
+            return [
+                'success' => false,
+                'message' => $this->getValidationMessage($type, $e),
+                'status' => 422,
+            ];
         }
 
-        $originalName = $file->getClientOriginalName();
-        $filename = $this->security->generateSafeFilename($originalName, $extension);
+        $directory = "tablo-projects/{$projectId}/{$type}";
+        $result = $this->fileStorage->storeWithSafeName($file, $directory);
 
-        $path = $file->storeAs(
-            "tablo-projects/{$projectId}/{$type}",
-            $filename,
-            'public'
-        );
-
-        $this->updateProjectData($tabloProject, $type, $path, $originalName);
+        $this->updateProjectData($tabloProject, $type, $result->path, $result->originalName);
 
         $this->security->logSecurityEvent('file_uploaded', $projectId, [
             'type' => $type,
-            'filename' => $filename,
+            'filename' => $result->filename,
             'ip' => $ip,
         ]);
 
         return [
             'success' => true,
             'message' => 'Fájl sikeresen feltöltve!',
-            'fileId' => $path,
-            'filename' => $originalName,
-            'url' => Storage::disk('public')->url($path),
+            'fileId' => $result->path,
+            'filename' => $result->originalName,
+            'url' => $this->fileStorage->url($result->path),
         ];
     }
 
-    private function validateFile(UploadedFile $file, string $type, string $extension, int $projectId, string $ip): ?array
+    private function getValidationMessage(string $type, FileValidationException $e): string
     {
-        if ($type === 'background') {
-            return $this->validateBackgroundFile($file, $extension, $projectId, $ip);
+        $message = $e->getMessage();
+
+        if (str_contains($message, 'kiterjesztés')) {
+            return $type === 'background'
+                ? 'Csak JPG, JPEG vagy BMP fájl tölthető fel háttérképként!'
+                : 'Csak ZIP, RAR vagy 7Z fájl tölthető fel csatolmányként!';
         }
 
-        return $this->validateAttachmentFile($file, $extension, $projectId, $ip);
-    }
-
-    private function validateBackgroundFile(UploadedFile $file, string $extension, int $projectId, string $ip): ?array
-    {
-        if (! in_array($extension, $this->security->getAllowedImageExtensions(), true)) {
-            return [
-                'success' => false,
-                'message' => 'Csak JPG, JPEG vagy BMP fájl tölthető fel háttérképként!',
-                'status' => 422,
-            ];
+        if (str_contains($message, 'túl nagy')) {
+            return 'A háttérkép maximum 16MB lehet!';
         }
 
-        if (! $this->security->validateImageMagicBytes($file)) {
-            $this->security->logSecurityEvent('invalid_image_magic_bytes', $projectId, [
-                'filename' => $file->getClientOriginalName(),
-                'mime' => $file->getMimeType(),
-                'ip' => $ip,
-            ]);
-
-            return [
-                'success' => false,
-                'message' => 'A fájl tartalma nem egyezik a kiterjesztéssel!',
-                'status' => 422,
-            ];
-        }
-
-        if ($file->getSize() > 16 * 1024 * 1024) {
-            return [
-                'success' => false,
-                'message' => 'A háttérkép maximum 16MB lehet!',
-                'status' => 422,
-            ];
-        }
-
-        return null;
-    }
-
-    private function validateAttachmentFile(UploadedFile $file, string $extension, int $projectId, string $ip): ?array
-    {
-        if (! in_array($extension, $this->security->getAllowedArchiveExtensions(), true)) {
-            return [
-                'success' => false,
-                'message' => 'Csak ZIP, RAR vagy 7Z fájl tölthető fel csatolmányként!',
-                'status' => 422,
-            ];
-        }
-
-        if (! $this->security->validateArchiveMagicBytes($file)) {
-            $this->security->logSecurityEvent('invalid_archive_magic_bytes', $projectId, [
-                'filename' => $file->getClientOriginalName(),
-                'ip' => $ip,
-            ]);
-
-            return [
-                'success' => false,
-                'message' => 'A fájl tartalma nem egyezik a kiterjesztéssel!',
-                'status' => 422,
-            ];
-        }
-
-        return null;
+        return $message;
     }
 
     private function updateProjectData(TabloProject $tabloProject, string $type, string $path, string $originalName): void

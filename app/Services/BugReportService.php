@@ -12,11 +12,12 @@ use App\Models\User;
 use App\Notifications\BugReportNotification;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Str;
 
 class BugReportService
 {
+    public function __construct(
+        protected FileStorageService $fileStorage
+    ) {}
     /**
      * Új hibajelentés létrehozása mellékletekkel.
      */
@@ -129,34 +130,19 @@ class BugReportService
                 continue;
             }
 
-            $filename = Str::uuid() . '.' . $file->getClientOriginalExtension();
-            $storagePath = "bug-reports/{$report->id}/{$filename}";
-
-            Storage::disk('public')->putFileAs(
-                "bug-reports/{$report->id}",
-                $file,
-                $filename
-            );
-
-            // Kép méret lekérdezés
-            $width = null;
-            $height = null;
-            if (str_starts_with($file->getMimeType(), 'image/')) {
-                $dimensions = getimagesize($file->getPathname());
-                if ($dimensions) {
-                    [$width, $height] = $dimensions;
-                }
-            }
+            $directory = "bug-reports/{$report->id}";
+            $result = $this->fileStorage->store($file, $directory);
+            $dimensions = $this->fileStorage->getImageDimensions($file);
 
             BugReportAttachment::create([
                 'bug_report_id' => $report->id,
-                'filename' => $filename,
-                'original_filename' => $file->getClientOriginalName(),
-                'mime_type' => $file->getMimeType(),
-                'size_bytes' => $file->getSize(),
-                'storage_path' => $storagePath,
-                'width' => $width,
-                'height' => $height,
+                'filename' => $result->filename,
+                'original_filename' => $result->originalName,
+                'mime_type' => $result->mimeType,
+                'size_bytes' => $result->size,
+                'storage_path' => $result->path,
+                'width' => $dimensions['width'],
+                'height' => $dimensions['height'],
             ]);
         }
     }

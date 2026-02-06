@@ -9,10 +9,10 @@ use App\Models\TabloPollOption;
 use App\Models\TabloPollVote;
 use App\Models\TabloProject;
 use App\Models\TabloSampleTemplate;
+use App\Services\FileStorageService;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Storage;
 
 /**
  * Poll Service
@@ -28,7 +28,7 @@ class PollService
     private const MEDIA_DIRECTORY = 'polls';
 
     public function __construct(
-        protected TabloMediaService $mediaService
+        protected FileStorageService $fileStorage
     ) {}
     /**
      * Új szavazás létrehozása
@@ -132,16 +132,13 @@ class PollService
      */
     public function storeCoverImage(TabloPoll $poll, UploadedFile $file): string
     {
-        $extension = $file->getClientOriginalExtension();
-        $filename = 'cover.' . $extension;
-        $path = "polls/{$poll->id}/{$filename}";
-
         // Régi kép törlése ha van
         $this->deleteCoverImage($poll);
 
-        Storage::disk('public')->putFileAs("polls/{$poll->id}", $file, $filename);
+        $directory = "polls/{$poll->id}";
+        $result = $this->fileStorage->store($file, $directory);
 
-        return '/storage/' . $path;
+        return '/storage/' . $result->path;
     }
 
     /**
@@ -150,11 +147,11 @@ class PollService
     public function deleteCoverImage(TabloPoll $poll): void
     {
         if ($poll->cover_image_url) {
-            $this->mediaService->deleteFile($poll->cover_image_url);
+            $this->fileStorage->delete($poll->cover_image_url);
         }
 
         // Mappa törlése ha üres
-        $this->mediaService->cleanupEmptyFolder("polls/{$poll->id}");
+        $this->fileStorage->cleanupEmptyDirectory("polls/{$poll->id}");
     }
 
     // ==================== MÉDIA KEZELÉS ====================
@@ -164,18 +161,15 @@ class PollService
      */
     public function uploadMedia(TabloPoll $poll, UploadedFile $file, int $sortOrder = 0): TabloPollMedia
     {
-        $stored = $this->mediaService->validateAndStore(
-            $file,
-            self::MEDIA_DIRECTORY . '/' . $poll->id,
-            'media'
-        );
+        $directory = self::MEDIA_DIRECTORY . '/' . $poll->id . '/media';
+        $result = $this->fileStorage->validateAndStore($file, $directory);
 
         return TabloPollMedia::create([
             'tablo_poll_id' => $poll->id,
-            'file_path' => $stored['path'],
-            'file_name' => $stored['original_name'],
-            'mime_type' => $stored['mime_type'],
-            'file_size' => $stored['size'],
+            'file_path' => $result->path,
+            'file_name' => $result->originalName,
+            'mime_type' => $result->mimeType,
+            'file_size' => $result->size,
             'sort_order' => $sortOrder,
         ]);
     }
@@ -207,7 +201,7 @@ class PollService
         $media->delete(); // Ez automatikusan törli a fájlt is a booted() hook miatt
 
         // Mappa törlése ha üres
-        $this->mediaService->cleanupEmptyFolder("polls/{$pollId}/media");
+        $this->fileStorage->cleanupEmptyDirectory("polls/{$pollId}/media");
     }
 
     /**

@@ -10,6 +10,7 @@ use App\Models\TabloNewsfeedMedia;
 use App\Models\TabloNewsfeedPost;
 use App\Models\TabloNotification;
 use App\Models\TabloProject;
+use App\Services\FileStorageService;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
@@ -34,7 +35,7 @@ class NewsfeedService
         protected PointService $pointService,
         protected BadgeService $badgeService,
         protected NotificationService $notificationService,
-        protected TabloMediaService $mediaService
+        protected FileStorageService $fileStorage
     ) {}
 
     /**
@@ -202,22 +203,20 @@ class NewsfeedService
      */
     public function uploadMedia(TabloNewsfeedPost $post, UploadedFile $file, int $sortOrder = 0): TabloNewsfeedMedia
     {
-        $allowedMimes = TabloMediaService::imageAndVideoMimes();
-
-        $stored = $this->mediaService->validateAndStore(
+        $directory = self::MEDIA_DIRECTORY . '/' . $post->tablo_project_id;
+        $result = $this->fileStorage->validateAndStore(
             $file,
-            self::MEDIA_DIRECTORY,
-            $post->tablo_project_id,
-            $allowedMimes
+            $directory,
+            FileStorageService::imageAndVideoMimes()
         );
 
         return TabloNewsfeedMedia::create([
             'tablo_newsfeed_post_id' => $post->id,
-            'file_path' => $stored['path'],
-            'file_name' => $stored['original_name'],
-            'mime_type' => $stored['mime_type'],
-            'file_size' => $stored['size'],
-            'is_image' => $stored['is_image'],
+            'file_path' => $result->path,
+            'file_name' => $result->originalName,
+            'mime_type' => $result->mimeType,
+            'file_size' => $result->size,
+            'is_image' => $result->isImage,
             'sort_order' => $sortOrder,
         ]);
     }
