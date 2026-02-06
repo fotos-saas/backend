@@ -10,8 +10,8 @@ class EnsureLocalEnvironment
 {
     public function handle(Request $request, Closure $next): Response
     {
-        if (!app()->environment('local', 'dev')) {
-            abort(403, 'This endpoint is only available in local/dev environment.');
+        if (!app()->environment('local', 'development')) {
+            abort(403, 'This endpoint is only available in local/development environment.');
         }
 
         return $next($request);
