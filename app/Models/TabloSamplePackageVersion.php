@@ -59,7 +59,7 @@ class TabloSamplePackageVersion extends Model implements HasMedia
     {
         return $this->getMedia('sample_image')->map(fn (Media $m) => [
             'id' => $m->id,
-            'url' => $m->getUrl('preview'),
+            'url' => $m->getUrl(),
             'thumbUrl' => $m->getUrl('thumb'),
         ])->toArray();
     }
