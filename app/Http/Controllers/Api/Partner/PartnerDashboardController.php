@@ -252,7 +252,8 @@ class PartnerDashboardController extends Controller
         $primaryContact = $project->contacts->first(fn ($c) => $c->pivot->is_primary)
             ?? $project->contacts->first();
 
-        $activeQrCode = $project->qrCodes->where('is_active', true)->first();
+        $activeQrCodes = $project->qrCodes->where('is_active', true);
+        $activeQrCode = $activeQrCodes->first();
         $samplesCount = $project->getMedia('samples')->count();
 
         return response()->json([
@@ -297,15 +298,28 @@ class PartnerDashboardController extends Controller
             'qrCode' => $activeQrCode ? [
                 'id' => $activeQrCode->id,
                 'code' => $activeQrCode->code,
+                'type' => $activeQrCode->type?->value ?? 'coordinator',
+                'typeLabel' => $activeQrCode->type?->label() ?? 'Kapcsolattartó',
                 'usageCount' => $activeQrCode->usage_count,
                 'maxUsages' => $activeQrCode->max_usages,
                 'expiresAt' => $activeQrCode->expires_at?->toIso8601String(),
                 'isValid' => $activeQrCode->isValid(),
                 'registrationUrl' => $activeQrCode->getRegistrationUrl(),
             ] : null,
+            'activeQrCodes' => $activeQrCodes->values()->map(fn ($qr) => [
+                'id' => $qr->id,
+                'code' => $qr->code,
+                'type' => $qr->type?->value ?? 'coordinator',
+                'typeLabel' => $qr->type?->label() ?? 'Kapcsolattartó',
+                'usageCount' => $qr->usage_count,
+                'isValid' => $qr->isValid(),
+                'registrationUrl' => $qr->getRegistrationUrl(),
+            ]),
             'qrCodesHistory' => $project->qrCodes->map(fn ($qr) => [
                 'id' => $qr->id,
                 'code' => $qr->code,
+                'type' => $qr->type?->value ?? 'coordinator',
+                'typeLabel' => $qr->type?->label() ?? 'Kapcsolattartó',
                 'isActive' => $qr->is_active,
                 'usageCount' => $qr->usage_count,
                 'createdAt' => $qr->created_at->toIso8601String(),
