@@ -1,0 +1,89 @@
+{
+  "skills": {
+    "deployment-00001": {
+      "id": "deployment-00001",
+      "section": "deployment",
+      "content": "Find Coolify container by git commit hash in image tag for artisan",
+      "justification": "Multiple failed attempts on fotos-* containers before discovering Coolify container with hashed name holds the Laravel app at /var/www/html/artisan",
+      "evidence": "Container sk8g80kw0kswsc4w0ww04c8k-* with image tag containing commit 9186629; fotos-php had no artisan. Artisan path: /var/www/html/artisan",
+      "helpful": 1,
+      "harmful": 0,
+      "neutral": 0,
+      "created_at": "2026-02-05T20:13:25.204867+00:00",
+      "updated_at": "2026-02-05T20:13:25.204882+00:00",
+      "embedding": null,
+      "status": "active"
+    },
+    "deployment-00002": {
+      "id": "deployment-00002",
+      "section": "deployment",
+      "content": "Ignore fotos-* containers for Laravel artisan; use Coolify sk8g* containers",
+      "justification": "Server runs two stacks: legacy fotos-* and Coolify-managed. Only Coolify containers have the Laravel app.",
+      "evidence": "fotos-php, fotos-queue, fotos-scheduler containers do NOT have artisan; sk8g80kw0kswsc4w0ww04c8k-* does",
+      "helpful": 1,
+      "harmful": 0,
+      "neutral": 0,
+      "created_at": "2026-02-05T20:13:25.204894+00:00",
+      "updated_at": "2026-02-05T20:13:25.204895+00:00",
+      "embedding": null,
+      "status": "active"
+    },
+    "project_structure-00003": {
+      "id": "project_structure-00003",
+      "section": "project_structure",
+      "content": "Backend and frontend are separate git repos; commit from each subdirectory",
+      "justification": "Prevents 'not a git repository' errors when running git from parent photostack-saas/ directory",
+      "evidence": "git status from photostack-saas/ root failed; .git exists separately in backend/ and frontend/",
+      "helpful": 1,
+      "harmful": 0,
+      "neutral": 0,
+      "created_at": "2026-02-05T20:13:25.204900+00:00",
+      "updated_at": "2026-02-05T20:13:25.204902+00:00",
+      "embedding": null,
+      "status": "active"
+    },
+    "testing-00004": {
+      "id": "testing-00004",
+      "section": "testing",
+      "content": "Use `php -l` for local syntax verification; tests need Docker postgres",
+      "justification": "php artisan test fails without Docker DB; php -l validates all files locally with zero errors",
+      "evidence": "php artisan test failed with 'could not translate host name postgres'; php -l succeeded on all 10 modified files",
+      "helpful": 1,
+      "harmful": 0,
+      "neutral": 0,
+      "created_at": "2026-02-06T06:09:43.628384+00:00",
+      "updated_at": "2026-02-06T06:09:43.628402+00:00",
+      "embedding": null,
+      "status": "active"
+    },
+    "project_structure-00005": {
+      "id": "project_structure-00005",
+      "section": "project_structure",
+      "content": "Services use domain subdirectories (Services/Tablo/); resolve paths via Glob first",
+      "justification": "Only session failure was guessing flat path for TabloMediaService; Glob would have found correct subdirectory path instantly",
+      "evidence": "TabloMediaService.php was at app/Services/Tablo/TabloMediaService.php, not app/Services/TabloMediaService.php",
+      "helpful": 1,
+      "harmful": 0,
+      "neutral": 0,
+      "created_at": "2026-02-06T06:09:43.628417+00:00",
+      "updated_at": "2026-02-06T06:09:43.628418+00:00",
+      "embedding": null,
+      "status": "active"
+    }
+  },
+  "sections": {
+    "deployment": [
+      "deployment-00001",
+      "deployment-00002"
+    ],
+    "project_structure": [
+      "project_structure-00003",
+      "project_structure-00005"
+    ],
+    "testing": [
+      "testing-00004"
+    ]
+  },
+  "next_id": 5,
+  "similarity_decisions": {}
+}

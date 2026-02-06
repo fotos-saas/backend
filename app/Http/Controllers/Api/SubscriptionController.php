@@ -26,7 +26,23 @@ class SubscriptionController extends Controller
         $partner = $this->resolvePartnerWithAddons($request->user()->id);
 
         if (! $partner) {
-            return response()->json(['message' => 'Partner profil nem található.'], 404);
+            return response()->json([
+                'partner_name' => $request->user()->name ?? '',
+                'plan' => 'alap',
+                'plan_name' => 'Nincs aktív előfizetés',
+                'billing_cycle' => 'monthly',
+                'status' => 'pending',
+                'started_at' => null,
+                'ends_at' => null,
+                'features' => [],
+                'limits' => config('plans.plans.alap.limits', []),
+                'usage' => ['schools' => 0, 'classes' => 0, 'templates' => 0],
+                'is_modified' => false,
+                'has_extra_storage' => false,
+                'extra_storage_gb' => 0,
+                'has_addons' => false,
+                'active_addons' => [],
+            ]);
         }
 
         $response = $this->responseBuilder->build($partner);
