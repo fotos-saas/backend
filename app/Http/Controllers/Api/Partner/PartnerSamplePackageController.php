@@ -24,7 +24,7 @@ class PartnerSamplePackageController extends Controller
 
         $packages = $project->samplePackages()
             ->ordered()
-            ->with(['versions' => fn ($q) => $q->orderByDesc('version_number')])
+            ->with(['versions' => fn ($q) => $q->with('media')->orderByDesc('version_number')])
             ->withCount('versions')
             ->get();
 
@@ -38,8 +38,7 @@ class PartnerSamplePackageController extends Controller
                 'id' => $v->id,
                 'versionNumber' => $v->version_number,
                 'description' => $v->description,
-                'imageUrl' => $v->image_url,
-                'thumbnailUrl' => $v->thumbnail_url,
+                'images' => $v->images,
                 'createdAt' => $v->created_at->toIso8601String(),
             ]),
             'createdAt' => $pkg->created_at->toIso8601String(),
@@ -140,8 +139,11 @@ class PartnerSamplePackageController extends Controller
             'description' => $request->validated('description'),
         ]);
 
-        $version->addMediaFromRequest('image')
-            ->toMediaCollection('sample_image');
+        foreach ($request->file('images', []) as $file) {
+            $version->addMedia($file)->toMediaCollection('sample_image');
+        }
+
+        $version->load('media');
 
         return response()->json([
             'success' => true,
@@ -150,8 +152,7 @@ class PartnerSamplePackageController extends Controller
                 'id' => $version->id,
                 'versionNumber' => $version->version_number,
                 'description' => $version->description,
-                'imageUrl' => $version->image_url,
-                'thumbnailUrl' => $version->thumbnail_url,
+                'images' => $version->images,
                 'createdAt' => $version->created_at->toIso8601String(),
             ],
         ], 201);
@@ -174,20 +175,28 @@ class PartnerSamplePackageController extends Controller
 
         $validated = $request->validate([
             'description' => ['sometimes', 'string', 'max:2000'],
-            'image' => ['sometimes', 'image', 'max:10240', 'mimetypes:image/jpeg,image/png,image/webp'],
+            'images' => ['sometimes', 'array'],
+            'images.*' => ['image', 'max:10240', 'mimetypes:image/jpeg,image/png,image/webp'],
+            'delete_image_ids' => ['sometimes', 'array'],
+            'delete_image_ids.*' => ['integer'],
         ]);
 
         if (isset($validated['description'])) {
             $version->update(['description' => $validated['description']]);
         }
 
-        if ($request->hasFile('image')) {
-            $version->clearMediaCollection('sample_image');
-            $version->addMediaFromRequest('image')
-                ->toMediaCollection('sample_image');
+        if (!empty($validated['delete_image_ids'])) {
+            $deleteIds = array_map('intval', $validated['delete_image_ids']);
+            $version->getMedia('sample_image')
+                ->whereIn('id', $deleteIds)
+                ->each(fn ($media) => $media->delete());
         }
 
-        $version->refresh();
+        foreach ($request->file('images', []) as $file) {
+            $version->addMedia($file)->toMediaCollection('sample_image');
+        }
+
+        $version->load('media');
 
         return response()->json([
             'success' => true,
@@ -196,8 +205,7 @@ class PartnerSamplePackageController extends Controller
                 'id' => $version->id,
                 'versionNumber' => $version->version_number,
                 'description' => $version->description,
-                'imageUrl' => $version->image_url,
-                'thumbnailUrl' => $version->thumbnail_url,
+                'images' => $version->images,
                 'createdAt' => $version->created_at->toIso8601String(),
             ],
         ]);

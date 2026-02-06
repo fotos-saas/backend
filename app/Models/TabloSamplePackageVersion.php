@@ -34,7 +34,6 @@ class TabloSamplePackageVersion extends Model implements HasMedia
     public function registerMediaCollections(): void
     {
         $this->addMediaCollection('sample_image')
-            ->singleFile()
             ->useDisk('public');
     }
 
@@ -54,22 +53,14 @@ class TabloSamplePackageVersion extends Model implements HasMedia
     }
 
     /**
-     * Kép URL lekérése
+     * Összes kép adatai (multi-image)
      */
-    public function getImageUrlAttribute(): ?string
+    public function getImagesAttribute(): array
     {
-        $media = $this->getFirstMedia('sample_image');
-
-        return $media?->getUrl('preview');
-    }
-
-    /**
-     * Thumbnail URL lekérése
-     */
-    public function getThumbnailUrlAttribute(): ?string
-    {
-        $media = $this->getFirstMedia('sample_image');
-
-        return $media?->getUrl('thumb');
+        return $this->getMedia('sample_image')->map(fn (Media $m) => [
+            'id' => $m->id,
+            'url' => $m->getUrl('preview'),
+            'thumbUrl' => $m->getUrl('thumb'),
+        ])->toArray();
     }
 }

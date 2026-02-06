@@ -14,7 +14,8 @@ class StoreSampleVersionRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'image' => ['required', 'image', 'max:10240', 'mimetypes:image/jpeg,image/png,image/webp'],
+            'images' => ['required', 'array', 'min:1'],
+            'images.*' => ['image', 'max:10240', 'mimetypes:image/jpeg,image/png,image/webp'],
             'description' => ['required', 'string', 'max:2000'],
         ];
     }
@@ -22,10 +23,11 @@ class StoreSampleVersionRequest extends FormRequest
     public function messages(): array
     {
         return [
-            'image.required' => 'A minta kép kötelező.',
-            'image.image' => 'A fájl nem érvényes kép.',
-            'image.max' => 'A kép maximum 10 MB lehet.',
-            'image.mimetypes' => 'Csak JPEG, PNG és WebP formátum engedélyezett.',
+            'images.required' => 'Legalább egy minta kép kötelező.',
+            'images.min' => 'Legalább egy minta kép kötelező.',
+            'images.*.image' => 'A fájl nem érvényes kép.',
+            'images.*.max' => 'Egy kép maximum 10 MB lehet.',
+            'images.*.mimetypes' => 'Csak JPEG, PNG és WebP formátum engedélyezett.',
             'description.required' => 'A leírás kötelező.',
             'description.max' => 'A leírás maximum 2000 karakter lehet.',
         ];

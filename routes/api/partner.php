@@ -11,6 +11,7 @@ use App\Http\Controllers\Api\Partner\PartnerPhotoController;
 use App\Http\Controllers\Api\Partner\PartnerProjectController;
 use App\Http\Controllers\Api\Partner\PartnerProjectUsersController;
 use App\Http\Controllers\Api\Partner\PartnerQrController;
+use App\Http\Controllers\Api\Partner\PartnerAiSummaryController;
 use App\Http\Controllers\Api\Partner\PartnerSamplePackageController;
 use App\Http\Controllers\Api\Partner\PartnerSchoolController;
 use App\Http\Controllers\Api\Partner\TeamController as PartnerTeamController;
@@ -120,6 +121,10 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::put('/projects/{projectId}/guest-sessions/{sessionId}', [PartnerProjectUsersController::class, 'update']);
         Route::delete('/projects/{projectId}/guest-sessions/{sessionId}', [PartnerProjectUsersController::class, 'destroy']);
         Route::patch('/projects/{projectId}/guest-sessions/{sessionId}/ban', [PartnerProjectUsersController::class, 'toggleBan']);
+
+        // AI summary generation
+        Route::post('/ai/generate-summary', [PartnerAiSummaryController::class, 'generateSummary'])
+            ->middleware('throttle:10,1');
 
         // Sample packages management
         Route::get('/projects/{projectId}/sample-packages', [PartnerSamplePackageController::class, 'index']);
