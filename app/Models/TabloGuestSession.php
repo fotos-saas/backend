@@ -38,6 +38,7 @@ class TabloGuestSession extends Model
         'device_identifier',
         'guest_name',
         'guest_email',
+        'guest_phone',
         'ip_address',
         'is_banned',
         'is_extra',

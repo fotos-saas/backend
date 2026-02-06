@@ -238,8 +238,10 @@ class GuestSessionService
     {
         $cutoffDate = now()->subDays(self::SESSION_EXPIRY_DAYS * 2);
 
-        $deleted = TabloGuestSession::where('last_activity_at', '<', $cutoffDate)
-            ->orWhereNull('last_activity_at')
+        $deleted = TabloGuestSession::where(function ($query) use ($cutoffDate) {
+                $query->where('last_activity_at', '<', $cutoffDate)
+                    ->orWhereNull('last_activity_at');
+            })
             ->where('created_at', '<', $cutoffDate)
             ->delete();
 

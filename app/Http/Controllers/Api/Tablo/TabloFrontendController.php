@@ -171,7 +171,7 @@ class TabloFrontendController extends Controller
             ], 404);
         }
 
-        $contact = $tabloProject->contacts->where('is_primary', true)->first()
+        $contact = $tabloProject->contacts->firstWhere('pivot.is_primary', true)
             ?? $tabloProject->contacts->first();
 
         if ($contact) {

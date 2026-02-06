@@ -40,7 +40,7 @@ class LoginTabloCodeAction
             ], 401);
         }
 
-        $primaryContact = $tabloProject->contacts()->where('is_primary', true)->first()
+        $primaryContact = $tabloProject->contacts()->wherePivot('is_primary', true)->first()
             ?? $tabloProject->contacts()->first();
 
         $guestEmail = 'tablo-guest-' . $tabloProject->id . '-' . Str::random(8) . '@internal.local';

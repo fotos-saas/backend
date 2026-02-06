@@ -27,7 +27,7 @@ class TabloFinalizationController extends Controller
         }
 
         $data = $tabloProject->data ?? [];
-        $contact = $tabloProject->contacts->where('is_primary', true)->first()
+        $contact = $tabloProject->contacts->firstWhere('pivot.is_primary', true)
             ?? $tabloProject->contacts->first();
 
         return response()->json([
