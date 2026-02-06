@@ -108,6 +108,13 @@ class LoginController extends Controller
 
         $partner = $hasPartnerRole ? $this->resolvePartner($user->id) : null;
 
+        // Árva partner user: van partner role, de nincs Partner rekord → 401
+        if ($hasPartnerRole && ! $partner) {
+            return response()->json([
+                'message' => 'Érvénytelen fiók. Kérjük, lépj kapcsolatba az adminisztrátorral.',
+            ], 401);
+        }
+
         $response = [
             'user' => [
                 'id' => $user->id,
