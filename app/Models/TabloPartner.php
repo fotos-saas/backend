@@ -37,11 +37,13 @@ class TabloPartner extends Model
         'commission_rate',
         'features',
         'partner_id',
+        'default_max_retouch_photos',
     ];
 
     protected $casts = [
         'features' => 'array',
         'commission_rate' => 'decimal:2',
+        'default_max_retouch_photos' => 'integer',
     ];
 
     /**

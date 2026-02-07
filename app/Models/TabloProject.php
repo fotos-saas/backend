@@ -75,6 +75,7 @@ class TabloProject extends Model implements HasMedia
         'is_aware',
         'has_new_missing_photos',
         'max_template_selections',
+        'max_retouch_photos',
         'data',
         'photo_date',
         'deadline',
@@ -116,6 +117,7 @@ class TabloProject extends Model implements HasMedia
             'is_aware' => 'boolean',
             'has_new_missing_photos' => 'boolean',
             'max_template_selections' => 'integer',
+            'max_retouch_photos' => 'integer',
             'data' => 'array',
             'photo_date' => 'date',
             'deadline' => 'date',
@@ -124,6 +126,32 @@ class TabloProject extends Model implements HasMedia
             'actual_guests_count' => 'integer',
             'custom_properties' => 'array',
         ];
+    }
+
+    /**
+     * Effektív max retouch photos érték (prioritás: projekt → partner → galéria → 5)
+     */
+    public function getEffectiveMaxRetouchPhotos(): int
+    {
+        // 1. Projekt szintű override
+        if ($this->max_retouch_photos !== null) {
+            return $this->max_retouch_photos;
+        }
+
+        // 2. Partner globális beállítás
+        $partner = $this->partner;
+        if ($partner && $partner->default_max_retouch_photos !== null) {
+            return $partner->default_max_retouch_photos;
+        }
+
+        // 3. Galéria szintű fallback
+        $gallery = $this->gallery;
+        if ($gallery && $gallery->max_retouch_photos !== null) {
+            return $gallery->max_retouch_photos;
+        }
+
+        // 4. Végső default
+        return 5;
     }
 
     /**

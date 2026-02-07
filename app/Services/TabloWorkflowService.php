@@ -547,11 +547,9 @@ class TabloWorkflowService
         // 3. Get pre-selected photos (from progress - media IDs!)
         $selectedPhotos = $this->getSelectedPhotosFromGallery($step, $progress);
 
-        // 4. Step metadata (gallery mode - use gallery's max_retouch_photos)
-        $metadata = $this->getGalleryStepMetadata($gallery, $step);
-
-        // Get max_retouch_photos from gallery (default: 5)
-        $maxRetouchPhotos = $gallery->max_retouch_photos ?? 5;
+        // 4. Step metadata (gallery mode - use project-aware max_retouch_photos)
+        $maxRetouchPhotos = $this->resolveMaxRetouchPhotos($gallery);
+        $metadata = $this->getGalleryStepMetadata($gallery, $step, $maxRetouchPhotos);
 
         return [
             'current_step' => $step,
@@ -892,7 +890,7 @@ class TabloWorkflowService
      * @param  string  $step  Current step
      * @return array{allow_multiple: bool, max_selection: int|null, description: string}
      */
-    private function getGalleryStepMetadata(TabloGallery $gallery, string $step): array
+    private function getGalleryStepMetadata(TabloGallery $gallery, string $step, ?int $maxRetouchPhotos = null): array
     {
         $metadata = [
             'allow_multiple' => true,
@@ -910,9 +908,9 @@ class TabloWorkflowService
             $metadata['description'] = 'Regisztráció név és email megadásával';
         }
 
-        // RETOUCH: limit from gallery (default: 5)
+        // RETOUCH: limit from project → partner → gallery → 5
         if ($step === 'retouch') {
-            $metadata['max_selection'] = $gallery->max_retouch_photos ?? 5;
+            $metadata['max_selection'] = $maxRetouchPhotos ?? $this->resolveMaxRetouchPhotos($gallery);
             $metadata['description'] = 'Válaszd ki a retusálandó képeket';
         }
 
@@ -929,5 +927,21 @@ class TabloWorkflowService
         }
 
         return $metadata;
+    }
+
+    /**
+     * Resolve max retouch photos from project → partner → gallery → 5
+     */
+    private function resolveMaxRetouchPhotos(TabloGallery $gallery): int
+    {
+        // Keressük meg a galériához tartozó projektet
+        $project = $gallery->projects()->first();
+
+        if ($project) {
+            return $project->getEffectiveMaxRetouchPhotos();
+        }
+
+        // Fallback: galéria → 5
+        return $gallery->max_retouch_photos ?? 5;
     }
 }

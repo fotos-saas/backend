@@ -30,8 +30,11 @@ class GetWorkflowStatusAction
         $retouchMediaIds = $stepsData['retouch_media_ids'] ?? [];
         $tabloMediaId = $stepsData['tablo_media_id'] ?? null;
 
-        // Get max_retouch_photos from gallery
-        $maxRetouchPhotos = $gallery->max_retouch_photos ?? 5;
+        // Get max_retouch_photos: project → partner → gallery → 5
+        $project = $gallery->projects()->first();
+        $maxRetouchPhotos = $project
+            ? $project->getEffectiveMaxRetouchPhotos()
+            : ($gallery->max_retouch_photos ?? 5);
 
         // Determine workflow status
         $workflowStatus = $progress?->workflow_status ?? TabloUserProgress::STATUS_IN_PROGRESS;

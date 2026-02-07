@@ -16,6 +16,7 @@ use App\Http\Controllers\Api\Partner\PartnerSamplePackageController;
 use App\Http\Controllers\Api\Partner\PartnerSchoolController;
 use App\Http\Controllers\Api\Partner\TeamController as PartnerTeamController;
 use App\Http\Controllers\Api\Partner\PartnerBrandingController;
+use App\Http\Controllers\Api\Partner\PartnerSettingsController;
 use App\Http\Controllers\Api\PartnerClientController;
 use App\Http\Controllers\Api\PartnerOrderAlbumController;
 use App\Http\Controllers\Api\PartnerOrderAlbumPhotoController;
@@ -116,6 +117,14 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/projects/{projectId}/qr-codes', [PartnerQrController::class, 'generateQrCode']);
         Route::delete('/projects/{projectId}/qr-codes/{codeId}', [PartnerQrController::class, 'deactivateQrCode']);
         Route::post('/projects/{projectId}/qr-codes/{codeId}/pin', [PartnerQrController::class, 'pinQrCode']);
+
+        // Project settings
+        Route::get('/projects/{projectId}/settings', [PartnerSettingsController::class, 'getProjectSettings']);
+        Route::put('/projects/{projectId}/settings', [PartnerSettingsController::class, 'updateProjectSettings']);
+
+        // Global partner settings
+        Route::get('/settings', [PartnerSettingsController::class, 'getGlobalSettings']);
+        Route::put('/settings', [PartnerSettingsController::class, 'updateGlobalSettings']);
 
         // Guest session management (project users)
         Route::get('/projects/{projectId}/guest-sessions', [PartnerProjectUsersController::class, 'index']);
