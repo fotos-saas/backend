@@ -7,7 +7,6 @@ use App\Http\Controllers\Api\Partner\Traits\PartnerAuthTrait;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\Partner\AssignPhotosRequest;
 use App\Http\Requests\Api\Partner\AssignToTalonRequest;
-use App\Http\Requests\Api\Partner\BulkUploadPhotosRequest;
 use App\Http\Requests\Api\Partner\DeletePendingPhotosRequest;
 use App\Http\Requests\Api\Partner\MatchPhotosRequest;
 use App\Http\Requests\Api\Partner\UploadPersonPhotoRequest;
@@ -17,7 +16,7 @@ use Illuminate\Http\JsonResponse;
 /**
  * Partner Photo Controller - Fotó feltöltés és párosítás.
  *
- * Metódusok: bulkUploadPhotos(), getPendingPhotos(), deletePendingPhotos(),
+ * Metódusok: getPendingPhotos(), deletePendingPhotos(),
  *            matchPhotos(), assignPhotos(), assignToTalon(),
  *            uploadPersonPhoto(), getTalonPhotos()
  */
@@ -28,38 +27,6 @@ class PartnerPhotoController extends Controller
     public function __construct(
         private PartnerPhotoService $photoService
     ) {}
-
-    /**
-     * Tömeges fotó feltöltés (képek vagy ZIP).
-     *
-     * @deprecated Használd a PartnerAlbumController::uploadToAlbum()-ot
-     */
-    public function bulkUploadPhotos(int $projectId, BulkUploadPhotosRequest $request): JsonResponse
-    {
-        $project = $this->getProjectForPartner($projectId);
-
-        $uploadedMedia = collect();
-        $album = $request->input('album', 'students');
-
-        if ($request->hasFile('zip')) {
-            $uploadedMedia = $this->photoService->uploadFromZip($project, $request->file('zip'), $album);
-        } elseif ($request->hasFile('photos')) {
-            $uploadedMedia = $this->photoService->bulkUpload($project, $request->file('photos'), $album);
-        }
-
-        return response()->json([
-            'success' => true,
-            'uploadedCount' => $uploadedMedia->count(),
-            'album' => $album,
-            'photos' => $uploadedMedia->map(fn ($media) => [
-                'mediaId' => $media->id,
-                'filename' => $media->file_name,
-                'iptcTitle' => $media->getCustomProperty('iptc_title'),
-                'thumbUrl' => $media->getUrl('thumb'),
-                'fullUrl' => $media->getUrl(),
-            ])->values(),
-        ]);
-    }
 
     /**
      * Függő (még nem párosított) képek lekérdezése.
@@ -156,7 +123,7 @@ class PartnerPhotoController extends Controller
     public function uploadPersonPhoto(int $projectId, int $personId, UploadPersonPhotoRequest $request): JsonResponse
     {
         $project = $this->getProjectForPartner($projectId);
-        $person = $project->missingPersons()->find($personId);
+        $person = $project->persons()->find($personId);
 
         if (! $person) {
             return response()->json([

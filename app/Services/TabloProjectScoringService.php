@@ -169,14 +169,14 @@ class TabloProjectScoringService
      */
     private function calculateMissingPhotosScore(TabloProject $project): int
     {
-        $missingPersons = $project->missingPersons()->count();
+        $missingPersons = $project->persons()->count();
 
         if ($missingPersons === 0) {
             return self::WEIGHT_MISSING_PHOTOS; // Nincs hiányzó → teljes pont
         }
 
         // Van hiányzó - nézzük meg, hánynak van képe
-        $withPhoto = $project->missingPersons()
+        $withPhoto = $project->persons()
             ->whereNotNull('media_id')
             ->count();
 
@@ -267,7 +267,7 @@ class TabloProjectScoringService
     public function getSuggestedProjects(?int $partnerId = null): Collection
     {
         $query = TabloProject::query()
-            ->with(['school', 'partner', 'contacts', 'missingPersons', 'emails'])
+            ->with(['school', 'partner', 'contacts', 'persons', 'emails'])
             ->whereNotIn('status', [
                 TabloProjectStatus::Done->value,
                 TabloProjectStatus::InPrint->value,

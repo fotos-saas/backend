@@ -44,12 +44,12 @@ class PartnerAlbumService
         $teachers = $pending->filter(fn (Media $m) => $m->getCustomProperty('album') === 'teachers');
 
         // Hiányzó személyek számolása (akiknek még nincs képük)
-        $missingStudents = $project->missingPersons()
+        $missingStudents = $project->persons()
             ->where('type', 'student')
             ->whereNull('media_id')
             ->count();
 
-        $missingTeachers = $project->missingPersons()
+        $missingTeachers = $project->persons()
             ->where('type', 'teacher')
             ->whereNull('media_id')
             ->count();
@@ -106,7 +106,7 @@ class PartnerAlbumService
         $personType = $album === 'students' ? 'student' : 'teacher';
 
         // Hiányzó személyek (akiknek még nincs képük)
-        $missingPersons = $project->missingPersons()
+        $missingPersons = $project->persons()
             ->where('type', $personType)
             ->whereNull('media_id')
             ->orderBy('position')

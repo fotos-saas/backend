@@ -234,7 +234,7 @@ class GuestRegistrationController extends Controller
     }
 
     /** GET /api/tablo-frontend/guest/missing-persons/search */
-    public function searchMissingPersons(Request $request): JsonResponse
+    public function searchPersons(Request $request): JsonResponse
     {
         $project = $this->resolveProject($request);
         if (! $project) {
@@ -243,7 +243,7 @@ class GuestRegistrationController extends Controller
 
         return response()->json([
             'success' => true,
-            'data' => $this->guestSessionService->searchMissingPersons(
+            'data' => $this->guestSessionService->searchPersons(
                 $project,
                 $request->get('q', ''),
                 min($request->integer('limit', 10), 20)

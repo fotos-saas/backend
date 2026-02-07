@@ -62,10 +62,6 @@ interface TabloProjectRepositoryContract extends BaseRepositoryContract
      */
     public function getWithPersons(int $projectId): ?TabloProject;
 
-    /**
-     * @deprecated Use getWithPersons() instead
-     */
-    public function getWithMissingPersons(int $projectId): ?TabloProject;
 
     /**
      * Projekt mintaképeinek lekérése

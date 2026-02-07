@@ -100,10 +100,10 @@ class MissingSummaryPage extends Page implements HasTable
         return TabloProject::query()
             ->with('school')
             ->whereNotIn('status', $doneStatuses)
-            ->whereHas('missingPersons', fn ($q) => $q->whereNull('media_id'))
+            ->whereHas('persons', fn ($q) => $q->whereNull('media_id'))
             ->withCount([
-                'missingPersons as missing_teachers_count' => fn ($q) => $q->where('type', 'teacher')->whereNull('media_id'),
-                'missingPersons as missing_students_count' => fn ($q) => $q->where('type', 'student')->whereNull('media_id'),
+                'persons as missing_teachers_count' => fn ($q) => $q->where('type', 'teacher')->whereNull('media_id'),
+                'persons as missing_students_count' => fn ($q) => $q->where('type', 'student')->whereNull('media_id'),
             ]);
     }
 
@@ -113,7 +113,7 @@ class MissingSummaryPage extends Page implements HasTable
 
         return TabloProject::query()
             ->whereNotIn('status', $doneStatuses)
-            ->whereHas('missingPersons', fn ($q) => $q->whereNull('media_id'))
+            ->whereHas('persons', fn ($q) => $q->whereNull('media_id'))
             ->count();
     }
 
@@ -123,7 +123,7 @@ class MissingSummaryPage extends Page implements HasTable
 
         return TabloProject::query()
             ->whereNotIn('status', $doneStatuses)
-            ->withCount(['missingPersons as count' => fn ($q) => $q->where('type', 'teacher')->whereNull('media_id')])
+            ->withCount(['persons as count' => fn ($q) => $q->where('type', 'teacher')->whereNull('media_id')])
             ->get()
             ->sum('count');
     }
@@ -134,7 +134,7 @@ class MissingSummaryPage extends Page implements HasTable
 
         return TabloProject::query()
             ->whereNotIn('status', $doneStatuses)
-            ->withCount(['missingPersons as count' => fn ($q) => $q->where('type', 'student')->whereNull('media_id')])
+            ->withCount(['persons as count' => fn ($q) => $q->where('type', 'student')->whereNull('media_id')])
             ->get()
             ->sum('count');
     }

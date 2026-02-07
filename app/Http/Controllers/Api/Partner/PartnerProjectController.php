@@ -213,11 +213,4 @@ class PartnerProjectController extends Controller
         ]);
     }
 
-    /**
-     * @deprecated Use projectPersons() instead
-     */
-    public function projectMissingPersons(int $projectId, Request $request): JsonResponse
-    {
-        return $this->projectPersons($projectId, $request);
-    }
 }

@@ -111,7 +111,7 @@ Route::prefix('tablo-frontend')
                 ], 401);
             }
 
-            $tabloProject = \App\Models\TabloProject::with(['school', 'partner.users', 'contacts', 'missingPersons', 'tabloStatus', 'gallery'])->find($token->tablo_project_id);
+            $tabloProject = \App\Models\TabloProject::with(['school', 'partner.users', 'contacts', 'persons', 'tabloStatus', 'gallery'])->find($token->tablo_project_id);
 
             if (! $tabloProject) {
                 return response()->json([
@@ -144,7 +144,7 @@ Route::prefix('tablo-frontend')
             ]] : [];
 
             // Get missing persons data
-            $missingPersons = $tabloProject->missingPersons
+            $missingPersons = $tabloProject->persons
                 ->sortBy('position')
                 ->map(fn ($person) => [
                     'id' => $person->id,
@@ -360,7 +360,7 @@ Route::prefix('tablo-frontend')
             Route::get('/session-status', [GuestRegistrationController::class, 'sessionStatus'])
                 ->middleware('throttle:120,1');
 
-            Route::get('/missing-persons/search', [GuestRegistrationController::class, 'searchMissingPersons'])
+            Route::get('/missing-persons/search', [GuestRegistrationController::class, 'searchPersons'])
                 ->middleware('throttle:60,1');
             Route::post('/register-with-identification', [GuestRegistrationController::class, 'registerWithIdentification'])
                 ->middleware('throttle:20,1');

@@ -80,34 +80,6 @@ class TabloPollOption extends Model
         return $this->votes()->count();
     }
 
-    /**
-     * Calculate percentage of total votes.
-     *
-     * @deprecated Use PollService::getResults() instead which calculates this efficiently.
-     *             This method causes N+1 query when accessing poll->total_votes.
-     *
-     * @param  int|null  $totalVotes  Optionally provide total votes to avoid N+1 query
-     */
-    public function calculatePercentage(?int $totalVotes = null): float
-    {
-        $total = $totalVotes ?? $this->poll->total_votes;
-
-        if ($total === 0) {
-            return 0;
-        }
-
-        return round(($this->votes_count / $total) * 100, 1);
-    }
-
-    /**
-     * Get percentage of total votes.
-     *
-     * @deprecated Use calculatePercentage() or PollService::getResults() instead.
-     */
-    public function getPercentageAttribute(): float
-    {
-        return $this->calculatePercentage();
-    }
 
     /**
      * Get display image URL (from template or custom)

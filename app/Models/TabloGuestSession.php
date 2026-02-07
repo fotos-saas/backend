@@ -114,13 +114,6 @@ class TabloGuestSession extends Model
         return $this->belongsTo(TabloPerson::class, 'tablo_person_id');
     }
 
-    /**
-     * @deprecated Use person() instead - kept for backward compatibility
-     */
-    public function missingPerson(): BelongsTo
-    {
-        return $this->person();
-    }
 
     /**
      * Get votes by this guest

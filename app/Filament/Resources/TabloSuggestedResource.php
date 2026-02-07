@@ -69,7 +69,7 @@ class TabloSuggestedResource extends BaseResource
                 TabloProjectStatus::Done->value,
                 TabloProjectStatus::InPrint->value,
             ])
-            ->with(['school', 'partner', 'contacts', 'missingPersons', 'emails']);
+            ->with(['school', 'partner', 'contacts', 'persons', 'emails']);
 
         // Tablo szerepkörű felhasználók csak a saját partnerükhöz tartozó projekteket látják
         $user = Auth::user();
@@ -155,23 +155,23 @@ class TabloSuggestedResource extends BaseResource
                 Tables\Columns\TextColumn::make('missing_summary')
                     ->label('Hiányzók')
                     ->state(function (TabloProject $record): string {
-                        $total = $record->missingPersons->count();
+                        $total = $record->persons->count();
                         if ($total === 0) {
                             return '-';
                         }
 
-                        $withPhoto = $record->missingPersons->whereNotNull('media_id')->count();
+                        $withPhoto = $record->persons->whereNotNull('media_id')->count();
 
                         return "{$withPhoto}/{$total}";
                     })
                     ->badge()
                     ->color(function (TabloProject $record): string {
-                        $total = $record->missingPersons->count();
+                        $total = $record->persons->count();
                         if ($total === 0) {
                             return 'gray';
                         }
 
-                        $withPhoto = $record->missingPersons->whereNotNull('media_id')->count();
+                        $withPhoto = $record->persons->whereNotNull('media_id')->count();
                         if ($withPhoto === $total) {
                             return 'success';
                         }

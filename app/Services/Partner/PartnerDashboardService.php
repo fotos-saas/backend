@@ -123,7 +123,7 @@ class PartnerDashboardService
 
         $project->loadCount([
             'guestSessions as guests_count' => fn ($q) => $q->where('is_banned', false),
-            'missingPersons as missing_count' => fn ($q) => $q->whereNull('media_id'),
+            'persons as missing_count' => fn ($q) => $q->whereNull('media_id'),
         ]);
 
         return $this->transformer->toDetailResponse($project);
@@ -174,9 +174,9 @@ class PartnerDashboardService
         ])
             ->withCount([
                 'guestSessions as guests_count' => fn ($q) => $q->where('is_banned', false),
-                'missingPersons as missing_count' => fn ($q) => $q->whereNull('media_id'),
-                'missingPersons as missing_students_count' => fn ($q) => $q->whereNull('media_id')->where('type', 'student'),
-                'missingPersons as missing_teachers_count' => fn ($q) => $q->whereNull('media_id')->where('type', 'teacher'),
+                'persons as missing_count' => fn ($q) => $q->whereNull('media_id'),
+                'persons as missing_students_count' => fn ($q) => $q->whereNull('media_id')->where('type', 'student'),
+                'persons as missing_teachers_count' => fn ($q) => $q->whereNull('media_id')->where('type', 'teacher'),
             ])
             ->where('partner_id', $partnerId);
     }
@@ -195,7 +195,7 @@ class PartnerDashboardService
             'relations' => [
                 'school' => ['name', 'city'],
                 'contacts' => ['name', 'email'],
-                'missingPersons' => ['name'],
+                'persons' => ['name'],
             ],
             'prefixes' => [
                 '@' => ['contacts' => ['name', 'email']],

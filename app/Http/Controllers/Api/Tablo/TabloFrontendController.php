@@ -30,7 +30,7 @@ class TabloFrontendController extends Controller
         $token = $request->user()->currentAccessToken();
         $projectId = $token->tablo_project_id;
 
-        $tabloProject = TabloProject::with(['school', 'partner.users', 'missingPersons', 'tabloStatus', 'gallery'])->find($projectId);
+        $tabloProject = TabloProject::with(['school', 'partner.users', 'persons', 'tabloStatus', 'gallery'])->find($projectId);
 
         if (! $tabloProject) {
             return response()->json([
@@ -48,7 +48,7 @@ class TabloFrontendController extends Controller
             ])
             ->values() ?? collect();
 
-        $missingPersonsCount = $tabloProject->missingPersons->count();
+        $personsCount = $tabloProject->persons->count();
         $activePollsCount = $tabloProject->polls()->active()->count();
 
         return response()->json([
@@ -63,7 +63,7 @@ class TabloFrontendController extends Controller
                 'hasOrderAnalysis' => $tabloProject->hasOrderAnalysis(),
                 'samplesCount' => $tabloProject->getMedia('samples')->count(),
                 'coordinators' => $coordinators,
-                'hasMissingPersons' => $missingPersonsCount > 0,
+                'hasMissingPersons' => $personsCount > 0,
                 'hasTemplateChooser' => TabloSampleTemplate::active()->exists(),
                 'activePollsCount' => $activePollsCount,
                 'tabloStatus' => $tabloProject->tabloStatus?->toApiResponse(),

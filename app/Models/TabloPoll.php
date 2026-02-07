@@ -191,27 +191,6 @@ class TabloPoll extends Model
         return $currentVotes < $this->max_votes_per_guest;
     }
 
-    /**
-     * Get winning option(s).
-     *
-     * @deprecated Use PollService::getWinners() instead for better performance.
-     */
-    public function getWinningOptionsAttribute(): \Illuminate\Database\Eloquent\Collection
-    {
-        $options = $this->options()->withCount('votes')->get();
-
-        if ($options->isEmpty()) {
-            return collect();
-        }
-
-        $maxVotes = $options->max('votes_count');
-
-        if ($maxVotes === 0) {
-            return collect();
-        }
-
-        return $options->filter(fn ($option) => $option->votes_count === $maxVotes);
-    }
 
     /**
      * Scope for active polls

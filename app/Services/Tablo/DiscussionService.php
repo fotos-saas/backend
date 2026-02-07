@@ -323,16 +323,6 @@ class DiscussionService
         ];
     }
 
-    /**
-     * Like toggle (legacy - ❤️ reakció)
-     * @deprecated Use toggleReaction() instead
-     */
-    public function toggleLike(TabloDiscussionPost $post, string $likerType, int $likerId): bool
-    {
-        $result = $this->toggleReaction($post, $likerType, $likerId, '❤️');
-
-        return $result['added'];
-    }
 
     /**
      * Média feltöltés

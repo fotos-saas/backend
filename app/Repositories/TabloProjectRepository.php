@@ -108,13 +108,6 @@ class TabloProjectRepository extends BaseRepository implements TabloProjectRepos
             ->find($projectId);
     }
 
-    /**
-     * @deprecated Use getWithPersons() instead
-     */
-    public function getWithMissingPersons(int $projectId): ?TabloProject
-    {
-        return $this->getWithPersons($projectId);
-    }
 
     /**
      * {@inheritdoc}

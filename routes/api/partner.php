@@ -112,7 +112,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/projects/{projectId}/order-data', [PartnerDashboardController::class, 'getProjectOrderData']);
         Route::post('/projects/{projectId}/order-data/view-pdf', [PartnerDashboardController::class, 'viewProjectOrderPdf']);
         Route::get('/projects/{projectId}/samples', [PartnerProjectController::class, 'projectSamples']);
-        Route::get('/projects/{projectId}/missing-persons', [PartnerProjectController::class, 'projectMissingPersons']);
+        Route::get('/projects/{projectId}/missing-persons', [PartnerProjectController::class, 'projectPersons']);
         Route::get('/projects/{projectId}/qr-codes', [PartnerQrController::class, 'getQrCodes']);
         Route::post('/projects/{projectId}/qr-codes', [PartnerQrController::class, 'generateQrCode']);
         Route::delete('/projects/{projectId}/qr-codes/{codeId}', [PartnerQrController::class, 'deactivateQrCode']);
@@ -183,7 +183,6 @@ Route::middleware('auth:sanctum')->group(function () {
         // Photo upload endpoints - rate limited (10 request/perc)
         Route::middleware('throttle:10,1')->group(function () {
             Route::post('/projects/{projectId}/albums/{album}/upload', [PartnerAlbumController::class, 'uploadToAlbum']);
-            Route::post('/projects/{projectId}/photos/bulk-upload', [PartnerPhotoController::class, 'bulkUploadPhotos']);
             Route::post('/projects/{projectId}/missing-persons/{personId}/photo', [PartnerPhotoController::class, 'uploadPersonPhoto']);
         });
 

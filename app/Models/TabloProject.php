@@ -247,13 +247,6 @@ class TabloProject extends Model implements HasMedia
         return $this->hasMany(TabloPerson::class, 'tablo_project_id');
     }
 
-    /**
-     * @deprecated Use persons() instead - kept for backward compatibility
-     */
-    public function missingPersons(): HasMany
-    {
-        return $this->persons();
-    }
 
     /**
      * Get emails for this project

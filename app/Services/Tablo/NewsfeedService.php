@@ -341,19 +341,6 @@ class NewsfeedService
         ];
     }
 
-    /**
-     * Like toggle (legacy - ❤️ reakció)
-     * @deprecated Use toggleReaction() instead
-     */
-    public function toggleLike(TabloNewsfeedPost $post, string $likerType, int $likerId): array
-    {
-        $result = $this->toggleReaction($post, $likerType, $likerId, '❤️');
-
-        return [
-            'liked' => $result['liked'],
-            'likes_count' => $result['likes_count'],
-        ];
-    }
 
     /**
      * Komment létrehozása

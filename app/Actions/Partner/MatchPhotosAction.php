@@ -44,7 +44,7 @@ class MatchPhotosAction
         }
 
         // Még párosítatlan személyek
-        $persons = $project->missingPersons()
+        $persons = $project->persons()
             ->whereNull('media_id')
             ->orderBy('position')
             ->get();

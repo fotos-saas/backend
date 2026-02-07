@@ -415,8 +415,8 @@ class TabloProjectResource extends BaseResource
                 Tables\Columns\TextColumn::make('missing_persons_summary')
                     ->label('Hiányzók')
                     ->state(function (TabloProject $record): string {
-                        $students = $record->missingPersons->where('type', 'student')->count();
-                        $teachers = $record->missingPersons->where('type', 'teacher')->count();
+                        $students = $record->persons->where('type', 'student')->count();
+                        $teachers = $record->persons->where('type', 'teacher')->count();
                         if ($students === 0 && $teachers === 0) {
                             return '-';
                         }
@@ -424,7 +424,7 @@ class TabloProjectResource extends BaseResource
                         return "D: {$students} / T: {$teachers}";
                     })
                     ->badge()
-                    ->color(fn (TabloProject $record) => $record->missingPersons->count() > 0 ? 'danger' : 'gray'),
+                    ->color(fn (TabloProject $record) => $record->persons->count() > 0 ? 'danger' : 'gray'),
 
                 Tables\Columns\TextColumn::make('activity')
                     ->label('Aktivitás')
@@ -474,7 +474,7 @@ class TabloProjectResource extends BaseResource
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->modifyQueryUsing(function ($query) {
-                $query->with(['contacts', 'missingPersons', 'emails', 'media' => fn ($q) => $q->where('collection_name', 'samples')->orderBy('created_at', 'desc')])
+                $query->with(['contacts', 'persons', 'emails', 'media' => fn ($q) => $q->where('collection_name', 'samples')->orderBy('created_at', 'desc')])
                     ->selectRaw('*, (SELECT MAX(email_date) FROM project_emails WHERE project_emails.tablo_project_id = tablo_projects.id) as last_email_date');
 
                 // Tablo szerepkörű felhasználók csak a saját partnerükhöz tartozó projekteket látják

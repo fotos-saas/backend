@@ -228,16 +228,6 @@ class TabloDiscussionPost extends Model
         return ['added' => true, 'reaction' => $reaction, 'oldReaction' => null];
     }
 
-    /**
-     * Toggle like (legacy - uses default ❤️ reaction)
-     * @deprecated Use toggleReaction() instead
-     */
-    public function toggleLike(string $likerType, int $likerId): bool
-    {
-        $result = $this->toggleReaction($likerType, $likerId, TabloPostLike::DEFAULT_REACTION);
-
-        return $result['added'];
-    }
 
     /**
      * Scope for root posts (not replies)

@@ -308,13 +308,6 @@ class GuestSessionService
             ]);
     }
 
-    /**
-     * @deprecated Use searchPersons() instead
-     */
-    public function searchMissingPersons(TabloProject $project, string $query, int $limit = 10): Collection
-    {
-        return $this->searchPersons($project, $query, $limit);
-    }
 
     /**
      * Regisztráció személyazonosítással (onboarding flow)

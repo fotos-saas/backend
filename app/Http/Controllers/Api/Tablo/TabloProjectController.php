@@ -19,7 +19,7 @@ class TabloProjectController extends Controller
      */
     public function index(Request $request): JsonResponse
     {
-        $query = TabloProject::with(['partner', 'contacts', 'missingPersons']);
+        $query = TabloProject::with(['partner', 'contacts', 'persons']);
 
         if ($request->has('status')) {
             $query->where('status', $request->input('status'));
@@ -54,7 +54,7 @@ class TabloProjectController extends Controller
      */
     public function show(int $id): JsonResponse
     {
-        $project = TabloProject::with(['partner', 'contacts', 'missingPersons', 'notes.user'])
+        $project = TabloProject::with(['partner', 'contacts', 'persons', 'notes.user'])
             ->find($id);
 
         if (! $project) {
@@ -84,7 +84,7 @@ class TabloProjectController extends Controller
             'is_aware' => $request->input('is_aware', false),
         ]);
 
-        $project->load(['partner', 'contacts', 'missingPersons']);
+        $project->load(['partner', 'contacts', 'persons']);
 
         return response()->json([
             'success' => true,
@@ -111,7 +111,7 @@ class TabloProjectController extends Controller
             'name', 'partner_id', 'local_id', 'external_id', 'status', 'is_aware',
         ]));
 
-        $project->load(['partner', 'contacts', 'missingPersons']);
+        $project->load(['partner', 'contacts', 'persons']);
 
         return response()->json([
             'success' => true,
@@ -250,14 +250,14 @@ class TabloProjectController extends Controller
                 'phone' => $c->phone,
                 'note' => $c->note,
             ])->toArray(),
-            'missing_persons' => $project->missingPersons->map(fn ($m) => [
+            'missing_persons' => $project->persons->map(fn ($m) => [
                 'id' => $m->id,
                 'name' => $m->name,
                 'local_id' => $m->local_id,
                 'note' => $m->note,
             ])->toArray(),
             'contacts_count' => $project->contacts->count(),
-            'missing_persons_count' => $project->missingPersons->count(),
+            'missing_persons_count' => $project->persons->count(),
             'created_at' => $project->created_at->toIso8601String(),
             'updated_at' => $project->updated_at->toIso8601String(),
         ];

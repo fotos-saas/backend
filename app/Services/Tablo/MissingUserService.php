@@ -152,41 +152,6 @@ class MissingUserService
             ->first();
     }
 
-    /**
-     * Missing person formázása bökés státusszal
-     * @deprecated Use formatMissingPersonOptimized for better performance
-     */
-    protected function formatMissingPerson(
-        TabloPerson $person,
-        ?TabloGuestSession $guestSession,
-        ?TabloGuestSession $currentSession
-    ): array {
-        $hasGuestSession = $guestSession !== null;
-
-        $formatted = [
-            'id' => $person->id,  // TabloPerson ID
-            'name' => $person->name,
-            'email' => $person->email,
-            'type' => $person->type,  // 'student' | 'teacher'
-            'has_guest_session' => $hasGuestSession,
-            'guest_session_id' => $guestSession?->id,
-            'last_activity_at' => $guestSession?->last_activity_at?->toIso8601String(),
-            'has_activity' => $guestSession?->last_activity_at !== null,
-        ];
-
-        // Bökés státusz meghatározása
-        if (! $hasGuestSession) {
-            $formatted['poke_status'] = PokeService::createPokeStatus(false, PokeService::ERROR_NOT_LOGGED_IN, 0);
-        } elseif (! $currentSession) {
-            $formatted['poke_status'] = PokeService::createPokeStatus(false, 'no_session', 0);
-        } elseif ($currentSession->id === $guestSession->id) {
-            $formatted['poke_status'] = PokeService::createPokeStatus(false, PokeService::ERROR_SELF_POKE, 0);
-        } else {
-            $formatted['poke_status'] = $this->pokeService->getPokeStatus($currentSession, $guestSession);
-        }
-
-        return $formatted;
-    }
 
     /**
      * Missing person formázása bökés státusszal - N+1 optimalizált verzió
