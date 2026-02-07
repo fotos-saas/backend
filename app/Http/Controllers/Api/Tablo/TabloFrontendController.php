@@ -70,7 +70,7 @@ class TabloFrontendController extends Controller
                 'userStatus' => $tabloProject->tabloStatus?->name ?? $tabloProject->user_status,
                 'userStatusColor' => $tabloProject->tabloStatus?->color ?? $tabloProject->user_status_color,
                 'workSessionId' => $tabloProject->work_session_id,
-                'hasPhotoSelection' => $tabloProject->work_session_id !== null,
+                'hasPhotoSelection' => $tabloProject->work_session_id !== null || $tabloProject->tablo_gallery_id !== null,
                 'tabloGalleryId' => $tabloProject->tablo_gallery_id,
                 'hasGallery' => $tabloProject->gallery !== null,
             ],

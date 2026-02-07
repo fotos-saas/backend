@@ -216,7 +216,7 @@ Route::prefix('tablo-frontend')
                     'shareEnabled' => $tabloProject->share_token_enabled,
                     'isFinalized' => $isFinalized,
                     'workSessionId' => $tabloProject->work_session_id,
-                    'hasPhotoSelection' => $tabloProject->work_session_id !== null,
+                    'hasPhotoSelection' => $tabloProject->work_session_id !== null || $tabloProject->tablo_gallery_id !== null,
                     'tabloGalleryId' => $tabloProject->tablo_gallery_id,
                     'hasGallery' => $tabloProject->gallery !== null,
                     'photoSelectionCurrentStep' => $tabloProject->tablo_gallery_id
