@@ -120,13 +120,15 @@ class AddonService
 
         // Ingyenes addon: Stripe bypass
         if ($isFree) {
-            PartnerAddon::create([
-                'partner_id' => $partner->id,
-                'addon_key' => $addonKey,
-                'stripe_subscription_item_id' => null,
-                'status' => 'active',
-                'activated_at' => now(),
-            ]);
+            PartnerAddon::updateOrCreate(
+                ['partner_id' => $partner->id, 'addon_key' => $addonKey],
+                [
+                    'stripe_subscription_item_id' => null,
+                    'status' => 'active',
+                    'activated_at' => now(),
+                    'canceled_at' => null,
+                ]
+            );
 
             Log::info('Partner free addon activated', [
                 'partner_id' => $partner->id,
@@ -156,14 +158,16 @@ class AddonService
             'proration_behavior' => 'create_prorations',
         ]);
 
-        // Addon rekord létrehozása
-        PartnerAddon::create([
-            'partner_id' => $partner->id,
-            'addon_key' => $addonKey,
-            'stripe_subscription_item_id' => $subscriptionItem->id,
-            'status' => 'active',
-            'activated_at' => now(),
-        ]);
+        // Addon rekord létrehozása/újraaktiválása
+        PartnerAddon::updateOrCreate(
+            ['partner_id' => $partner->id, 'addon_key' => $addonKey],
+            [
+                'stripe_subscription_item_id' => $subscriptionItem->id,
+                'status' => 'active',
+                'activated_at' => now(),
+                'canceled_at' => null,
+            ]
+        );
 
         Log::info('Partner addon activated', [
             'partner_id' => $partner->id,
