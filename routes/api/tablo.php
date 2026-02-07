@@ -248,6 +248,7 @@ Route::prefix('tablo-frontend')
                             ];
                         })()
                         : null,
+                    'branding' => $tabloProject->partner?->getActiveBranding(),
                 ],
                 'tokenType' => $tokenType,
                 'isGuest' => $isGuest,
