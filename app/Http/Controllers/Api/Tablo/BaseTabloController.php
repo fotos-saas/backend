@@ -4,7 +4,6 @@ namespace App\Http\Controllers\Api\Tablo;
 
 use App\Constants\TokenNames;
 use App\Http\Controllers\Controller;
-use App\Http\Controllers\Api\Traits\ApiResponseTrait;
 use App\Models\TabloGuestSession;
 use App\Models\TabloProject;
 use Illuminate\Http\JsonResponse;
@@ -21,8 +20,6 @@ use Illuminate\Http\Request;
  */
 abstract class BaseTabloController extends Controller
 {
-    use ApiResponseTrait;
-
     // ============================================================================
     // PROJECT & TOKEN HELPERS
     // ============================================================================
