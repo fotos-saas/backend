@@ -187,7 +187,7 @@ class LoginTabloCodeAction
 
         $canRegister = $client->hasAlbumWithRegistrationAllowed();
 
-        return response()->json([
+        $response = [
             'user' => [
                 'id' => $client->id,
                 'name' => $client->name,
@@ -206,6 +206,15 @@ class LoginTabloCodeAction
             'token' => $plainTextToken,
             'tokenType' => 'client',
             'loginType' => 'client',
-        ]);
+        ];
+
+        if ($client->partner) {
+            $branding = $client->partner->getActiveBranding();
+            if ($branding) {
+                $response['branding'] = $branding;
+            }
+        }
+
+        return response()->json($response);
     }
 }

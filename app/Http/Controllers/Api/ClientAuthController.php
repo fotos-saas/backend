@@ -143,7 +143,7 @@ class ClientAuthController extends Controller
                 'canDownload' => $album->canDownload(),
             ]);
 
-        return response()->json([
+        $response = [
             'success' => true,
             'user' => [
                 'id' => $client->id,
@@ -163,7 +163,16 @@ class ClientAuthController extends Controller
             'token' => $plainTextToken,
             'tokenType' => 'client',
             'loginType' => 'client',
-        ]);
+        ];
+
+        if ($client->partner) {
+            $branding = $client->partner->getActiveBranding();
+            if ($branding) {
+                $response['branding'] = $branding;
+            }
+        }
+
+        return response()->json($response);
     }
 
     /**
@@ -180,18 +189,27 @@ class ClientAuthController extends Controller
             ], 401);
         }
 
+        $data = [
+            'id' => $client->id,
+            'name' => $client->name,
+            'email' => $client->email,
+            'phone' => $client->phone,
+            'isRegistered' => $client->is_registered,
+            'registeredAt' => $client->registered_at?->toIso8601String(),
+            'wantsNotifications' => $client->wants_notifications,
+            'canRegister' => !$client->is_registered && $client->hasAlbumWithRegistrationAllowed(),
+        ];
+
+        if ($client->partner) {
+            $branding = $client->partner->getActiveBranding();
+            if ($branding) {
+                $data['branding'] = $branding;
+            }
+        }
+
         return response()->json([
             'success' => true,
-            'data' => [
-                'id' => $client->id,
-                'name' => $client->name,
-                'email' => $client->email,
-                'phone' => $client->phone,
-                'isRegistered' => $client->is_registered,
-                'registeredAt' => $client->registered_at?->toIso8601String(),
-                'wantsNotifications' => $client->wants_notifications,
-                'canRegister' => !$client->is_registered && $client->hasAlbumWithRegistrationAllowed(),
-            ],
+            'data' => $data,
         ]);
     }
 
