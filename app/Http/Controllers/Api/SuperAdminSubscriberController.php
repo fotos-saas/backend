@@ -2,34 +2,33 @@
 
 namespace App\Http\Controllers\Api;
 
-use App\DTOs\CreateDiscountData;
+use App\Actions\SuperAdmin\CancelSubscriptionAction;
+use App\Actions\SuperAdmin\ChangePlanAction;
+use App\Actions\SuperAdmin\ChargeSubscriberAction;
+use App\Actions\SuperAdmin\RemoveDiscountAction;
+use App\Actions\SuperAdmin\SetDiscountAction;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\SuperAdmin\SetDiscountRequest;
 use App\Models\AdminAuditLog;
 use App\Models\Partner;
-use App\Services\Subscription\SubscriptionDiscountService;
 use App\Services\SuperAdmin\SubscriberService;
-use App\Services\SuperAdmin\SuperAdminStripeService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Log;
-use Stripe\Exception\ApiErrorException;
 
 /**
  * Super Admin Subscriber Controller.
  *
  * Subscriber listing, details, billing, plan changes, discounts, audit logs.
+ * Üzleti logika az Actions/SuperAdmin/ mappában.
  */
 class SuperAdminSubscriberController extends Controller
 {
     public function __construct(
         private readonly SubscriberService $subscriberService,
-        private readonly SuperAdminStripeService $stripeService,
     ) {}
 
     /**
-     * List subscribers (Partner model) with pagination, search and filters.
+     * Előfizetők listázása szűrőkkel és lapozással.
      */
     public function subscribers(Request $request): JsonResponse
     {
@@ -47,7 +46,7 @@ class SuperAdminSubscriberController extends Controller
     }
 
     /**
-     * Get single subscriber details.
+     * Egy előfizető részletes adatai.
      */
     public function getSubscriber(Request $request, int $id): JsonResponse
     {
@@ -60,7 +59,7 @@ class SuperAdminSubscriberController extends Controller
             ], 404);
         }
 
-        // Log view action
+        // Megtekintés audit log
         AdminAuditLog::log(
             $request->user()->id,
             $partner->id,
@@ -73,9 +72,9 @@ class SuperAdminSubscriberController extends Controller
     }
 
     /**
-     * Charge subscriber with Stripe Invoice.
+     * Előfizető terhelése Stripe számlával.
      */
-    public function chargeSubscriber(Request $request, int $id): JsonResponse
+    public function chargeSubscriber(Request $request, int $id, ChargeSubscriberAction $action): JsonResponse
     {
         $validated = $request->validate([
             'amount' => 'required|integer|min:1',
@@ -91,52 +90,13 @@ class SuperAdminSubscriberController extends Controller
             ], 404);
         }
 
-        if (! $partner->stripe_customer_id) {
-            return response()->json([
-                'success' => false,
-                'message' => 'A partnernek nincs Stripe customer ID-ja.',
-            ], 400);
-        }
-
-        $result = $this->stripeService->chargePartner(
-            $partner,
-            $validated['amount'],
-            $validated['description']
-        );
-
-        if (! $result['success']) {
-            $statusCode = str_contains($result['error'] ?? '', 'formátum') ? 400 : 500;
-
-            return response()->json([
-                'success' => false,
-                'message' => $result['error'],
-            ], $statusCode);
-        }
-
-        // Log audit
-        AdminAuditLog::log(
-            $request->user()->id,
-            $partner->id,
-            AdminAuditLog::ACTION_CHARGE,
-            [
-                'amount' => $validated['amount'],
-                'description' => $validated['description'],
-                'stripe_invoice_id' => $result['invoiceId'],
-            ],
-            $request->ip()
-        );
-
-        return response()->json([
-            'success' => true,
-            'message' => 'Számla sikeresen létrehozva és terhelve.',
-            'invoiceId' => $result['invoiceId'],
-        ]);
+        return $action->execute($request, $partner, $validated);
     }
 
     /**
-     * Change subscriber plan.
+     * Előfizető csomagjának módosítása.
      */
-    public function changePlan(Request $request, int $id): JsonResponse
+    public function changePlan(Request $request, int $id, ChangePlanAction $action): JsonResponse
     {
         $validated = $request->validate([
             'plan' => 'required|string|in:alap,iskola,studio',
@@ -152,74 +112,13 @@ class SuperAdminSubscriberController extends Controller
             ], 404);
         }
 
-        $oldPlan = $partner->plan;
-        $oldBillingCycle = $partner->billing_cycle;
-        $newPlan = $validated['plan'];
-        $newBillingCycle = $validated['billing_cycle'] ?? $partner->billing_cycle ?? 'monthly';
-
-        // Get new Stripe price ID
-        $newPriceId = config("stripe.prices.{$newPlan}.{$newBillingCycle}");
-
-        if (empty($newPriceId)) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Érvénytelen csomag vagy számlázási ciklus.',
-            ], 400);
-        }
-
-        try {
-            return DB::transaction(function () use ($request, $partner, $newPlan, $newBillingCycle, $newPriceId, $oldPlan, $oldBillingCycle) {
-                // 1. ELŐSZÖR a Stripe-ot frissítjük
-                $stripeResult = $this->stripeService->changePlan($partner, $newPriceId);
-
-                if (! $stripeResult['success']) {
-                    throw new \Exception($stripeResult['error']);
-                }
-
-                // 2. AZUTÁN a DB-t frissítjük
-                $this->subscriberService->updatePlan($partner, $newPlan, $newBillingCycle);
-
-                // 3. Audit log
-                AdminAuditLog::log(
-                    $request->user()->id,
-                    $partner->id,
-                    AdminAuditLog::ACTION_CHANGE_PLAN,
-                    [
-                        'old_plan' => $oldPlan,
-                        'old_billing_cycle' => $oldBillingCycle,
-                        'new_plan' => $newPlan,
-                        'new_billing_cycle' => $newBillingCycle,
-                    ],
-                    $request->ip()
-                );
-
-                $newPrice = $this->subscriberService->getPlanPrice($newPlan, $newBillingCycle);
-
-                return response()->json([
-                    'success' => true,
-                    'message' => 'Csomag sikeresen módosítva.',
-                    'newPrice' => $newPrice,
-                ]);
-            });
-        } catch (\Exception $e) {
-            Log::error('Plan change error', [
-                'partner_id' => $partner->id,
-                'error' => $e->getMessage(),
-            ]);
-
-            return response()->json([
-                'success' => false,
-                'message' => str_contains($e->getMessage(), 'Stripe')
-                    ? $e->getMessage()
-                    : 'Hiba történt a csomag módosításakor.',
-            ], 500);
-        }
+        return $action->execute($request, $partner, $validated);
     }
 
     /**
-     * Cancel subscriber subscription.
+     * Előfizetés lemondása.
      */
-    public function cancelSubscription(Request $request, int $id): JsonResponse
+    public function cancelSubscription(Request $request, int $id, CancelSubscriptionAction $action): JsonResponse
     {
         $validated = $request->validate([
             'immediate' => 'required|boolean',
@@ -234,39 +133,11 @@ class SuperAdminSubscriberController extends Controller
             ], 404);
         }
 
-        $stripeResult = $this->stripeService->cancelSubscription($partner, $validated['immediate']);
-
-        if (! $stripeResult['success']) {
-            return response()->json([
-                'success' => false,
-                'message' => $stripeResult['error'],
-            ], 500);
-        }
-
-        // Update partner status
-        $this->subscriberService->updateCancelStatus($partner, $validated['immediate']);
-
-        // Log audit
-        AdminAuditLog::log(
-            $request->user()->id,
-            $partner->id,
-            AdminAuditLog::ACTION_CANCEL_SUBSCRIPTION,
-            ['immediate' => $validated['immediate']],
-            $request->ip()
-        );
-
-        $message = $validated['immediate']
-            ? 'Előfizetés azonnal törölve.'
-            : 'Előfizetés törölve a periódus végén.';
-
-        return response()->json([
-            'success' => true,
-            'message' => $message,
-        ]);
+        return $action->execute($request, $partner, $validated);
     }
 
     /**
-     * Get audit logs for a subscriber.
+     * Előfizető audit logjainak lekérése.
      */
     public function getAuditLogs(Request $request, int $id): JsonResponse
     {
@@ -291,12 +162,12 @@ class SuperAdminSubscriberController extends Controller
     }
 
     /**
-     * Set discount for subscriber.
+     * Kedvezmény beállítása előfizetőnek.
      */
     public function setDiscount(
         SetDiscountRequest $request,
         int $id,
-        SubscriptionDiscountService $discountService,
+        SetDiscountAction $action,
     ): JsonResponse {
         $partner = Partner::find($id);
 
@@ -307,52 +178,16 @@ class SuperAdminSubscriberController extends Controller
             ], 404);
         }
 
-        try {
-            $data = CreateDiscountData::fromRequest($request, $id);
-            $discount = $discountService->apply($data);
-
-            AdminAuditLog::log(
-                $request->user()->id,
-                $partner->id,
-                AdminAuditLog::ACTION_SET_DISCOUNT,
-                [
-                    'percent' => $data->percent,
-                    'duration_months' => $data->durationMonths,
-                    'note' => $data->note,
-                ],
-                $request->ip()
-            );
-
-            return response()->json([
-                'success' => true,
-                'message' => "{$data->percent}% kedvezmény beállítva.",
-                'discount' => [
-                    'percent' => $discount->percent,
-                    'validUntil' => $discount->valid_until?->toIso8601String(),
-                    'note' => $discount->note,
-                    'createdAt' => $discount->created_at?->toIso8601String(),
-                ],
-            ]);
-        } catch (ApiErrorException $e) {
-            Log::error('Stripe discount error', [
-                'partner_id' => $id,
-                'error' => $e->getMessage(),
-            ]);
-
-            return response()->json([
-                'success' => false,
-                'message' => 'Stripe hiba történt.',
-            ], 502);
-        }
+        return $action->execute($request, $partner);
     }
 
     /**
-     * Remove discount from subscriber.
+     * Kedvezmény eltávolítása előfizetőtől.
      */
     public function removeDiscount(
         Request $request,
         int $id,
-        SubscriptionDiscountService $discountService,
+        RemoveDiscountAction $action,
     ): JsonResponse {
         $partner = Partner::with('activeDiscount')->find($id);
 
@@ -363,39 +198,6 @@ class SuperAdminSubscriberController extends Controller
             ], 404);
         }
 
-        if (! $partner->activeDiscount) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Nincs aktív kedvezmény.',
-            ], 400);
-        }
-
-        try {
-            $oldPercent = $partner->activeDiscount->percent;
-            $discountService->remove($partner);
-
-            AdminAuditLog::log(
-                $request->user()->id,
-                $partner->id,
-                AdminAuditLog::ACTION_REMOVE_DISCOUNT,
-                ['old_percent' => $oldPercent],
-                $request->ip()
-            );
-
-            return response()->json([
-                'success' => true,
-                'message' => 'Kedvezmény eltávolítva.',
-            ]);
-        } catch (ApiErrorException $e) {
-            Log::error('Stripe remove discount error', [
-                'partner_id' => $id,
-                'error' => $e->getMessage(),
-            ]);
-
-            return response()->json([
-                'success' => false,
-                'message' => 'Stripe hiba történt.',
-            ], 502);
-        }
+        return $action->execute($request, $partner);
     }
 }
