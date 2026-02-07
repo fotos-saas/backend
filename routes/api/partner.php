@@ -151,6 +151,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/projects/{projectId}/gallery/progress', [PartnerGalleryController::class, 'getProgress']);
         Route::post('/projects/{projectId}/gallery/photos', [PartnerGalleryController::class, 'uploadPhotos'])
             ->middleware('throttle:60,1');
+        Route::post('/projects/{projectId}/gallery/deadline', [PartnerGalleryController::class, 'setDeadline']);
         Route::delete('/projects/{projectId}/gallery/photos', [PartnerGalleryController::class, 'deletePhotos']);
         Route::delete('/projects/{projectId}/gallery/photos/{mediaId}', [PartnerGalleryController::class, 'deletePhoto']);
 

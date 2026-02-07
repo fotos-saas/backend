@@ -38,12 +38,14 @@ class TabloPartner extends Model
         'features',
         'partner_id',
         'default_max_retouch_photos',
+        'default_gallery_deadline_days',
     ];
 
     protected $casts = [
         'features' => 'array',
         'commission_rate' => 'decimal:2',
         'default_max_retouch_photos' => 'integer',
+        'default_gallery_deadline_days' => 'integer',
     ];
 
     /**

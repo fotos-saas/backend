@@ -7,6 +7,7 @@ namespace App\Http\Controllers\Api\Partner;
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\Api\Partner\Traits\PartnerAuthTrait;
 use App\Http\Requests\Gallery\DeleteGalleryPhotosRequest;
+use App\Http\Requests\Gallery\SetGalleryDeadlineRequest;
 use App\Http\Requests\Gallery\UploadGalleryPhotosRequest;
 use App\Models\TabloGallery;
 use App\Models\TabloProject;
@@ -35,6 +36,7 @@ class PartnerGalleryController extends Controller
             return response()->json([
                 'hasGallery' => false,
                 'gallery' => null,
+                'deadline' => $project->deadline?->toDateString(),
             ]);
         }
 
@@ -43,6 +45,7 @@ class PartnerGalleryController extends Controller
         return response()->json([
             'hasGallery' => true,
             'gallery' => $this->formatGallery($gallery),
+            'deadline' => $project->deadline?->toDateString(),
         ]);
     }
 
@@ -58,6 +61,7 @@ class PartnerGalleryController extends Controller
                 'success' => true,
                 'created' => false,
                 'gallery' => $this->formatGallery($project->gallery),
+                'deadline' => $project->deadline?->toDateString(),
             ]);
         }
 
@@ -75,6 +79,7 @@ class PartnerGalleryController extends Controller
             'success' => true,
             'created' => true,
             'gallery' => $this->formatGallery($gallery),
+            'deadline' => $project->deadline?->toDateString(),
         ]);
     }
 
@@ -211,6 +216,24 @@ class PartnerGalleryController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Kép sikeresen törölve',
+        ]);
+    }
+
+    /**
+     * Set gallery deadline for a project.
+     */
+    public function setDeadline(SetGalleryDeadlineRequest $request, int $projectId): JsonResponse
+    {
+        $project = $this->getProjectForPartner($projectId);
+
+        $project->update(['deadline' => $request->validated('deadline')]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Határidő sikeresen beállítva',
+            'data' => [
+                'deadline' => $project->deadline?->toDateString(),
+            ],
         ]);
     }
 

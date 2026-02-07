@@ -26,6 +26,7 @@ class PartnerSettingsController extends Controller
         return response()->json([
             'data' => [
                 'default_max_retouch_photos' => $partner->default_max_retouch_photos ?? 3,
+                'default_gallery_deadline_days' => $partner->default_gallery_deadline_days ?? 14,
             ],
         ]);
     }
@@ -37,15 +38,22 @@ class PartnerSettingsController extends Controller
     {
         $partner = TabloPartner::findOrFail($this->getPartnerIdOrFail());
 
-        $partner->update([
+        $updateData = [
             'default_max_retouch_photos' => $request->validated('default_max_retouch_photos'),
-        ]);
+        ];
+
+        if ($request->has('default_gallery_deadline_days')) {
+            $updateData['default_gallery_deadline_days'] = $request->validated('default_gallery_deadline_days');
+        }
+
+        $partner->update($updateData);
 
         return response()->json([
             'success' => true,
             'message' => 'Beállítások sikeresen mentve',
             'data' => [
                 'default_max_retouch_photos' => $partner->default_max_retouch_photos,
+                'default_gallery_deadline_days' => $partner->default_gallery_deadline_days ?? 14,
             ],
         ]);
     }
