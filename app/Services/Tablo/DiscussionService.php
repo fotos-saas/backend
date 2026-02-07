@@ -521,4 +521,133 @@ class DiscussionService
         // Szerző törölheti a sajátját
         return $post->author_type === $userType && $post->author_id === $userId;
     }
+
+    // ============================================================================
+    // FORMÁZÓ METÓDUSOK (API response)
+    // ============================================================================
+
+    /**
+     * Beszélgetés összefoglaló formázása (lista nézethez).
+     */
+    public function formatDiscussionSummary(TabloDiscussion $discussion): array
+    {
+        return [
+            'id' => $discussion->id,
+            'title' => $discussion->title,
+            'slug' => $discussion->slug,
+            'creator_name' => $discussion->creator_name,
+            'is_creator_contact' => $discussion->isCreatorContact(),
+            'template_id' => $discussion->tablo_sample_template_id,
+            'template_name' => $discussion->template?->name,
+            'is_pinned' => $discussion->is_pinned,
+            'is_locked' => $discussion->is_locked,
+            'posts_count' => $discussion->posts_count,
+            'views_count' => $discussion->views_count,
+            'last_post_at' => $discussion->last_post?->created_at?->toIso8601String(),
+            'created_at' => $discussion->created_at->toIso8601String(),
+        ];
+    }
+
+    /**
+     * Beszélgetés részletes formázása (show nézethez).
+     */
+    public function formatDiscussionDetail(TabloDiscussion $discussion): array
+    {
+        return [
+            'id' => $discussion->id,
+            'title' => $discussion->title,
+            'slug' => $discussion->slug,
+            'creator_name' => $discussion->creator_name,
+            'is_creator_contact' => $discussion->isCreatorContact(),
+            'template_id' => $discussion->tablo_sample_template_id,
+            'template_name' => $discussion->template?->name,
+            'is_pinned' => $discussion->is_pinned,
+            'is_locked' => $discussion->is_locked,
+            'can_add_posts' => $discussion->canAddPosts(),
+            'posts_count' => $discussion->posts_count,
+            'views_count' => $discussion->views_count,
+            'created_at' => $discussion->created_at->toIso8601String(),
+        ];
+    }
+
+    /**
+     * Hozzászólás formázása API response-hoz.
+     *
+     * Jogosultságok és reakciók feloldása az aktuális felhasználó alapján.
+     *
+     * @param  ?string  $currentUserType  contact|guest|null
+     * @param  ?int  $currentUserId  A felhasználó ID-je
+     */
+    public function formatPost(TabloDiscussionPost $post, ?string $currentUserType, ?int $currentUserId): array
+    {
+        $isLiked = false;
+        $userReaction = null;
+        $canEdit = false;
+        $canDelete = false;
+
+        // Contact mindig szerkeszthet és törölhet
+        if ($currentUserType === TabloDiscussionPost::AUTHOR_TYPE_CONTACT) {
+            $canEdit = true;
+            $canDelete = true;
+        } elseif ($currentUserType && $currentUserId) {
+            // Guest: service ellenőrzi (15 perc, saját post)
+            $canEdit = $this->canUserEditPost($post, $currentUserType, $currentUserId);
+            $canDelete = $this->canUserDeletePost($post, $currentUserType, $currentUserId);
+        }
+
+        // Like/reaction ellenőrzés mindkét típusra
+        if ($currentUserType && $currentUserId) {
+            $isLiked = $post->isLikedBy($currentUserType, $currentUserId);
+            $userReaction = $post->getUserReaction($currentUserType, $currentUserId);
+        }
+
+        return [
+            'id' => $post->id,
+            'author_name' => $post->author_name,
+            'is_author_contact' => $post->isAuthorContact(),
+            'content' => $post->content,
+            'mentions' => $post->mentions ?? [],
+            'is_edited' => $post->is_edited,
+            'edited_at' => $post->edited_at?->toIso8601String(),
+            'likes_count' => $post->likes_count,
+            'is_liked' => $isLiked,
+            'user_reaction' => $userReaction,
+            'reactions' => $post->getReactionsSummary(),
+            'can_edit' => $canEdit,
+            'can_delete' => $canDelete,
+            'parent_id' => $post->parent_id,
+            'replies' => $post->replies->map(fn ($reply) => $this->formatPost($reply, $currentUserType, $currentUserId))->toArray(),
+            'media' => $post->media->map(fn ($media) => [
+                'id' => $media->id,
+                'url' => $media->url,
+                'file_name' => $media->file_name,
+                'is_image' => $media->isImage(),
+            ])->toArray(),
+            'created_at' => $post->created_at->toIso8601String(),
+        ];
+    }
+
+    /**
+     * Aktuális felhasználó típus és ID feloldása a request alapján.
+     *
+     * @return array{type: ?string, id: ?int} A felhasználó típusa és ID-je
+     */
+    public function resolveCurrentUser(bool $isContact, ?int $contactId, ?TabloGuestSession $guestSession): array
+    {
+        if ($isContact) {
+            return [
+                'type' => TabloDiscussionPost::AUTHOR_TYPE_CONTACT,
+                'id' => $contactId ?? 0,
+            ];
+        }
+
+        if ($guestSession && ! $guestSession->is_banned) {
+            return [
+                'type' => TabloDiscussionPost::AUTHOR_TYPE_GUEST,
+                'id' => $guestSession->id,
+            ];
+        }
+
+        return ['type' => null, 'id' => null];
+    }
 }
