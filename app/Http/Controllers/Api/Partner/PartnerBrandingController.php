@@ -53,6 +53,7 @@ class PartnerBrandingController extends Controller
                 'favicon_url' => $branding->getFaviconUrl(),
                 'og_image_url' => $branding->getOgImageUrl(),
             ] : null,
+            'feature_active' => $partner->hasFeature('branding'),
         ]);
     }
 
