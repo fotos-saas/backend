@@ -4,29 +4,36 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Api\Partner;
 
+use App\Actions\Partner\CreateGalleryAction;
+use App\Actions\Partner\DeleteGalleryPhotosAction;
+use App\Actions\Partner\GetGalleryProgressAction;
+use App\Actions\Partner\UploadGalleryPhotosAction;
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\Api\Partner\Traits\PartnerAuthTrait;
 use App\Http\Requests\Gallery\DeleteGalleryPhotosRequest;
 use App\Http\Requests\Gallery\SetGalleryDeadlineRequest;
 use App\Http\Requests\Gallery\UploadGalleryPhotosRequest;
-use App\Models\TabloGallery;
-use App\Models\TabloProject;
-use App\Models\TabloUserProgress;
-use App\Services\MediaZipService;
 use Illuminate\Http\JsonResponse;
-use Spatie\MediaLibrary\MediaCollections\Models\Media;
 
 /**
  * Partner Gallery Controller
  *
- * Manages gallery CRUD and photo uploads for partner projects.
+ * Galéria CRUD és képfeltöltés kezelése partner projektekhez.
+ * Az üzleti logika Action osztályokba van kiemelve.
  */
 class PartnerGalleryController extends Controller
 {
     use PartnerAuthTrait;
 
+    public function __construct(
+        private readonly CreateGalleryAction $createGalleryAction,
+        private readonly UploadGalleryPhotosAction $uploadPhotosAction,
+        private readonly DeleteGalleryPhotosAction $deletePhotosAction,
+        private readonly GetGalleryProgressAction $getProgressAction,
+    ) {}
+
     /**
-     * Get gallery details for a project.
+     * Galéria adatok lekérdezése egy projekthez.
      */
     public function getGallery(int $projectId): JsonResponse
     {
@@ -40,51 +47,27 @@ class PartnerGalleryController extends Controller
             ]);
         }
 
-        $gallery = $project->gallery;
-
         return response()->json([
             'hasGallery' => true,
-            'gallery' => $this->formatGallery($gallery),
+            'gallery' => $this->createGalleryAction->formatGallery($project->gallery),
             'deadline' => $project->deadline?->toDateString(),
         ]);
     }
 
     /**
-     * Create or get gallery for a project.
+     * Galéria létrehozása vagy meglévő lekérdezése.
      */
     public function createOrGetGallery(int $projectId): JsonResponse
     {
         $project = $this->getProjectForPartner($projectId);
 
-        if ($project->tablo_gallery_id) {
-            return response()->json([
-                'success' => true,
-                'created' => false,
-                'gallery' => $this->formatGallery($project->gallery),
-                'deadline' => $project->deadline?->toDateString(),
-            ]);
-        }
+        $result = $this->createGalleryAction->execute($project);
 
-        $galleryName = $this->buildGalleryName($project);
-
-        $gallery = TabloGallery::create([
-            'name' => $galleryName,
-            'status' => 'active',
-            'max_retouch_photos' => 3,
-        ]);
-
-        $project->update(['tablo_gallery_id' => $gallery->id]);
-
-        return response()->json([
-            'success' => true,
-            'created' => true,
-            'gallery' => $this->formatGallery($gallery),
-            'deadline' => $project->deadline?->toDateString(),
-        ]);
+        return response()->json($result);
     }
 
     /**
-     * Upload photos to gallery.
+     * Képek feltöltése a galériába.
      */
     public function uploadPhotos(UploadGalleryPhotosRequest $request, int $projectId): JsonResponse
     {
@@ -101,50 +84,10 @@ class PartnerGalleryController extends Controller
                 ], 422);
             }
 
-            $gallery = $project->gallery;
             $files = $request->file('photos');
-            error_log("[GALLERY_UPLOAD] Gallery={$gallery->id}, Files=" . count($files));
+            $result = $this->uploadPhotosAction->execute($project->gallery, $files);
 
-            $uploadedMedia = collect();
-            $zipService = app(MediaZipService::class);
-
-            foreach ($files as $index => $file) {
-                error_log("[GALLERY_UPLOAD] Processing file {$index}: {$file->getClientOriginalName()} ({$file->getSize()} bytes)");
-
-                if ($zipService->isZipFile($file)) {
-                    $extractedMedia = $zipService->extractAndUpload($file, $gallery, 'photos');
-                    $uploadedMedia = $uploadedMedia->merge($extractedMedia);
-                } else {
-                    $iptcTitle = $this->extractIptcTitle($file->getRealPath());
-
-                    $media = $gallery
-                        ->addMedia($file)
-                        ->preservingOriginal()
-                        ->withCustomProperties(['iptc_title' => $iptcTitle])
-                        ->toMediaCollection('photos');
-
-                    error_log("[GALLERY_UPLOAD] Uploaded media id={$media->id} file={$media->file_name}");
-                    $uploadedMedia->push($media);
-                }
-            }
-
-            error_log("[GALLERY_UPLOAD] SUCCESS count={$uploadedMedia->count()}");
-
-            return response()->json([
-                'success' => true,
-                'message' => "{$uploadedMedia->count()} kép sikeresen feltöltve",
-                'uploadedCount' => $uploadedMedia->count(),
-                'photos' => $uploadedMedia->map(fn (Media $media) => [
-                    'id' => $media->id,
-                    'name' => $media->file_name,
-                    'title' => $media->getCustomProperty('iptc_title', ''),
-                    'thumb_url' => $media->getUrl('thumb'),
-                    'preview_url' => $media->getUrl('preview'),
-                    'original_url' => $media->getUrl(),
-                    'size' => $media->size,
-                    'createdAt' => $media->created_at->toIso8601String(),
-                ])->values()->toArray(),
-            ]);
+            return response()->json($result);
         } catch (\Throwable $e) {
             error_log("[GALLERY_UPLOAD] ERROR: {$e->getMessage()} in {$e->getFile()}:{$e->getLine()}");
             error_log("[GALLERY_UPLOAD] TRACE: {$e->getTraceAsString()}");
@@ -157,7 +100,7 @@ class PartnerGalleryController extends Controller
     }
 
     /**
-     * Delete multiple photos from gallery.
+     * Több kép törlése a galériából.
      */
     public function deletePhotos(DeleteGalleryPhotosRequest $request, int $projectId): JsonResponse
     {
@@ -170,25 +113,14 @@ class PartnerGalleryController extends Controller
             ], 422);
         }
 
-        $gallery = $project->gallery;
         $photoIds = array_map('intval', $request->input('photo_ids'));
-        $photos = $gallery->getMedia('photos')->whereIn('id', $photoIds);
+        $result = $this->deletePhotosAction->executeMany($project->gallery, $photoIds);
 
-        $deletedCount = 0;
-        foreach ($photos as $media) {
-            $media->delete();
-            $deletedCount++;
-        }
-
-        return response()->json([
-            'success' => true,
-            'message' => "{$deletedCount} kép sikeresen törölve",
-            'deletedCount' => $deletedCount,
-        ]);
+        return response()->json($result);
     }
 
     /**
-     * Delete a single photo from gallery.
+     * Egyetlen kép törlése a galériából.
      */
     public function deletePhoto(int $projectId, int $mediaId): JsonResponse
     {
@@ -201,26 +133,15 @@ class PartnerGalleryController extends Controller
             ], 422);
         }
 
-        $gallery = $project->gallery;
-        $media = $gallery->getMedia('photos')->firstWhere('id', $mediaId);
+        $result = $this->deletePhotosAction->executeOne($project->gallery, $mediaId);
+        $status = $result['status'] ?? 200;
+        unset($result['status']);
 
-        if (!$media) {
-            return response()->json([
-                'success' => false,
-                'message' => 'A kép nem található ebben a galériában.',
-            ], 404);
-        }
-
-        $media->delete();
-
-        return response()->json([
-            'success' => true,
-            'message' => 'Kép sikeresen törölve',
-        ]);
+        return response()->json($result, $status);
     }
 
     /**
-     * Set gallery deadline for a project.
+     * Határidő beállítása a projekthez.
      */
     public function setDeadline(SetGalleryDeadlineRequest $request, int $projectId): JsonResponse
     {
@@ -238,7 +159,7 @@ class PartnerGalleryController extends Controller
     }
 
     /**
-     * Get progress data for gallery (student workflow progress).
+     * Galéria haladás statisztika (diák workflow állapotok).
      */
     public function getProgress(int $projectId): JsonResponse
     {
@@ -255,120 +176,8 @@ class PartnerGalleryController extends Controller
             ]);
         }
 
-        $progressRecords = TabloUserProgress::where('tablo_gallery_id', $project->tablo_gallery_id)->get();
+        $result = $this->getProgressAction->execute($project->tablo_gallery_id);
 
-        $total = $progressRecords->count();
-        $finalized = $progressRecords->where('workflow_status', TabloUserProgress::STATUS_FINALIZED)->count();
-        $inProgress = $progressRecords->where('workflow_status', TabloUserProgress::STATUS_IN_PROGRESS);
-
-        $stepCounts = [
-            'claiming' => 0,
-            'retouch' => 0,
-            'tablo' => 0,
-            'completed' => 0,
-        ];
-
-        foreach ($inProgress as $record) {
-            $step = $record->current_step ?? 'claiming';
-            if (isset($stepCounts[$step])) {
-                $stepCounts[$step]++;
-            }
-        }
-
-        return response()->json([
-            'totalUsers' => $total,
-            'claiming' => $stepCounts['claiming'],
-            'retouch' => $stepCounts['retouch'],
-            'tablo' => $stepCounts['tablo'],
-            'completed' => $stepCounts['completed'],
-            'finalized' => $finalized,
-        ]);
-    }
-
-    // === PRIVATE HELPERS ===
-
-    /**
-     * Format gallery for API response.
-     */
-    private function formatGallery(TabloGallery $gallery): array
-    {
-        $photos = $gallery->getMedia('photos');
-        $totalSize = $photos->sum('size');
-
-        return [
-            'id' => $gallery->id,
-            'name' => $gallery->name,
-            'photosCount' => $photos->count(),
-            'totalSizeMb' => round($totalSize / 1024 / 1024, 2),
-            'maxRetouchPhotos' => $gallery->max_retouch_photos,
-            'createdAt' => $gallery->created_at->toIso8601String(),
-            'photos' => $photos->map(fn (Media $media) => [
-                'id' => $media->id,
-                'name' => $media->file_name,
-                'title' => $media->getCustomProperty('iptc_title', ''),
-                'thumb_url' => $media->getUrl('thumb'),
-                'preview_url' => $media->getUrl('preview'),
-                'original_url' => $media->getUrl(),
-                'size' => $media->size,
-                'createdAt' => $media->created_at->toIso8601String(),
-            ])->values()->toArray(),
-        ];
-    }
-
-    /**
-     * Build a gallery name from project data.
-     */
-    private function buildGalleryName(TabloProject $project): string
-    {
-        $parts = [];
-
-        if ($project->school) {
-            $parts[] = $project->school->name;
-        }
-
-        if ($project->class_name) {
-            $parts[] = $project->class_name;
-        }
-
-        return implode(' - ', $parts) ?: 'Galéria';
-    }
-
-    /**
-     * Extract IPTC title from an image file.
-     */
-    private function extractIptcTitle(string $filePath): ?string
-    {
-        if (!file_exists($filePath)) {
-            return null;
-        }
-
-        $size = @getimagesize($filePath, $info);
-
-        if ($size === false || !isset($info['APP13'])) {
-            return null;
-        }
-
-        $iptc = @iptcparse($info['APP13']);
-
-        if ($iptc === false) {
-            return null;
-        }
-
-        $titleFields = ['2#005', '2#120', '2#105'];
-
-        foreach ($titleFields as $field) {
-            if (isset($iptc[$field][0]) && !empty($iptc[$field][0])) {
-                $title = $iptc[$field][0];
-                $encoding = mb_detect_encoding($title, ['UTF-8', 'ISO-8859-1', 'ISO-8859-2', 'Windows-1252'], true);
-
-                if ($encoding && $encoding !== 'UTF-8') {
-                    $title = mb_convert_encoding($title, 'UTF-8', $encoding);
-                }
-
-                return trim($title) ?: null;
-            }
-        }
-
-        return null;
+        return response()->json($result);
     }
 }
