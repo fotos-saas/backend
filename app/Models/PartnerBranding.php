@@ -21,10 +21,12 @@ class PartnerBranding extends Model implements HasMedia
         'partner_id',
         'brand_name',
         'is_active',
+        'hide_brand_name',
     ];
 
     protected $casts = [
         'is_active' => 'boolean',
+        'hide_brand_name' => 'boolean',
     ];
 
     public function partner(): BelongsTo

@@ -185,6 +185,7 @@ class TabloPartner extends Model
         return [
             'brandName' => $branding->brand_name,
             'logoUrl' => $branding->getLogoUrl(),
+            'hideBrandName' => $branding->hide_brand_name,
         ];
     }
 

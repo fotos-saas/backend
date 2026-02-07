@@ -48,6 +48,7 @@ class PartnerBrandingController extends Controller
             'branding' => $branding ? [
                 'brand_name' => $branding->brand_name,
                 'is_active' => $branding->is_active,
+                'hide_brand_name' => $branding->hide_brand_name,
                 'logo_url' => $branding->getLogoUrl(),
                 'favicon_url' => $branding->getFaviconUrl(),
                 'og_image_url' => $branding->getOgImageUrl(),
@@ -76,6 +77,7 @@ class PartnerBrandingController extends Controller
             'branding' => [
                 'brand_name' => $branding->brand_name,
                 'is_active' => $branding->is_active,
+                'hide_brand_name' => $branding->hide_brand_name,
                 'logo_url' => $branding->getLogoUrl(),
                 'favicon_url' => $branding->getFaviconUrl(),
                 'og_image_url' => $branding->getOgImageUrl(),

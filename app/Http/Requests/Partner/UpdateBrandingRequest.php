@@ -16,6 +16,7 @@ class UpdateBrandingRequest extends FormRequest
         return [
             'brand_name' => ['nullable', 'string', 'max:100'],
             'is_active' => ['required', 'boolean'],
+            'hide_brand_name' => ['sometimes', 'boolean'],
         ];
     }
 
