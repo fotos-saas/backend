@@ -17,6 +17,16 @@ class UpdateBrandingRequest extends FormRequest
             'brand_name' => ['nullable', 'string', 'max:100'],
             'is_active' => ['required', 'boolean'],
             'hide_brand_name' => ['sometimes', 'boolean'],
+
+            // Opcionális média feltöltés
+            'logo' => ['nullable', 'file', 'mimes:png,jpg,jpeg,svg,svgz', 'max:2048'],
+            'favicon' => ['nullable', 'file', 'mimes:png,jpg,jpeg,svg,svgz', 'max:512'],
+            'og_image' => ['nullable', 'file', 'mimes:png,jpg,jpeg,svg,svgz', 'max:5120'],
+
+            // Törlés flag-ek
+            'delete_logo' => ['sometimes', 'boolean'],
+            'delete_favicon' => ['sometimes', 'boolean'],
+            'delete_og_image' => ['sometimes', 'boolean'],
         ];
     }
 

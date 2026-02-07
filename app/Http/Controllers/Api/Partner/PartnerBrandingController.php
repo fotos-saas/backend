@@ -58,6 +58,10 @@ class PartnerBrandingController extends Controller
 
     /**
      * POST /api/partner/branding
+     *
+     * Egységes mentés: alap adatok + opcionális média feltöltés/törlés.
+     * FormData-ként küldve: brand_name, is_active, hide_brand_name,
+     * + logo/favicon/og_image fájlok + delete_logo/delete_favicon/delete_og_image flag-ek.
      */
     public function update(UpdateBrandingRequest $request): JsonResponse
     {
@@ -67,10 +71,38 @@ class PartnerBrandingController extends Controller
             return response()->json(['message' => 'Partner fiók nem található.'], 404);
         }
 
+        // Alap adatok mentése (fájl mezőket kiszűrjük)
         $branding = PartnerBranding::updateOrCreate(
             ['partner_id' => $partner->id],
-            $request->validated()
+            $request->safe()->only(['brand_name', 'is_active', 'hide_brand_name'])
         );
+
+        // Média törlések (előbb törölünk, aztán feltöltünk - ha mindkettő jön, a feltöltés nyer)
+        if ($request->boolean('delete_logo') && ! $request->hasFile('logo')) {
+            $branding->clearMediaCollection('brand_logo');
+        }
+        if ($request->boolean('delete_favicon') && ! $request->hasFile('favicon')) {
+            $branding->clearMediaCollection('brand_favicon');
+        }
+        if ($request->boolean('delete_og_image') && ! $request->hasFile('og_image')) {
+            $branding->clearMediaCollection('brand_og_image');
+        }
+
+        // Média feltöltések
+        if ($request->hasFile('logo')) {
+            $this->validateSvgSafety($request, 'logo');
+            $branding->addMediaFromRequest('logo')->toMediaCollection('brand_logo');
+        }
+        if ($request->hasFile('favicon')) {
+            $this->validateSvgSafety($request, 'favicon');
+            $branding->addMediaFromRequest('favicon')->toMediaCollection('brand_favicon');
+        }
+        if ($request->hasFile('og_image')) {
+            $this->validateSvgSafety($request, 'og_image');
+            $branding->addMediaFromRequest('og_image')->toMediaCollection('brand_og_image');
+        }
+
+        $branding->refresh();
 
         return response()->json([
             'message' => 'Márkajelzés sikeresen frissítve.',
