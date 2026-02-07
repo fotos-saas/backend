@@ -83,51 +83,72 @@ class PartnerGalleryController extends Controller
      */
     public function uploadPhotos(UploadGalleryPhotosRequest $request, int $projectId): JsonResponse
     {
-        $project = $this->getProjectForPartner($projectId);
+        error_log("[GALLERY_UPLOAD] START projectId={$projectId}");
 
-        if (!$project->tablo_gallery_id) {
+        try {
+            $project = $this->getProjectForPartner($projectId);
+
+            if (!$project->tablo_gallery_id) {
+                error_log("[GALLERY_UPLOAD] No gallery for project {$projectId}");
+                return response()->json([
+                    'success' => false,
+                    'message' => 'A projektnek nincs galéria hozzárendelve.',
+                ], 422);
+            }
+
+            $gallery = $project->gallery;
+            $files = $request->file('photos');
+            error_log("[GALLERY_UPLOAD] Gallery={$gallery->id}, Files=" . count($files));
+
+            $uploadedMedia = collect();
+            $zipService = app(MediaZipService::class);
+
+            foreach ($files as $index => $file) {
+                error_log("[GALLERY_UPLOAD] Processing file {$index}: {$file->getClientOriginalName()} ({$file->getSize()} bytes)");
+
+                if ($zipService->isZipFile($file)) {
+                    $extractedMedia = $zipService->extractAndUpload($file, $gallery, 'photos');
+                    $uploadedMedia = $uploadedMedia->merge($extractedMedia);
+                } else {
+                    $iptcTitle = $this->extractIptcTitle($file->getRealPath());
+
+                    $media = $gallery
+                        ->addMedia($file)
+                        ->preservingOriginal()
+                        ->withCustomProperties(['iptc_title' => $iptcTitle])
+                        ->toMediaCollection('photos');
+
+                    error_log("[GALLERY_UPLOAD] Uploaded media id={$media->id} file={$media->file_name}");
+                    $uploadedMedia->push($media);
+                }
+            }
+
+            error_log("[GALLERY_UPLOAD] SUCCESS count={$uploadedMedia->count()}");
+
+            return response()->json([
+                'success' => true,
+                'message' => "{$uploadedMedia->count()} kép sikeresen feltöltve",
+                'uploadedCount' => $uploadedMedia->count(),
+                'photos' => $uploadedMedia->map(fn (Media $media) => [
+                    'id' => $media->id,
+                    'name' => $media->file_name,
+                    'title' => $media->getCustomProperty('iptc_title', ''),
+                    'thumb_url' => $media->getUrl('thumb'),
+                    'preview_url' => $media->getUrl('preview'),
+                    'original_url' => $media->getUrl(),
+                    'size' => $media->size,
+                    'createdAt' => $media->created_at->toIso8601String(),
+                ])->values()->toArray(),
+            ]);
+        } catch (\Throwable $e) {
+            error_log("[GALLERY_UPLOAD] ERROR: {$e->getMessage()} in {$e->getFile()}:{$e->getLine()}");
+            error_log("[GALLERY_UPLOAD] TRACE: {$e->getTraceAsString()}");
+
             return response()->json([
                 'success' => false,
-                'message' => 'A projektnek nincs galéria hozzárendelve.',
-            ], 422);
+                'message' => 'Feltöltési hiba: ' . $e->getMessage(),
+            ], 500);
         }
-
-        $gallery = $project->gallery;
-        $uploadedMedia = collect();
-        $zipService = app(MediaZipService::class);
-
-        foreach ($request->file('photos') as $file) {
-            if ($zipService->isZipFile($file)) {
-                $extractedMedia = $zipService->extractAndUpload($file, $gallery, 'photos');
-                $uploadedMedia = $uploadedMedia->merge($extractedMedia);
-            } else {
-                $iptcTitle = $this->extractIptcTitle($file->getRealPath());
-
-                $media = $gallery
-                    ->addMedia($file)
-                    ->preservingOriginal()
-                    ->withCustomProperties(['iptc_title' => $iptcTitle])
-                    ->toMediaCollection('photos');
-
-                $uploadedMedia->push($media);
-            }
-        }
-
-        return response()->json([
-            'success' => true,
-            'message' => "{$uploadedMedia->count()} kép sikeresen feltöltve",
-            'uploadedCount' => $uploadedMedia->count(),
-            'photos' => $uploadedMedia->map(fn (Media $media) => [
-                'id' => $media->id,
-                'name' => $media->file_name,
-                'title' => $media->getCustomProperty('iptc_title', ''),
-                'thumb_url' => $media->getUrl('thumb'),
-                'preview_url' => $media->getUrl('preview'),
-                'original_url' => $media->getUrl(),
-                'size' => $media->size,
-                'createdAt' => $media->created_at->toIso8601String(),
-            ])->values()->toArray(),
-        ]);
     }
 
     /**
