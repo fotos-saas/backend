@@ -176,6 +176,11 @@ class TabloPartner extends Model
             return null;
         }
 
+        // Ha a partnernek nincs branding feature-je (addon lemondva / csomag nem tartalmazza)
+        if (!$partner->hasFeature('branding')) {
+            return null;
+        }
+
         $branding = $partner->branding;
 
         if (!$branding || !$branding->is_active) {
