@@ -91,6 +91,7 @@ return [
                 'templates',
                 'qr_sharing',
                 'subdomain',
+                'branding',
                 'stripe_payments',
                 'sms_notifications',
                 'priority_support',
@@ -237,7 +238,7 @@ return [
             'monthly_price' => 0,
             'yearly_price' => 0,
             'free' => true,
-            'available_for' => ['iskola'],
+            'available_for' => ['alap'],
         ],
     ],
 
