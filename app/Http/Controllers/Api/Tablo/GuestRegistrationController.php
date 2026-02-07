@@ -2,7 +2,9 @@
 
 namespace App\Http\Controllers\Api\Tablo;
 
-use App\Helpers\QueryHelper;
+use App\Actions\Tablo\RequestRestoreLinkAction;
+use App\Actions\Tablo\SearchParticipantsAction;
+use App\Actions\Tablo\SendGuestDeviceLinkAction;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\Tablo\Guest\RegisterGuestRequest;
 use App\Http\Requests\Api\Tablo\Guest\RegisterWithIdentificationRequest;
@@ -10,19 +12,13 @@ use App\Http\Requests\Api\Tablo\Guest\RequestRestoreLinkRequest;
 use App\Http\Requests\Api\Tablo\Guest\SendGuestLinkRequest;
 use App\Http\Requests\Api\Tablo\Guest\SessionTokenRequest;
 use App\Http\Requests\Api\Tablo\Guest\UpdateGuestRequest;
-use App\Mail\GuestSessionRestoreMail;
 use App\Models\TabloGuestSession;
 use App\Models\TabloProject;
 use App\Services\Tablo\GuestSessionService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\Mail;
-use Illuminate\Support\Str;
 
 /**
- * Guest Registration Controller
- *
  * Vendég regisztráció, azonosítás és session kezelés.
  * Token-ból azonosítja a projektet.
  */
@@ -32,22 +28,13 @@ class GuestRegistrationController extends Controller
         protected GuestSessionService $guestSessionService
     ) {}
 
-    /**
-     * Register new guest session.
-     * POST /api/tablo-frontend/guest/register
-     */
+    /** POST /api/tablo-frontend/guest/register */
     public function register(RegisterGuestRequest $request): JsonResponse
     {
         $validated = $request->validated();
-
-        $token = $request->user()->currentAccessToken();
-        $project = TabloProject::find($token->tablo_project_id);
-
+        $project = $this->resolveProject($request);
         if (! $project) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Projekt nem található',
-            ], 404);
+            return $this->projectNotFound();
         }
 
         $session = $this->guestSessionService->register(
@@ -57,7 +44,6 @@ class GuestRegistrationController extends Controller
             $validated['device_identifier'] ?? null,
             $request->ip()
         );
-
         return response()->json([
             'success' => true,
             'message' => 'Sikeres regisztráció!',
@@ -70,33 +56,18 @@ class GuestRegistrationController extends Controller
         ]);
     }
 
-    /**
-     * Register with identification (onboarding flow).
-     * POST /api/tablo-frontend/guest/register-with-identification
-     *
-     * Regisztráció személy kiválasztással és becenévvel.
-     */
+    /** POST /api/tablo-frontend/guest/register-with-identification */
     public function registerWithIdentification(RegisterWithIdentificationRequest $request): JsonResponse
     {
         $validated = $request->validated();
-
-        $token = $request->user()->currentAccessToken();
-        $project = TabloProject::find($token->tablo_project_id);
-
+        $project = $this->resolveProject($request);
         if (! $project) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Projekt nem található',
-            ], 404);
+            return $this->projectNotFound();
         }
 
-        // Ha van person_id, ellenőrizzük hogy a projekt persons listájában van-e
+        // Person validáció: a projekt persons listájában van-e
         if ($validated['person_id'] ?? null) {
-            $validPerson = $project->persons()
-                ->where('id', $validated['person_id'])
-                ->exists();
-
-            if (! $validPerson) {
+            if (! $project->persons()->where('id', $validated['person_id'])->exists()) {
                 return response()->json([
                     'success' => false,
                     'message' => 'A kiválasztott személy nem tartozik ehhez a projekthez.',
@@ -114,12 +85,9 @@ class GuestRegistrationController extends Controller
         );
 
         $session = $result['session'];
-
         return response()->json([
             'success' => true,
-            'message' => $result['has_conflict']
-                ? $result['conflict_message']
-                : 'Sikeres regisztráció!',
+            'message' => $result['has_conflict'] ? $result['conflict_message'] : 'Sikeres regisztráció!',
             'data' => [
                 'id' => $session->id,
                 'session_token' => $session->session_token,
@@ -134,22 +102,14 @@ class GuestRegistrationController extends Controller
         ]);
     }
 
-    /**
-     * Validate existing session.
-     * POST /api/tablo-frontend/guest/validate
-     */
+    /** POST /api/tablo-frontend/guest/validate */
     public function validate(SessionTokenRequest $request): JsonResponse
     {
         $validated = $request->validated();
-
-        $token = $request->user()->currentAccessToken();
-        $projectId = $token->tablo_project_id;
-
         $session = $this->guestSessionService->validate(
             $validated['session_token'],
-            $projectId
+            $this->resolveProjectId($request)
         );
-
         if (! $session) {
             return response()->json([
                 'success' => false,
@@ -157,7 +117,6 @@ class GuestRegistrationController extends Controller
                 'valid' => false,
             ]);
         }
-
         return response()->json([
             'success' => true,
             'valid' => true,
@@ -170,35 +129,20 @@ class GuestRegistrationController extends Controller
         ]);
     }
 
-    /**
-     * Update guest info (name and/or email).
-     * PUT /api/tablo-frontend/guest/update
-     */
+    /** PUT /api/tablo-frontend/guest/update */
     public function update(UpdateGuestRequest $request): JsonResponse
     {
         $validated = $request->validated();
-
-        $token = $request->user()->currentAccessToken();
-        $projectId = $token->tablo_project_id;
-
-        $session = TabloGuestSession::where('session_token', $validated['session_token'])
-            ->where('tablo_project_id', $projectId)
-            ->first();
-
+        $session = $this->resolveSession($request, $validated['session_token']);
         if (! $session) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Session nem található',
-            ], 404);
+            return $this->sessionNotFound();
         }
 
-        // Update guest info
         $session->update([
             'guest_name' => $validated['guest_name'],
             'guest_email' => $validated['guest_email'] ?? null,
             'last_activity_at' => now(),
         ]);
-
         return response()->json([
             'success' => true,
             'message' => 'Adatok sikeresen frissítve!',
@@ -210,201 +154,52 @@ class GuestRegistrationController extends Controller
         ]);
     }
 
-    /**
-     * Send device link via email.
-     * POST /api/tablo-frontend/guest/send-link
-     */
-    public function sendLink(SendGuestLinkRequest $request): JsonResponse
+    /** POST /api/tablo-frontend/guest/send-link */
+    public function sendLink(SendGuestLinkRequest $request, SendGuestDeviceLinkAction $action): JsonResponse
     {
         $validated = $request->validated();
-
-        $token = $request->user()->currentAccessToken();
-        $project = TabloProject::find($token->tablo_project_id);
-
+        $project = $this->resolveProject($request);
         if (! $project) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Projekt nem található',
-            ], 404);
+            return $this->projectNotFound();
         }
 
-        $session = TabloGuestSession::where('session_token', $validated['session_token'])
-            ->where('tablo_project_id', $project->id)
-            ->first();
-
-        if (! $session) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Session nem található',
-            ], 404);
-        }
-
-        // Update email if different
-        if ($session->guest_email !== $validated['email']) {
-            $session->update(['guest_email' => $validated['email']]);
-        }
-
-        // Generate device link
-        $link = $this->guestSessionService->generateDeviceLink($session, $project);
-
-        // TODO: Send email with link
-        // Mail::to($validated['email'])->send(new GuestDeviceLinkMail($session, $link));
-
+        $result = $action->execute($project, $validated['session_token'], $validated['email']);
         return response()->json([
-            'success' => true,
-            'message' => 'Link elküldve a megadott email címre!',
-            // Debug: return link in development
-            'link' => config('app.debug') ? $link : null,
-        ]);
+            'success' => $result['success'],
+            'message' => $result['message'],
+            'link' => $result['link'],
+        ], $result['status']);
     }
 
-    /**
-     * Request restore link via email.
-     * POST /api/tablo-frontend/guest/request-restore-link
-     *
-     * Korábban regisztrált vendég session visszaállítása emailben küldött magic linkkel.
-     */
-    public function requestRestoreLink(RequestRestoreLinkRequest $request): JsonResponse
+    /** POST /api/tablo-frontend/guest/request-restore-link */
+    public function requestRestoreLink(RequestRestoreLinkRequest $request, RequestRestoreLinkAction $action): JsonResponse
     {
         $validated = $request->validated();
-
-        $token = $request->user()->currentAccessToken();
-        $projectId = $token->tablo_project_id;
-        $project = TabloProject::find($projectId);
-
-        if (! $project) {
-            // Biztonsági okokból azonos üzenetet adunk vissza
-            return response()->json([
-                'success' => true,
-                'message' => 'Ha létezik fiók ezzel az email címmel, linket küldtünk.',
-            ]);
-        }
-
-        // Rate limiting: max 3 kérés / óra / email + projekt kombináció
-        $rateLimitKey = "restore_link:{$projectId}:{$validated['email']}";
-        $attempts = (int) Cache::get($rateLimitKey, 0);
-
-        if ($attempts >= 3) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Túl sok kérés. Kérjük próbáld újra később.',
-            ], 429);
-        }
-
-        // Keresés email alapján
-        $session = TabloGuestSession::where('tablo_project_id', $projectId)
-            ->where('guest_email', $validated['email'])
-            ->verified()
-            ->active()
-            ->first();
-
-        if (! $session) {
-            // Biztonsági okokból NE mondjuk meg, hogy nem létezik
-            // De növeljük a rate limit számlálót
-            Cache::put($rateLimitKey, $attempts + 1, now()->addHour());
-
-            return response()->json([
-                'success' => true,
-                'message' => 'Ha létezik fiók ezzel az email címmel, linket küldtünk.',
-            ]);
-        }
-
-        // Rate limit növelése
-        Cache::put($rateLimitKey, $attempts + 1, now()->addHour());
-
-        // Restore token generálás
-        $restoreToken = Str::random(64);
-        $session->update([
-            'restore_token' => $restoreToken,
-            'restore_token_expires_at' => now()->addHours(24),
-        ]);
-
-        // Frontend URL összeállítása
-        $frontendUrl = rtrim(config('app.frontend_tablo_url', config('app.url')), '/');
-        $restoreLink = "{$frontendUrl}/share/{$project->share_token}?restore={$restoreToken}";
-
-        // Email küldés
-        try {
-            Mail::to($validated['email'])->send(
-                new GuestSessionRestoreMail($session, $project, $restoreLink)
-            );
-
-            \Log::info('[GuestSession] Restore link sent', [
-                'project_id' => $projectId,
-                'session_id' => $session->id,
-                'email' => $validated['email'],
-            ]);
-        } catch (\Exception $e) {
-            \Log::error('[GuestSession] Failed to send restore link', [
-                'project_id' => $projectId,
-                'email' => $validated['email'],
-                'error' => $e->getMessage(),
-            ]);
-
-            // Biztonsági okokból azonos üzenetet adunk vissza
-            return response()->json([
-                'success' => true,
-                'message' => 'Ha létezik fiók ezzel az email címmel, linket küldtünk.',
-            ]);
-        }
-
+        $result = $action->execute($this->resolveProjectId($request), $validated['email']);
         return response()->json([
-            'success' => true,
-            'message' => 'Ha létezik fiók ezzel az email címmel, linket küldtünk.',
-        ]);
+            'success' => $result['success'],
+            'message' => $result['message'],
+        ], $result['status']);
     }
 
-    /**
-     * Heartbeat - update activity.
-     * POST /api/tablo-frontend/guest/heartbeat
-     */
+    /** POST /api/tablo-frontend/guest/heartbeat */
     public function heartbeat(SessionTokenRequest $request): JsonResponse
     {
         $validated = $request->validated();
-
-        $token = $request->user()->currentAccessToken();
-        $projectId = $token->tablo_project_id;
-
-        $session = TabloGuestSession::where('session_token', $validated['session_token'])
-            ->where('tablo_project_id', $projectId)
-            ->first();
-
+        $session = $this->resolveSession($request, $validated['session_token']);
         if (! $session) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Session nem található',
-            ], 404);
+            return $this->sessionNotFound();
         }
 
         $this->guestSessionService->heartbeat($session, $request->ip());
-
-        return response()->json([
-            'success' => true,
-        ]);
+        return response()->json(['success' => true]);
     }
 
-    /**
-     * Check session status (for polling).
-     * GET /api/tablo-frontend/guest/session-status
-     *
-     * Lightweight endpoint for frontend polling to detect:
-     * - Banned sessions (403)
-     * - Deleted sessions (401)
-     * - Valid sessions (200)
-     */
+    /** GET /api/tablo-frontend/guest/session-status */
     public function sessionStatus(SessionTokenRequest $request): JsonResponse
     {
         $validated = $request->validated();
-
-        $token = $request->user()->currentAccessToken();
-        $projectId = $token->tablo_project_id;
-
-        // First check if session exists at all (including banned)
-        $session = TabloGuestSession::where('session_token', $validated['session_token'])
-            ->where('tablo_project_id', $projectId)
-            ->first();
-
-        // Session deleted
+        $session = $this->resolveSession($request, $validated['session_token']);
         if (! $session) {
             return response()->json([
                 'valid' => false,
@@ -412,8 +207,6 @@ class GuestRegistrationController extends Controller
                 'message' => 'A munkamenet törölve lett.',
             ], 401);
         }
-
-        // Session banned
         if ($session->is_banned) {
             return response()->json([
                 'valid' => false,
@@ -422,132 +215,84 @@ class GuestRegistrationController extends Controller
             ], 403);
         }
 
-        // Session valid
-        return response()->json([
-            'valid' => true,
-        ]);
+        return response()->json(['valid' => true]);
     }
 
-    /**
-     * Check verification status (polling endpoint).
-     * GET /api/tablo-frontend/guest/verification-status
-     *
-     * Pending státuszú session-ök polling-ja az ütközés feloldásáig.
-     */
+    /** GET /api/tablo-frontend/guest/verification-status */
     public function checkVerificationStatus(SessionTokenRequest $request): JsonResponse
     {
         $validated = $request->validated();
-
-        $token = $request->user()->currentAccessToken();
-        $projectId = $token->tablo_project_id;
-
-        $session = TabloGuestSession::where('session_token', $validated['session_token'])
-            ->where('tablo_project_id', $projectId)
-            ->first();
-
+        $session = $this->resolveSession($request, $validated['session_token']);
         if (! $session) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Session nem található',
-            ], 404);
+            return $this->sessionNotFound();
         }
-
-        $status = $this->guestSessionService->checkVerificationStatus($session);
 
         return response()->json([
             'success' => true,
-            'data' => $status,
+            'data' => $this->guestSessionService->checkVerificationStatus($session),
         ]);
     }
 
-    /**
-     * Search missing persons for autocomplete.
-     * GET /api/tablo-frontend/guest/missing-persons/search?q=keresés
-     *
-     * Tablón szereplő személyek keresése az onboarding flow-hoz.
-     */
+    /** GET /api/tablo-frontend/guest/missing-persons/search */
     public function searchMissingPersons(Request $request): JsonResponse
     {
-        $query = $request->get('q', '');
-        $limit = min($request->integer('limit', 10), 20);
-
-        $token = $request->user()->currentAccessToken();
-        $project = TabloProject::find($token->tablo_project_id);
-
+        $project = $this->resolveProject($request);
         if (! $project) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Projekt nem található',
-            ], 404);
+            return $this->projectNotFound();
         }
-
-        $results = $this->guestSessionService->searchMissingPersons($project, $query, $limit);
 
         return response()->json([
             'success' => true,
-            'data' => $results,
+            'data' => $this->guestSessionService->searchMissingPersons(
+                $project,
+                $request->get('q', ''),
+                min($request->integer('limit', 10), 20)
+            ),
         ]);
     }
 
-    /**
-     * Search participants for @mentions.
-     * GET /api/tablo-frontend/participants/search?q=keresés
-     *
-     * Returns guests and contacts that match the search query.
-     */
-    public function searchParticipants(Request $request): JsonResponse
+    /** GET /api/tablo-frontend/participants/search */
+    public function searchParticipants(Request $request, SearchParticipantsAction $action): JsonResponse
     {
-        $query = $request->get('q', '');
-        $limit = min($request->integer('limit', 10), 20);
-
-        $token = $request->user()->currentAccessToken();
-        $project = TabloProject::find($token->tablo_project_id);
-
+        $project = $this->resolveProject($request);
         if (! $project) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Projekt nem található',
-            ], 404);
-        }
-
-        $results = [];
-
-        // Search guests (not banned)
-        if (strlen($query) >= 1) {
-            $guests = TabloGuestSession::where('tablo_project_id', $project->id)
-                ->where('is_banned', false)
-                ->where('guest_name', 'ilike', QueryHelper::safeLikePattern($query))
-                ->orderBy('guest_name')
-                ->limit($limit)
-                ->get();
-
-            foreach ($guests as $guest) {
-                $results[] = [
-                    'id' => 'guest_' . $guest->id,
-                    'type' => 'guest',
-                    'name' => $guest->guest_name,
-                    'display' => $guest->guest_name,
-                ];
-            }
-        }
-
-        // Add contact if query matches and there's room
-        $contact = $project->contact;
-        if ($contact && count($results) < $limit) {
-            $contactName = $contact->name ?? 'Kapcsolattartó';
-            if (empty($query) || stripos($contactName, $query) !== false) {
-                $results[] = [
-                    'id' => 'contact_' . $contact->id,
-                    'type' => 'contact',
-                    'name' => $contactName,
-                    'display' => $contactName . ' (Kapcsolattartó)',
-                ];
-            }
+            return $this->projectNotFound();
         }
 
         return response()->json([
             'success' => true,
-            'data' => $results,
+            'data' => $action->execute(
+                $project,
+                $request->get('q', ''),
+                min($request->integer('limit', 10), 20)
+            ),
         ]);
+    }
+
+    private function resolveProject(Request $request): ?TabloProject
+    {
+        return TabloProject::find($this->resolveProjectId($request));
+    }
+
+    private function resolveProjectId(Request $request): int
+    {
+        return $request->user()->currentAccessToken()->tablo_project_id;
+    }
+
+    private function resolveSession(Request $request, string $sessionToken): ?TabloGuestSession
+    {
+        return TabloGuestSession::where('session_token', $sessionToken)
+            ->where('tablo_project_id', $this->resolveProjectId($request))
+            ->first();
+    }
+
+    private function projectNotFound(): JsonResponse
+    {
+        return response()->json(['success' => false, 'message' => 'Projekt nem található'], 404);
+    }
+
+    private function sessionNotFound(): JsonResponse
+    {
+        return response()->json(['success' => false, 'message' => 'Session nem található'], 404);
     }
 }
