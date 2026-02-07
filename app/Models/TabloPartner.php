@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Str;
@@ -35,6 +36,7 @@ class TabloPartner extends Model
         'type',
         'commission_rate',
         'features',
+        'partner_id',
     ];
 
     protected $casts = [
@@ -60,6 +62,14 @@ class TabloPartner extends Model
                 $partner->slug = Str::slug($partner->name);
             }
         });
+    }
+
+    /**
+     * Get the subscription partner (Partner model with billing/branding)
+     */
+    public function subscriptionPartner(): BelongsTo
+    {
+        return $this->belongsTo(Partner::class, 'partner_id');
     }
 
     /**
@@ -149,16 +159,18 @@ class TabloPartner extends Model
 
     /**
      * Get active branding data for this partner.
-     * Finds the associated Partner model via email and returns branding if active.
+     * Uses direct partner_id FK, with email fallback for legacy data.
      */
     public function getActiveBranding(): ?array
     {
-        if (!$this->email) {
-            return null;
-        }
+        // Primary: direct FK
+        $partner = $this->subscriptionPartner;
 
-        $ownerUser = User::where('email', $this->email)->first();
-        $partner = $ownerUser?->partner;
+        // Fallback: email match (legacy)
+        if (!$partner && $this->email) {
+            $ownerUser = User::where('email', $this->email)->first();
+            $partner = $ownerUser?->partner;
+        }
 
         if (!$partner) {
             return null;
