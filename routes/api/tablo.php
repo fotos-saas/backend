@@ -164,7 +164,8 @@ Route::prefix('tablo-frontend')
             $tokenName = $token->name;
             $tokenType = match($tokenName) {
                 'tablo-auth-token' => 'code',
-                'qr-registration' => 'code',  // QR regisztráció = teljes jogú kódos belépés
+                'qr-registration' => 'code',
+                'dev-tablo-token' => 'code',
                 'tablo-share-token' => 'share',
                 'tablo-preview-token' => 'preview',
                 default => 'unknown',

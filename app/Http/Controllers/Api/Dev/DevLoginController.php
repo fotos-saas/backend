@@ -133,6 +133,7 @@ class DevLoginController extends Controller
             'email' => $guestEmail,
             'name' => $guestSession->guest_name,
             'password' => null,
+            'password_set' => true,
         ]);
 
         $tabloGuestUser->assignRole(User::ROLE_GUEST);
