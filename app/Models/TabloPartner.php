@@ -148,6 +148,35 @@ class TabloPartner extends Model
     }
 
     /**
+     * Get active branding data for this partner.
+     * Finds the associated Partner model via email and returns branding if active.
+     */
+    public function getActiveBranding(): ?array
+    {
+        if (!$this->email) {
+            return null;
+        }
+
+        $ownerUser = User::where('email', $this->email)->first();
+        $partner = $ownerUser?->partner;
+
+        if (!$partner) {
+            return null;
+        }
+
+        $branding = $partner->branding;
+
+        if (!$branding || !$branding->is_active) {
+            return null;
+        }
+
+        return [
+            'brandName' => $branding->brand_name,
+            'logoUrl' => $branding->getLogoUrl(),
+        ];
+    }
+
+    /**
      * Feature constants
      */
     public const FEATURE_CLIENT_ORDERS = 'client_orders';

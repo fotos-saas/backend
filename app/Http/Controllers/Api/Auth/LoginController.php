@@ -270,7 +270,7 @@ class LoginController extends Controller
             ->first();
 
         $response['user']['type'] = 'tablo-guest';
-        $response['project'] = [
+        $projectData = [
             'id' => $project->id,
             'name' => $project->display_name,
             'schoolName' => $project->school?->name,
@@ -280,6 +280,15 @@ class LoginController extends Controller
             'activePollsCount' => $project->polls()->active()->count(),
             'contacts' => [],
         ];
+
+        if ($project->partner) {
+            $branding = $project->partner->getActiveBranding();
+            if ($branding) {
+                $projectData['branding'] = $branding;
+            }
+        }
+
+        $response['project'] = $projectData;
         $response['tokenType'] = 'code';
         $response['canFinalize'] = true;
 

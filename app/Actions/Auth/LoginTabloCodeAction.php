@@ -81,6 +81,29 @@ class LoginTabloCodeAction
             ]);
         }
 
+        $projectData = [
+            'id' => $tabloProject->id,
+            'name' => $tabloProject->display_name,
+            'schoolName' => $tabloProject->school?->name,
+            'className' => $tabloProject->class_name,
+            'classYear' => $tabloProject->class_year,
+            'samplesCount' => $tabloProject->getMedia('samples')->count(),
+            'activePollsCount' => $tabloProject->polls()->active()->count(),
+            'contacts' => $primaryContact ? [[
+                'id' => $primaryContact->id,
+                'name' => $primaryContact->name,
+                'email' => $primaryContact->email,
+                'phone' => $primaryContact->phone,
+            ]] : [],
+        ];
+
+        if ($tabloProject->partner) {
+            $branding = $tabloProject->partner->getActiveBranding();
+            if ($branding) {
+                $projectData['branding'] = $branding;
+            }
+        }
+
         return response()->json([
             'user' => [
                 'id' => $tabloGuestUser->id,
@@ -89,21 +112,7 @@ class LoginTabloCodeAction
                 'type' => 'tablo-guest',
                 'passwordSet' => (bool) $tabloGuestUser->password_set,
             ],
-            'project' => [
-                'id' => $tabloProject->id,
-                'name' => $tabloProject->display_name,
-                'schoolName' => $tabloProject->school?->name,
-                'className' => $tabloProject->class_name,
-                'classYear' => $tabloProject->class_year,
-                'samplesCount' => $tabloProject->getMedia('samples')->count(),
-                'activePollsCount' => $tabloProject->polls()->active()->count(),
-                'contacts' => $primaryContact ? [[
-                    'id' => $primaryContact->id,
-                    'name' => $primaryContact->name,
-                    'email' => $primaryContact->email,
-                    'phone' => $primaryContact->phone,
-                ]] : [],
-            ],
+            'project' => $projectData,
             'token' => $token,
             'tokenType' => 'code',
             'canFinalize' => true,

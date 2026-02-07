@@ -73,6 +73,23 @@ class LoginTabloShareAction
         $tokenResult->accessToken->save();
         $authToken = $tokenResult->plainTextToken;
 
+        $projectData = [
+            'id' => $tabloProject->id,
+            'name' => $tabloProject->display_name,
+            'schoolName' => $tabloProject->school?->name,
+            'className' => $tabloProject->class_name,
+            'classYear' => $tabloProject->class_year,
+            'samplesCount' => $tabloProject->getMedia('samples')->count(),
+            'activePollsCount' => $tabloProject->polls()->active()->count(),
+        ];
+
+        if ($tabloProject->partner) {
+            $branding = $tabloProject->partner->getActiveBranding();
+            if ($branding) {
+                $projectData['branding'] = $branding;
+            }
+        }
+
         $response = [
             'user' => [
                 'id' => $tabloGuestUser->id,
@@ -81,15 +98,7 @@ class LoginTabloShareAction
                 'type' => 'tablo-guest',
                 'passwordSet' => true,
             ],
-            'project' => [
-                'id' => $tabloProject->id,
-                'name' => $tabloProject->display_name,
-                'schoolName' => $tabloProject->school?->name,
-                'className' => $tabloProject->class_name,
-                'classYear' => $tabloProject->class_year,
-                'samplesCount' => $tabloProject->getMedia('samples')->count(),
-                'activePollsCount' => $tabloProject->polls()->active()->count(),
-            ],
+            'project' => $projectData,
             'token' => $authToken,
             'tokenType' => 'share',
             'canFinalize' => false,
