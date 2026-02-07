@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Constants\TokenNames;
 use Closure;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -10,7 +11,7 @@ use Symfony\Component\HttpFoundation\Response;
  * Middleware: RequireFullAccess
  *
  * Ellenőrzi, hogy a felhasználó teljes jogosultsággal rendelkezik-e.
- * Csak kódos belépéssel (tablo-auth-token) rendelkező felhasználók férhetnek hozzá.
+ * Csak kódos belépéssel (TokenNames::TABLO_AUTH) rendelkező felhasználók férhetnek hozzá.
  * Share és preview tokennel rendelkezők 403 Forbidden-t kapnak.
  *
  * Használat:
@@ -38,7 +39,7 @@ class RequireFullAccess
 
         // Token típus ellenőrzése - kódos belépés és QR regisztráció engedélyezett
         $tokenName = $token->name;
-        $allowedTokens = ['tablo-auth-token', 'qr-registration'];
+        $allowedTokens = TokenNames::FULL_ACCESS_TOKENS;
 
         if (! in_array($tokenName, $allowedTokens)) {
             return response()->json([

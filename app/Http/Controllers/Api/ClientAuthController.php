@@ -7,6 +7,7 @@ use App\Http\Requests\Api\Client\ChangeClientPasswordRequest;
 use App\Http\Requests\Api\Client\LoginClientRequest;
 use App\Http\Requests\Api\Client\RegisterClientRequest;
 use App\Models\PartnerClient;
+use App\Models\TabloPartner;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -131,17 +132,7 @@ class ClientAuthController extends Controller
             ->where('status', '!=', 'draft')
             ->latest()
             ->get()
-            ->map(fn ($album) => [
-                'id' => $album->id,
-                'name' => $album->name,
-                'type' => $album->type,
-                'status' => $album->status,
-                'photosCount' => $album->photos_count,
-                'maxSelections' => $album->max_selections,
-                'minSelections' => $album->min_selections,
-                'isCompleted' => $album->isCompleted(),
-                'canDownload' => $album->canDownload(),
-            ]);
+            ->map(fn ($album) => $album->toClientArray(includeDownload: true));
 
         $response = [
             'success' => true,
@@ -165,12 +156,7 @@ class ClientAuthController extends Controller
             'loginType' => 'client',
         ];
 
-        if ($client->partner) {
-            $branding = $client->partner->getActiveBranding();
-            if ($branding) {
-                $response['branding'] = $branding;
-            }
-        }
+        TabloPartner::appendBranding($response, $client->partner);
 
         return response()->json($response);
     }
@@ -200,12 +186,7 @@ class ClientAuthController extends Controller
             'canRegister' => !$client->is_registered && $client->hasAlbumWithRegistrationAllowed(),
         ];
 
-        if ($client->partner) {
-            $branding = $client->partner->getActiveBranding();
-            if ($branding) {
-                $data['branding'] = $branding;
-            }
-        }
+        TabloPartner::appendBranding($data, $client->partner);
 
         return response()->json([
             'success' => true,

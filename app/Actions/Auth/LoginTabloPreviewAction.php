@@ -2,6 +2,8 @@
 
 namespace App\Actions\Auth;
 
+use App\Constants\TokenNames;
+use App\Models\TabloPartner;
 use App\Models\TabloProject;
 use App\Models\TabloProjectAccessLog;
 use App\Models\User;
@@ -42,7 +44,7 @@ class LoginTabloPreviewAction
 
         $tabloGuestUser->assignRole(User::ROLE_GUEST);
 
-        $tokenResult = $tabloGuestUser->createToken('tablo-preview-token');
+        $tokenResult = $tabloGuestUser->createToken(TokenNames::TABLO_PREVIEW);
         $tokenResult->accessToken->tablo_project_id = $tabloProject->id;
         $tokenResult->accessToken->save();
         $authToken = $tokenResult->plainTextToken;
@@ -57,12 +59,7 @@ class LoginTabloPreviewAction
             'activePollsCount' => $tabloProject->polls()->active()->count(),
         ];
 
-        if ($tabloProject->partner) {
-            $branding = $tabloProject->partner->getActiveBranding();
-            if ($branding) {
-                $projectData['branding'] = $branding;
-            }
-        }
+        TabloPartner::appendBranding($projectData, $tabloProject->partner);
 
         return response()->json([
             'user' => [

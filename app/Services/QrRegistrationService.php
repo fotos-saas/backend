@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Constants\TokenNames;
 use App\Enums\QrCodeType;
 use App\Models\QrRegistrationCode;
 use App\Models\TabloContact;
@@ -217,7 +218,7 @@ class QrRegistrationService
             // Create token with metadata
             $token = $this->authService->createTokenWithMetadata(
                 user: $user,
-                name: 'qr-registration',
+                name: TokenNames::QR_REGISTRATION,
                 loginMethod: 'qr_registration',
                 ipAddress: $ipAddress,
                 deviceName: $this->parseDeviceName($userAgent),

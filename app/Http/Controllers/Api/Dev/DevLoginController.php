@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\Dev;
 
+use App\Constants\TokenNames;
 use App\Http\Controllers\Api\Concerns\ResolvesPartner;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\DevLoginRequest;
@@ -138,7 +139,7 @@ class DevLoginController extends Controller
 
         $tabloGuestUser->assignRole(User::ROLE_GUEST);
 
-        $tokenResult = $tabloGuestUser->createToken('dev-tablo-token');
+        $tokenResult = $tabloGuestUser->createToken(TokenNames::DEV_TABLO);
         $tokenResult->accessToken->tablo_project_id = $project->id;
         $tokenResult->accessToken->save();
         $token = $tokenResult->plainTextToken;
@@ -206,16 +207,7 @@ class DevLoginController extends Controller
             ->where('status', '!=', 'draft')
             ->latest()
             ->get()
-            ->map(fn ($album) => [
-                'id' => $album->id,
-                'name' => $album->name,
-                'type' => $album->type,
-                'status' => $album->status,
-                'photosCount' => $album->photos_count,
-                'maxSelections' => $album->max_selections,
-                'minSelections' => $album->min_selections,
-                'isCompleted' => $album->isCompleted(),
-            ]);
+            ->map(fn ($album) => $album->toClientArray());
 
         return response()->json([
             'user' => [

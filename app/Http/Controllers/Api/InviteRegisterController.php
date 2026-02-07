@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Constants\TokenNames;
 use App\Http\Controllers\Controller;
 use App\Models\PartnerInvitation;
 use App\Models\User;
@@ -122,7 +123,7 @@ class InviteRegisterController extends Controller
             });
 
             // Token generálása
-            $token = $user->createToken('partner-auth-token')->plainTextToken;
+            $token = $user->createToken(TokenNames::PARTNER_AUTH)->plainTextToken;
 
             return response()->json([
                 'message' => 'Sikeres regisztráció!',

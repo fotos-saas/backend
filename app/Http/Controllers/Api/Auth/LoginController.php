@@ -2,12 +2,14 @@
 
 namespace App\Http\Controllers\Api\Auth;
 
+use App\Constants\TokenNames;
 use App\Http\Controllers\Api\Concerns\ResolvesPartner;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\LoginCodeRequest;
 use App\Http\Requests\Api\LoginRequest;
 use App\Models\LoginAudit;
 use App\Models\TabloGuestSession;
+use App\Models\TabloPartner;
 use App\Models\TabloProject;
 use App\Models\User;
 use App\Models\WorkSession;
@@ -87,7 +89,7 @@ class LoginController extends Controller
 
         $token = $this->authService->createTokenWithMetadata(
             user: $user,
-            name: 'auth-token',
+            name: TokenNames::AUTH,
             loginMethod: LoginAudit::METHOD_PASSWORD,
             ipAddress: $ipAddress,
             deviceName: $this->parseDeviceName($userAgent)
@@ -180,7 +182,7 @@ class LoginController extends Controller
 
         $workSession->users()->attach($guestUser->id);
 
-        $tokenResult = $guestUser->createToken('auth-token');
+        $tokenResult = $guestUser->createToken(TokenNames::AUTH);
         $tokenResult->accessToken->work_session_id = $workSession->id;
         $tokenResult->accessToken->save();
         $token = $tokenResult->plainTextToken;
@@ -221,7 +223,7 @@ class LoginController extends Controller
             $user->markFirstLogin();
         }
 
-        $authToken = $user->createToken('magic-link-login')->plainTextToken;
+        $authToken = $user->createToken(TokenNames::MAGIC_LINK)->plainTextToken;
 
         $response = [
             'message' => 'Sikeres bejelentkezés',
@@ -281,12 +283,7 @@ class LoginController extends Controller
             'contacts' => [],
         ];
 
-        if ($project->partner) {
-            $branding = $project->partner->getActiveBranding();
-            if ($branding) {
-                $projectData['branding'] = $branding;
-            }
-        }
+        TabloPartner::appendBranding($projectData, $project->partner);
 
         $response['project'] = $projectData;
         $response['tokenType'] = 'code';

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\Tablo;
 
+use App\Constants\TokenNames;
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\Api\Traits\ApiResponseTrait;
 use App\Models\TabloGuestSession;
@@ -70,12 +71,12 @@ abstract class BaseTabloController extends Controller
 
     /**
      * Kapcsolattartó-e a felhasználó (code token).
-     * A token name mezője alapján döntünk: 'tablo-auth-token' = contact
+     * A token name mezője alapján döntünk: TokenNames::TABLO_AUTH = contact
      */
     protected function isContact(Request $request): bool
     {
         $token = $this->getAccessToken($request);
-        return $token && $token->name === 'tablo-auth-token';
+        return $token && $token->name === TokenNames::TABLO_AUTH;
     }
 
     /**

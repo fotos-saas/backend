@@ -2,9 +2,11 @@
 
 namespace App\Actions\Auth;
 
+use App\Constants\TokenNames;
 use App\Enums\TabloProjectStatus;
 use App\Models\PartnerClient;
 use App\Models\TabloGuestSession;
+use App\Models\TabloPartner;
 use App\Models\TabloProject;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
@@ -53,7 +55,7 @@ class LoginTabloCodeAction
 
         $tabloGuestUser->assignRole(User::ROLE_GUEST);
 
-        $tokenResult = $tabloGuestUser->createToken('tablo-auth-token');
+        $tokenResult = $tabloGuestUser->createToken(TokenNames::TABLO_AUTH);
         $tokenResult->accessToken->tablo_project_id = $tabloProject->id;
         $tokenResult->accessToken->contact_id = $primaryContact?->id;
         $tokenResult->accessToken->save();
@@ -97,12 +99,7 @@ class LoginTabloCodeAction
             ]] : [],
         ];
 
-        if ($tabloProject->partner) {
-            $branding = $tabloProject->partner->getActiveBranding();
-            if ($branding) {
-                $projectData['branding'] = $branding;
-            }
-        }
+        TabloPartner::appendBranding($projectData, $tabloProject->partner);
 
         return response()->json([
             'user' => [
@@ -162,7 +159,7 @@ class LoginTabloCodeAction
         DB::table('personal_access_tokens')->insert([
             'tokenable_type' => PartnerClient::class,
             'tokenable_id' => $client->id,
-            'name' => 'client-auth-token',
+            'name' => TokenNames::CLIENT_AUTH,
             'token' => $hashedToken,
             'abilities' => json_encode(['client']),
             'partner_client_id' => $client->id,
@@ -174,16 +171,7 @@ class LoginTabloCodeAction
             ->where('status', '!=', 'draft')
             ->latest()
             ->get()
-            ->map(fn ($album) => [
-                'id' => $album->id,
-                'name' => $album->name,
-                'type' => $album->type,
-                'status' => $album->status,
-                'photosCount' => $album->photos_count,
-                'maxSelections' => $album->max_selections,
-                'minSelections' => $album->min_selections,
-                'isCompleted' => $album->isCompleted(),
-            ]);
+            ->map(fn ($album) => $album->toClientArray());
 
         $canRegister = $client->hasAlbumWithRegistrationAllowed();
 
@@ -208,12 +196,7 @@ class LoginTabloCodeAction
             'loginType' => 'client',
         ];
 
-        if ($client->partner) {
-            $branding = $client->partner->getActiveBranding();
-            if ($branding) {
-                $response['branding'] = $branding;
-            }
-        }
+        TabloPartner::appendBranding($response, $client->partner);
 
         return response()->json($response);
     }

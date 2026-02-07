@@ -158,6 +158,29 @@ class PartnerAlbum extends Model implements HasMedia
     }
 
     /**
+     * Kliens-oldali tömb reprezentáció (login/session response-okhoz).
+     */
+    public function toClientArray(bool $includeDownload = false): array
+    {
+        $data = [
+            'id' => $this->id,
+            'name' => $this->name,
+            'type' => $this->type,
+            'status' => $this->status,
+            'photosCount' => $this->photos_count,
+            'maxSelections' => $this->max_selections,
+            'minSelections' => $this->min_selections,
+            'isCompleted' => $this->isCompleted(),
+        ];
+
+        if ($includeDownload) {
+            $data['canDownload'] = $this->canDownload();
+        }
+
+        return $data;
+    }
+
+    /**
      * Check if album is completed
      */
     public function isCompleted(): bool

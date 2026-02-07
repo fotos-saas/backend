@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Constants\TokenNames;
 use App\Http\Controllers\Controller;
 use App\Models\Album;
 use App\Models\GuestSelection;
@@ -87,7 +88,7 @@ class ShareController extends Controller
             }
 
             // Generate Sanctum token for authentication
-            $sanctumToken = $guestUser->createToken('guest-access')->plainTextToken;
+            $sanctumToken = $guestUser->createToken(TokenNames::GUEST_ACCESS)->plainTextToken;
 
             return response()->json([
                 'type' => 'work_session',

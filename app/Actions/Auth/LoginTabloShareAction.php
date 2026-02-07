@@ -2,7 +2,9 @@
 
 namespace App\Actions\Auth;
 
+use App\Constants\TokenNames;
 use App\Enums\TabloProjectStatus;
+use App\Models\TabloPartner;
 use App\Models\TabloGuestSession;
 use App\Models\TabloProject;
 use App\Models\TabloProjectAccessLog;
@@ -68,7 +70,7 @@ class LoginTabloShareAction
 
         $tabloGuestUser->assignRole(User::ROLE_GUEST);
 
-        $tokenResult = $tabloGuestUser->createToken('tablo-share-token');
+        $tokenResult = $tabloGuestUser->createToken(TokenNames::TABLO_SHARE);
         $tokenResult->accessToken->tablo_project_id = $tabloProject->id;
         $tokenResult->accessToken->save();
         $authToken = $tokenResult->plainTextToken;
@@ -83,12 +85,7 @@ class LoginTabloShareAction
             'activePollsCount' => $tabloProject->polls()->active()->count(),
         ];
 
-        if ($tabloProject->partner) {
-            $branding = $tabloProject->partner->getActiveBranding();
-            if ($branding) {
-                $projectData['branding'] = $branding;
-            }
-        }
+        TabloPartner::appendBranding($projectData, $tabloProject->partner);
 
         $response = [
             'user' => [

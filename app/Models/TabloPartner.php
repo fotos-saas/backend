@@ -199,6 +199,19 @@ class TabloPartner extends Model
     }
 
     /**
+     * Branding hozzáfűzése egy response tömbhöz, ha elérhető.
+     */
+    public static function appendBranding(array &$data, ?self $partner): void
+    {
+        if ($partner) {
+            $branding = $partner->getActiveBranding();
+            if ($branding) {
+                $data['branding'] = $branding;
+            }
+        }
+    }
+
+    /**
      * Feature constants
      */
     public const FEATURE_CLIENT_ORDERS = 'client_orders';

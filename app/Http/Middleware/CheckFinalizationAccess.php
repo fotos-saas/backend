@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Constants\TokenNames;
 use Closure;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -10,7 +11,7 @@ use Symfony\Component\HttpFoundation\Response;
  * Middleware: CheckFinalizationAccess
  *
  * Ellenőrzi, hogy a felhasználó hozzáférhet-e a véglegesítés funkciókhoz.
- * Csak kódos belépéssel (tablo-auth-token) rendelkező felhasználók férhetnek hozzá.
+ * Csak kódos belépéssel (TokenNames::TABLO_AUTH) rendelkező felhasználók férhetnek hozzá.
  * Share és preview tokennel rendelkezők 403 Forbidden-t kapnak.
  */
 class CheckFinalizationAccess
@@ -34,7 +35,7 @@ class CheckFinalizationAccess
         // Token típus ellenőrzése
         // Engedélyezett: kódos belépés (tablo-auth-token) és QR regisztráció (qr-registration)
         $tokenName = $token->name;
-        $allowedTokens = ['tablo-auth-token', 'qr-registration'];
+        $allowedTokens = TokenNames::FULL_ACCESS_TOKENS;
 
         if (! in_array($tokenName, $allowedTokens)) {
             return response()->json([
