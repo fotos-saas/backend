@@ -15,6 +15,7 @@ use App\Http\Controllers\Api\Partner\PartnerAiSummaryController;
 use App\Http\Controllers\Api\Partner\PartnerSamplePackageController;
 use App\Http\Controllers\Api\Partner\PartnerSchoolController;
 use App\Http\Controllers\Api\Partner\TeamController as PartnerTeamController;
+use App\Http\Controllers\Api\Partner\PartnerBrandingController;
 use App\Http\Controllers\Api\PartnerClientController;
 use App\Http\Controllers\Api\PartnerOrderAlbumController;
 use App\Http\Controllers\Api\PartnerOrderAlbumPhotoController;
@@ -183,6 +184,18 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/projects/{projectId}/photos/assign', [PartnerPhotoController::class, 'assignPhotos']);
         Route::post('/projects/{projectId}/photos/assign-to-talon', [PartnerPhotoController::class, 'assignToTalon']);
         Route::get('/projects/{projectId}/photos/talon', [PartnerPhotoController::class, 'getTalonPhotos']);
+
+        // Branding (Márkajelzés)
+        Route::prefix('branding')->middleware('partner.feature:branding')->group(function () {
+            Route::get('/', [PartnerBrandingController::class, 'show']);
+            Route::post('/', [PartnerBrandingController::class, 'update']);
+            Route::post('/logo', [PartnerBrandingController::class, 'uploadLogo']);
+            Route::post('/favicon', [PartnerBrandingController::class, 'uploadFavicon']);
+            Route::post('/og-image', [PartnerBrandingController::class, 'uploadOgImage']);
+            Route::delete('/logo', [PartnerBrandingController::class, 'deleteLogo']);
+            Route::delete('/favicon', [PartnerBrandingController::class, 'deleteFavicon']);
+            Route::delete('/og-image', [PartnerBrandingController::class, 'deleteOgImage']);
+        });
 
         // Client Orders (Fotós Megrendelések)
         Route::prefix('orders')->middleware('partner.feature:client_orders')->group(function () {

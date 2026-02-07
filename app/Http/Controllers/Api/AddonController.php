@@ -85,7 +85,11 @@ class AddonController extends Controller
             ], 404);
         }
 
-        if (! $partner->stripe_subscription_id) {
+        // Ingyenes addonokhoz nem kell Stripe előfizetés
+        $addonConfig = config("plans.addons.{$key}");
+        $isFree = $addonConfig['free'] ?? false;
+
+        if (! $isFree && ! $partner->stripe_subscription_id) {
             return response()->json([
                 'message' => 'Aktív előfizetés szükséges az addon vásárlásához.',
             ], 400);

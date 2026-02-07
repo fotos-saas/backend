@@ -115,6 +115,14 @@ class Partner extends Model
     }
 
     /**
+     * Get the partner's branding settings
+     */
+    public function branding(): HasOne
+    {
+        return $this->hasOne(PartnerBranding::class);
+    }
+
+    /**
      * Get the partner's addons
      */
     public function addons(): HasMany

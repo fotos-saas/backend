@@ -35,11 +35,27 @@ class AddonService
         $addonsConfig = config('plans.addons', []);
 
         foreach ($addonsConfig as $key => $addon) {
-            // Addon csak Alap csomaghoz vásárolható
-            $canPurchase = $partner->plan === 'alap' && ! in_array($key, $activeAddons);
+            $availableFor = $addon['available_for'] ?? [];
 
-            // Iskola/Stúdió esetén automatikusan "aktív" (benne van a csomagban)
-            $isIncludedInPlan = in_array($partner->plan, ['iskola', 'studio']);
+            // Az addon elérhető-e a partner csomagjához?
+            $isAvailableForPlan = in_array($partner->plan, $availableFor);
+
+            // Studio/VIP: ha az addon feature-jei benne vannak a csomagban
+            $isIncludedInPlan = false;
+            $planFeatures = config("plans.plans.{$partner->plan}.feature_keys", []);
+            foreach ($addon['includes'] ?? [] as $feature) {
+                if (in_array($feature, $planFeatures)) {
+                    $isIncludedInPlan = true;
+                    break;
+                }
+            }
+
+            // Csak akkor jelenik meg, ha elérhető addonként VAGY csomagban benne van
+            if (! $isAvailableForPlan && ! $isIncludedInPlan) {
+                continue;
+            }
+
+            $canPurchase = $isAvailableForPlan && ! in_array($key, $activeAddons) && ! $isIncludedInPlan;
 
             $addons[$key] = [
                 'key' => $key,
@@ -51,6 +67,7 @@ class AddonService
                 'isActive' => in_array($key, $activeAddons) || $isIncludedInPlan,
                 'isIncludedInPlan' => $isIncludedInPlan,
                 'canPurchase' => $canPurchase,
+                'isFree' => $addon['free'] ?? false,
             ];
         }
 
@@ -88,14 +105,38 @@ class AddonService
             throw new \Exception('Ismeretlen addon: ' . $addonKey);
         }
 
-        if ($partner->plan !== 'alap') {
-            throw new \Exception('Addon csak Alap csomaghoz vásárolható.');
+        $addonConfig = $addonsConfig[$addonKey];
+        $availableFor = $addonConfig['available_for'] ?? [];
+
+        if (! in_array($partner->plan, $availableFor)) {
+            throw new \Exception('Ez az addon nem elérhető a jelenlegi csomagodhoz.');
         }
 
         if ($partner->hasAddon($addonKey)) {
             throw new \Exception('Ez az addon már aktív.');
         }
 
+        $isFree = $addonConfig['free'] ?? false;
+
+        // Ingyenes addon: Stripe bypass
+        if ($isFree) {
+            PartnerAddon::create([
+                'partner_id' => $partner->id,
+                'addon_key' => $addonKey,
+                'stripe_subscription_item_id' => null,
+                'status' => 'active',
+                'activated_at' => now(),
+            ]);
+
+            Log::info('Partner free addon activated', [
+                'partner_id' => $partner->id,
+                'addon_key' => $addonKey,
+            ]);
+
+            return 'free';
+        }
+
+        // Fizetős addon: Stripe integráció
         if (! $partner->stripe_subscription_id) {
             throw new \Exception('Nincs aktív előfizetés.');
         }
@@ -116,7 +157,7 @@ class AddonService
         ]);
 
         // Addon rekord létrehozása
-        $addon = PartnerAddon::create([
+        PartnerAddon::create([
             'partner_id' => $partner->id,
             'addon_key' => $addonKey,
             'stripe_subscription_item_id' => $subscriptionItem->id,
