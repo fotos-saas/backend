@@ -2,159 +2,75 @@
 
 namespace App\Http\Controllers\Api;
 
-use App\Helpers\QueryHelper;
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\Api\Partner\Traits\PartnerAuthTrait;
 use App\Http\Requests\Api\Partner\ExtendExpiryRequest;
 use App\Http\Requests\Api\Partner\StoreOrderAlbumRequest;
 use App\Http\Requests\Api\Partner\UpdateOrderAlbumRequest;
 use App\Models\PartnerAlbum;
-use App\Models\PartnerClient;
+use App\Services\Partner\OrderAlbumService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 /**
  * Partner Order Album Controller
  *
- * Manages album CRUD and state management for partner clients.
+ * Album CRUD és állapotkezelés partner ügyfelekhez.
+ * Üzleti logika: OrderAlbumService.
  */
 class PartnerOrderAlbumController extends Controller
 {
     use PartnerAuthTrait;
 
+    public function __construct(
+        private readonly OrderAlbumService $albumService,
+    ) {}
+
     /**
-     * List all albums for the partner.
+     * Albumok listázása.
      */
     public function index(Request $request): JsonResponse
     {
         $partnerId = $this->getPartnerIdOrFail();
 
-        $perPage = min((int) $request->input('per_page', 15), 50);
-        $search = $request->input('search');
-        $clientId = $request->input('client_id');
-        $type = $request->input('type');
-        $status = $request->input('status');
+        $albums = $this->albumService->getFilteredAlbums($partnerId, $request);
 
-        $query = PartnerAlbum::byPartner($partnerId)
-            ->with('client');
-
-        if ($clientId) {
-            $query->byClient((int) $clientId);
-        }
-
-        if ($type) {
-            $query->ofType($type);
-        }
-
-        if ($status) {
-            $query->withStatus($status);
-        }
-
-        if ($search) {
-            // SECURITY: QueryHelper::safeLikePattern használata SQL injection ellen
-            $pattern = QueryHelper::safeLikePattern($search);
-            $query->where(function ($q) use ($pattern) {
-                $q->where('name', 'ILIKE', $pattern)
-                    ->orWhereHas('client', function ($cq) use ($pattern) {
-                        $cq->where('name', 'ILIKE', $pattern);
-                    });
-            });
-        }
-
-        $albums = $query->orderBy('created_at', 'desc')->paginate($perPage);
-
-        $albums->getCollection()->transform(fn ($album) => [
-            'id' => $album->id,
-            'name' => $album->name,
-            'type' => $album->type,
-            'status' => $album->status,
-            'client' => [
-                'id' => $album->client->id,
-                'name' => $album->client->name,
-            ],
-            'photosCount' => $album->photos_count,
-            'maxSelections' => $album->max_selections,
-            'minSelections' => $album->min_selections,
-            'expiresAt' => $album->expires_at?->toIso8601String(),
-            'finalizedAt' => $album->finalized_at?->toIso8601String(),
-            'allowDownload' => $album->allow_download,
-            'createdAt' => $album->created_at->toIso8601String(),
-        ]);
+        $albums->getCollection()->transform(
+            fn ($album) => $this->albumService->formatAlbumListItem($album)
+        );
 
         return response()->json($albums);
     }
 
     /**
-     * Get a single album with photos.
+     * Album részletes adatai.
      */
     public function show(int $id): JsonResponse
     {
         $partnerId = $this->getPartnerIdOrFail();
 
-        $album = PartnerAlbum::byPartner($partnerId)
-            ->with(['client', 'progress'])
-            ->findOrFail($id);
-
-        return response()->json([
-            'id' => $album->id,
-            'name' => $album->name,
-            'type' => $album->type,
-            'status' => $album->status,
-            'client' => [
-                'id' => $album->client->id,
-                'name' => $album->client->name,
-                'email' => $album->client->email,
-                'phone' => $album->client->phone,
-            ],
-            'photos' => $album->getPhotosWithUrls(),
-            'photosCount' => $album->photos_count,
-            'maxSelections' => $album->max_selections,
-            'minSelections' => $album->min_selections,
-            'maxRetouchPhotos' => $album->max_retouch_photos,
-            'settings' => $album->settings,
-            'progress' => $album->progress ? [
-                'currentStep' => $album->progress->current_step,
-                'stepName' => $album->progress->getStepName(),
-                'progressPercent' => $album->progress->getProgressPercentage(),
-                'claimedIds' => $album->progress->getClaimedIds(),
-                'retouchIds' => $album->progress->getRetouchIds(),
-                'tabloId' => $album->progress->getTabloId(),
-            ] : null,
-            'expiresAt' => $album->expires_at?->toIso8601String(),
-            'finalizedAt' => $album->finalized_at?->toIso8601String(),
-            'allowDownload' => $album->allow_download,
-            'createdAt' => $album->created_at->toIso8601String(),
-            'updatedAt' => $album->updated_at->toIso8601String(),
-        ]);
+        return response()->json(
+            $this->albumService->getAlbumDetail($partnerId, $id)
+        );
     }
 
     /**
-     * Create a new album.
+     * Új album létrehozása.
      */
     public function store(StoreOrderAlbumRequest $request): JsonResponse
     {
         $partnerId = $this->getPartnerIdOrFail();
 
-        // Verify client belongs to partner
-        $client = PartnerClient::byPartner($partnerId)->find($request->input('client_id'));
-        if (!$client) {
+        $result = $this->albumService->createAlbum($partnerId, $request->validated());
+
+        if ($result['error']) {
             return response()->json([
                 'success' => false,
-                'message' => 'A megadott ügyfél nem a te partnerekhez tartozik.',
-            ], 403);
+                'message' => $result['error'],
+            ], $result['errorCode']);
         }
 
-        $album = PartnerAlbum::create([
-            'tablo_partner_id' => $partnerId,
-            'partner_client_id' => $client->id,
-            'name' => $request->input('name'),
-            'type' => $request->input('type'),
-            'status' => PartnerAlbum::STATUS_DRAFT,
-            'max_selections' => $request->input('max_selections'),
-            'min_selections' => $request->input('min_selections'),
-            'max_retouch_photos' => $request->input('max_retouch_photos', 5),
-            'expires_at' => now()->addMonth(), // Automatikus 1 hónap lejárat
-        ]);
+        $album = $result['album'];
 
         return response()->json([
             'success' => true,
@@ -171,7 +87,7 @@ class PartnerOrderAlbumController extends Controller
     }
 
     /**
-     * Update an album.
+     * Album módosítása.
      */
     public function update(UpdateOrderAlbumRequest $request, int $id): JsonResponse
     {
@@ -179,7 +95,6 @@ class PartnerOrderAlbumController extends Controller
 
         $album = PartnerAlbum::byPartner($partnerId)->findOrFail($id);
 
-        // Can only update draft albums
         if (!$album->isDraft()) {
             return response()->json([
                 'success' => false,
@@ -208,7 +123,7 @@ class PartnerOrderAlbumController extends Controller
     }
 
     /**
-     * Delete an album.
+     * Album törlése.
      */
     public function destroy(int $id): JsonResponse
     {
@@ -216,7 +131,6 @@ class PartnerOrderAlbumController extends Controller
 
         $album = PartnerAlbum::byPartner($partnerId)->findOrFail($id);
 
-        // Cannot delete completed albums
         if ($album->isCompleted()) {
             return response()->json([
                 'success' => false,
@@ -224,9 +138,7 @@ class PartnerOrderAlbumController extends Controller
             ], 422);
         }
 
-        // Delete all media
         $album->clearMediaCollection('photos');
-
         $album->delete();
 
         return response()->json([
@@ -236,82 +148,35 @@ class PartnerOrderAlbumController extends Controller
     }
 
     /**
-     * Activate album (change status from draft to claiming).
+     * Album aktiválása (draft → claiming).
      */
     public function activate(int $id): JsonResponse
     {
-        $partnerId = $this->getPartnerIdOrFail();
+        $album = $this->findAlbumForPartner($id);
+        $result = $this->albumService->activate($album);
 
-        $album = PartnerAlbum::byPartner($partnerId)->findOrFail($id);
-
-        if (!$album->isDraft()) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Csak piszkozat státuszú album aktiválható.',
-            ], 422);
-        }
-
-        // Check if album has photos
-        if ($album->photos_count === 0) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Az album aktiválásához legalább egy kép feltöltése szükséges.',
-            ], 422);
-        }
-
-        $album->update(['status' => PartnerAlbum::STATUS_CLAIMING]);
-
-        return response()->json([
-            'success' => true,
-            'message' => 'Album sikeresen aktiválva',
-            'data' => [
-                'id' => $album->id,
-                'status' => $album->status,
-            ],
-        ]);
+        return $this->stateChangeResponse($result, $album);
     }
 
     /**
-     * Deactivate album (change status from claiming back to draft).
+     * Album deaktiválása (claiming → draft).
      */
     public function deactivate(int $id): JsonResponse
     {
-        $partnerId = $this->getPartnerIdOrFail();
+        $album = $this->findAlbumForPartner($id);
+        $result = $this->albumService->deactivate($album);
 
-        $album = PartnerAlbum::byPartner($partnerId)->findOrFail($id);
-
-        // Only claiming status can be deactivated
-        if ($album->status !== PartnerAlbum::STATUS_CLAIMING) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Csak kiválasztás státuszú album deaktiválható.',
-            ], 422);
-        }
-
-        $album->update(['status' => PartnerAlbum::STATUS_DRAFT]);
-
-        return response()->json([
-            'success' => true,
-            'message' => 'Album sikeresen deaktiválva',
-            'data' => [
-                'id' => $album->id,
-                'status' => $album->status,
-            ],
-        ]);
+        return $this->stateChangeResponse($result, $album);
     }
 
     /**
-     * Extend album expiry date.
+     * Album lejárat meghosszabbítása.
      */
     public function extendExpiry(ExtendExpiryRequest $request, int $id): JsonResponse
     {
-        $partnerId = $this->getPartnerIdOrFail();
+        $album = $this->findAlbumForPartner($id);
 
-        $album = PartnerAlbum::byPartner($partnerId)->findOrFail($id);
-
-        $album->update([
-            'expires_at' => $request->input('expires_at'),
-        ]);
+        $album->update(['expires_at' => $request->input('expires_at')]);
 
         return response()->json([
             'success' => true,
@@ -323,56 +188,66 @@ class PartnerOrderAlbumController extends Controller
     }
 
     /**
-     * Reopen album (change status from completed back to claiming).
+     * Album újranyitása (completed → claiming).
      */
     public function reopen(int $id): JsonResponse
     {
-        $partnerId = $this->getPartnerIdOrFail();
+        $album = $this->findAlbumForPartner($id);
+        $result = $this->albumService->reopen($album);
 
-        $album = PartnerAlbum::byPartner($partnerId)->findOrFail($id);
+        return $this->stateChangeResponse($result, $album);
+    }
 
-        // Only completed albums can be reopened
-        if ($album->status !== PartnerAlbum::STATUS_COMPLETED) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Csak befejezett album nyitható újra.',
-            ], 422);
-        }
-
-        $album->update([
-            'status' => PartnerAlbum::STATUS_CLAIMING,
-            'finalized_at' => null,
-        ]);
+    /**
+     * Letöltés engedélyezés/tiltás váltása.
+     */
+    public function toggleDownload(int $id): JsonResponse
+    {
+        $album = $this->findAlbumForPartner($id);
+        $allowDownload = $this->albumService->toggleDownload($album);
 
         return response()->json([
             'success' => true,
-            'message' => 'Album sikeresen újranyitva',
+            'message' => $allowDownload ? 'Letöltés engedélyezve' : 'Letöltés letiltva',
             'data' => [
                 'id' => $album->id,
-                'status' => $album->status,
+                'allowDownload' => $allowDownload,
             ],
         ]);
     }
 
+    // ============================================
+    // PRIVATE HELPER METÓDUSOK
+    // ============================================
+
     /**
-     * Toggle download permission for album.
+     * Album lekérése a partner scope-jával.
      */
-    public function toggleDownload(int $id): JsonResponse
+    private function findAlbumForPartner(int $albumId): PartnerAlbum
     {
         $partnerId = $this->getPartnerIdOrFail();
 
-        $album = PartnerAlbum::byPartner($partnerId)->findOrFail($id);
+        return PartnerAlbum::byPartner($partnerId)->findOrFail($albumId);
+    }
 
-        $album->update([
-            'allow_download' => !$album->allow_download,
-        ]);
+    /**
+     * Egységes válasz státuszváltásokhoz.
+     */
+    private function stateChangeResponse(array $result, PartnerAlbum $album): JsonResponse
+    {
+        if (!$result['success']) {
+            return response()->json([
+                'success' => false,
+                'message' => $result['message'],
+            ], 422);
+        }
 
         return response()->json([
             'success' => true,
-            'message' => $album->allow_download ? 'Letöltés engedélyezve' : 'Letöltés letiltva',
+            'message' => $result['message'],
             'data' => [
                 'id' => $album->id,
-                'allowDownload' => $album->allow_download,
+                'status' => $album->status,
             ],
         ]);
     }
