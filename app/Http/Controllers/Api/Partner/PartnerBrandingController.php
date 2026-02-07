@@ -89,9 +89,10 @@ class PartnerBrandingController extends Controller
     public function uploadLogo(Request $request): JsonResponse
     {
         $request->validate([
-            'logo' => ['required', 'image', 'max:2048'],
+            'logo' => ['required', 'file', 'mimes:png,jpg,jpeg,svg,svgz', 'max:2048'],
         ]);
 
+        $this->validateSvgSafety($request, 'logo');
         $branding = $this->getOrCreateBranding($request);
 
         $branding->addMediaFromRequest('logo')
@@ -109,9 +110,10 @@ class PartnerBrandingController extends Controller
     public function uploadFavicon(Request $request): JsonResponse
     {
         $request->validate([
-            'favicon' => ['required', 'image', 'max:512'],
+            'favicon' => ['required', 'file', 'mimes:png,jpg,jpeg,svg,svgz', 'max:512'],
         ]);
 
+        $this->validateSvgSafety($request, 'favicon');
         $branding = $this->getOrCreateBranding($request);
 
         $branding->addMediaFromRequest('favicon')
@@ -129,9 +131,10 @@ class PartnerBrandingController extends Controller
     public function uploadOgImage(Request $request): JsonResponse
     {
         $request->validate([
-            'og_image' => ['required', 'image', 'max:5120'],
+            'og_image' => ['required', 'file', 'mimes:png,jpg,jpeg,svg,svgz', 'max:5120'],
         ]);
 
+        $this->validateSvgSafety($request, 'og_image');
         $branding = $this->getOrCreateBranding($request);
 
         $branding->addMediaFromRequest('og_image')
@@ -183,6 +186,21 @@ class PartnerBrandingController extends Controller
         }
 
         return response()->json(['message' => 'OG kép törölve.']);
+    }
+
+    private function validateSvgSafety(Request $request, string $field): void
+    {
+        $file = $request->file($field);
+        if (! $file || ! in_array($file->getClientOriginalExtension(), ['svg', 'svgz'])) {
+            return;
+        }
+
+        $content = file_get_contents($file->getRealPath());
+        $dangerous = preg_match('/<script[\s>]|on\w+\s*=|javascript:|data:\s*text/i', $content);
+
+        if ($dangerous) {
+            abort(422, 'Az SVG fájl nem biztonságos tartalmat tartalmaz.');
+        }
     }
 
     private function getOrCreateBranding(Request $request): PartnerBranding
