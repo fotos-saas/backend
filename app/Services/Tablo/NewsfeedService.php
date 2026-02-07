@@ -178,6 +178,44 @@ class NewsfeedService
     }
 
     /**
+     * Poszt frissítése + új médiák feltöltése média limit ellenőrzéssel.
+     *
+     * @throws \InvalidArgumentException  Ha a média limit túllépve
+     */
+    public function updatePostWithMedia(TabloNewsfeedPost $post, array $data, array $mediaFiles = []): TabloNewsfeedPost
+    {
+        $post->load('media');
+
+        // Média limit ellenőrzés
+        if (! empty($mediaFiles)) {
+            $existingMediaCount = $post->media->count();
+            $newMediaCount = count($mediaFiles);
+
+            if ($existingMediaCount + $newMediaCount > self::MAX_MEDIA_COUNT) {
+                $available = self::MAX_MEDIA_COUNT - $existingMediaCount;
+                throw new \InvalidArgumentException(
+                    "Maximum " . self::MAX_MEDIA_COUNT . " média csatolható. Jelenlegi: {$existingMediaCount}, hozzáadható: {$available}"
+                );
+            }
+        }
+
+        // Poszt adatok frissítése
+        $post = $this->updatePost($post, $data);
+
+        // Új médiák feltöltése
+        if (! empty($mediaFiles)) {
+            $currentSortOrder = $post->media->count();
+            foreach ($mediaFiles as $file) {
+                $this->uploadMedia($post, $file, $currentSortOrder);
+                $currentSortOrder++;
+            }
+            $post = $post->fresh(['media']);
+        }
+
+        return $post;
+    }
+
+    /**
      * Poszt törlése
      */
     public function deletePost(TabloNewsfeedPost $post): void

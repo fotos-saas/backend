@@ -4,6 +4,8 @@ namespace App\Http\Controllers\Api\Tablo;
 
 use App\Http\Controllers\Api\Tablo\Traits\NewsfeedHelperTrait;
 use App\Http\Controllers\Api\Tablo\Traits\ResolvesTabloProject;
+use App\Http\Requests\Api\Tablo\StoreNewsfeedPostRequest;
+use App\Http\Requests\Api\Tablo\UpdateNewsfeedPostRequest;
 use App\Models\TabloNewsfeedMedia;
 use App\Models\TabloNewsfeedPost;
 use App\Services\Tablo\NewsfeedService;
@@ -44,7 +46,6 @@ class NewsfeedPostController extends BaseTabloController
 
         $posts = $this->newsfeedService->getPosts($project, $filters);
 
-        // Get current user info for like status
         [$currentUserType, $currentUserId] = $this->getCurrentUserInfo($request);
 
         return $this->successResponse(
@@ -89,10 +90,8 @@ class NewsfeedPostController extends BaseTabloController
             return $post;
         }
 
-        // Load relations
         $post->load(['media', 'comments']);
 
-        // Get current user info
         [$currentUserType, $currentUserId] = $this->getCurrentUserInfo($request);
 
         return $this->successResponse(
@@ -104,47 +103,26 @@ class NewsfeedPostController extends BaseTabloController
      * Create new post.
      * POST /api/tablo-frontend/newsfeed
      */
-    public function store(Request $request): JsonResponse
+    public function store(StoreNewsfeedPostRequest $request): JsonResponse
     {
-        $validated = $request->validate([
-            'post_type' => 'required|in:announcement,event',
-            'title' => 'required|string|max:255|min:3',
-            'content' => 'nullable|string|max:5000',
-            'event_date' => 'required_if:post_type,event|nullable|date|after:today',
-            'event_time' => 'nullable|date_format:H:i',
-            'event_location' => 'nullable|string|max:255',
-            'media' => 'nullable|array|max:5',
-            'media.*' => 'file|mimes:jpg,jpeg,png,gif,webp,mp4|max:10240',
-        ], [
-            'title.required' => 'A cím megadása kötelező.',
-            'title.min' => 'A cím legalább 3 karakter legyen.',
-            'event_date.required_if' => 'Eseménynél a dátum megadása kötelező.',
-            'event_date.after' => 'Az esemény dátuma jövőbeli kell legyen.',
-            'media.max' => 'Maximum 5 fájl csatolható.',
-            'media.*.max' => 'A fájl mérete maximum 10MB lehet.',
-        ]);
-
         $project = $this->getProjectOrFail($request);
         if ($project instanceof JsonResponse) {
             return $project;
         }
 
-        // Get author info
         [$authorType, $authorId] = $this->getAuthorInfo($request);
 
         if (! $authorId) {
             return $this->unauthorizedResponse('Hiányzó felhasználó azonosító.');
         }
 
-        $mediaFiles = $request->file('media', []);
-
         try {
             $post = $this->newsfeedService->createPost(
                 $project,
-                $validated,
+                $request->validated(),
                 $authorType,
                 $authorId,
-                $mediaFiles
+                $request->file('media', [])
             );
 
             return $this->successResponse(
@@ -161,20 +139,8 @@ class NewsfeedPostController extends BaseTabloController
      * Update post.
      * PUT/POST /api/tablo-frontend/newsfeed/{id}
      */
-    public function update(Request $request, int $id): JsonResponse
+    public function update(UpdateNewsfeedPostRequest $request, int $id): JsonResponse
     {
-        $validated = $request->validate([
-            'title' => 'string|max:255|min:3',
-            'content' => 'nullable|string|max:5000',
-            'event_date' => 'nullable|date',
-            'event_time' => 'nullable|date_format:H:i',
-            'event_location' => 'nullable|string|max:255',
-            'media' => 'nullable|array',
-            'media.*' => 'file|mimes:jpg,jpeg,png,gif,webp,mp4|max:10240',
-        ], [
-            'media.*.max' => 'A fájl mérete maximum 10MB lehet.',
-        ]);
-
         $post = $this->findForProject(
             TabloNewsfeedPost::class,
             $id,
@@ -187,9 +153,7 @@ class NewsfeedPostController extends BaseTabloController
             return $post;
         }
 
-        $post->load('media');
-
-        // Check permissions
+        // Jogosultság ellenőrzés
         [$authorType, $authorId] = $this->getAuthorInfo($request);
         $isAdmin = $this->isContact($request);
 
@@ -197,41 +161,20 @@ class NewsfeedPostController extends BaseTabloController
             return $this->forbiddenResponse('Nincs jogosultságod szerkeszteni.');
         }
 
-        // Média limit ellenőrzés
-        $mediaFiles = $request->file('media', []);
-        $existingMediaCount = $post->media->count();
-        $newMediaCount = count($mediaFiles);
-        $maxMediaCount = 5;
-
-        if ($existingMediaCount + $newMediaCount > $maxMediaCount) {
-            $available = $maxMediaCount - $existingMediaCount;
-
-            return $this->validationErrorResponse(
-                "Maximum {$maxMediaCount} média csatolható. Jelenlegi: {$existingMediaCount}, hozzáadható: {$available}"
+        try {
+            $post = $this->newsfeedService->updatePostWithMedia(
+                $post,
+                $request->validated(),
+                $request->file('media', [])
             );
+
+            return $this->successResponse(
+                $this->formatPost($post, $authorType, $authorId),
+                'Bejegyzés sikeresen frissítve!'
+            );
+        } catch (\InvalidArgumentException $e) {
+            return $this->validationErrorResponse($e->getMessage());
         }
-
-        // Poszt adatok frissítése
-        $post = $this->newsfeedService->updatePost($post, $validated);
-
-        // Új médiák feltöltése
-        if (! empty($mediaFiles)) {
-            $currentSortOrder = $existingMediaCount;
-            foreach ($mediaFiles as $file) {
-                try {
-                    $this->newsfeedService->uploadMedia($post, $file, $currentSortOrder);
-                    $currentSortOrder++;
-                } catch (\InvalidArgumentException $e) {
-                    return $this->validationErrorResponse($e->getMessage());
-                }
-            }
-            $post = $post->fresh(['media']);
-        }
-
-        return $this->successResponse(
-            $this->formatPost($post, $authorType, $authorId),
-            'Bejegyzés sikeresen frissítve!'
-        );
     }
 
     /**
@@ -252,7 +195,6 @@ class NewsfeedPostController extends BaseTabloController
             return $post;
         }
 
-        // Check permissions
         [$authorType, $authorId] = $this->getAuthorInfo($request);
         $isAdmin = $this->isContact($request);
 
@@ -271,7 +213,6 @@ class NewsfeedPostController extends BaseTabloController
      */
     public function pin(Request $request, int $id): JsonResponse
     {
-        // Only contact (admin) can pin
         if (! $this->isContact($request)) {
             return $this->forbiddenResponse('Nincs jogosultságod.');
         }
@@ -299,7 +240,6 @@ class NewsfeedPostController extends BaseTabloController
      */
     public function unpin(Request $request, int $id): JsonResponse
     {
-        // Only contact (admin) can unpin
         if (! $this->isContact($request)) {
             return $this->forbiddenResponse('Nincs jogosultságod.');
         }
@@ -339,7 +279,6 @@ class NewsfeedPostController extends BaseTabloController
             return $media;
         }
 
-        // Jogosultság ellenőrzés
         [$authorType, $authorId] = $this->getAuthorInfo($request);
         $isAdmin = $this->isContact($request);
         $post = $media->post;
