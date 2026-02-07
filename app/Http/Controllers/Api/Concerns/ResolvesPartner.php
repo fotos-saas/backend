@@ -77,6 +77,9 @@ trait ResolvesPartner
 
     /**
      * Tulajdonos user ID feloldása csapattag alapján.
+     *
+     * Priority: TabloPartner.partner_id FK → Partner.user_id
+     * Fallback: TabloPartner.email → User.email → Partner.user_id
      */
     private function resolveOwnerUserId(int $userId): ?int
     {
@@ -88,7 +91,17 @@ trait ResolvesPartner
 
         $tabloPartner = TabloPartner::find($user->tablo_partner_id);
 
-        if (! $tabloPartner || ! $tabloPartner->email) {
+        if (! $tabloPartner) {
+            return null;
+        }
+
+        // 1. Direct FK: partner_id → Partner → user_id
+        if ($tabloPartner->subscriptionPartner) {
+            return $tabloPartner->subscriptionPartner->user_id;
+        }
+
+        // 2. Fallback: email match (legacy)
+        if (! $tabloPartner->email) {
             return null;
         }
 

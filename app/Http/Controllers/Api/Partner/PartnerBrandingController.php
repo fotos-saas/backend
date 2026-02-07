@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\Partner;
 
+use App\Http\Controllers\Api\Concerns\ResolvesPartner;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Partner\UpdateBrandingRequest;
 use App\Models\PartnerBranding;
@@ -18,15 +19,27 @@ use Illuminate\Http\Request;
  */
 class PartnerBrandingController extends Controller
 {
+    use ResolvesPartner;
+
     /**
      * GET /api/partner/branding
+     *
+     * Csapattagok (designer, marketer, stb.) is lekérhetik a branding adatokat.
+     * A partner feloldása: saját Partner → csapattag fallback (TabloPartner → partner_id FK → Partner).
      */
     public function show(Request $request): JsonResponse
     {
-        $partner = $request->user()->partner;
+        $user = $request->user();
+        $partner = $this->resolvePartner($user->id);
+
+        // Ha nem találtuk ResolvesPartner-rel (email mismatch), próbáljuk az új FK-n keresztül
+        if (! $partner && $user->tablo_partner_id) {
+            $tabloPartner = \App\Models\TabloPartner::find($user->tablo_partner_id);
+            $partner = $tabloPartner?->subscriptionPartner;
+        }
 
         if (! $partner) {
-            return response()->json(['message' => 'Partner fiók nem található.'], 404);
+            return response()->json(['branding' => null]);
         }
 
         $branding = $partner->branding;

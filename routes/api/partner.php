@@ -185,9 +185,9 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/projects/{projectId}/photos/assign-to-talon', [PartnerPhotoController::class, 'assignToTalon']);
         Route::get('/projects/{projectId}/photos/talon', [PartnerPhotoController::class, 'getTalonPhotos']);
 
-        // Branding (Márkajelzés)
+        // Branding (Márkajelzés) - READ: mindenki (csapattagok is), WRITE: csak feature gate-tel
+        Route::get('/branding', [PartnerBrandingController::class, 'show']);
         Route::prefix('branding')->middleware('partner.feature:branding')->group(function () {
-            Route::get('/', [PartnerBrandingController::class, 'show']);
             Route::post('/', [PartnerBrandingController::class, 'update']);
             Route::post('/logo', [PartnerBrandingController::class, 'uploadLogo']);
             Route::post('/favicon', [PartnerBrandingController::class, 'uploadFavicon']);

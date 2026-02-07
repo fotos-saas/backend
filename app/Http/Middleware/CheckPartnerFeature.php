@@ -143,13 +143,11 @@ class CheckPartnerFeature
             return $next($request);
         }
 
-        // For forum/polls, check subscriber Partner
-        if (in_array($feature, ['forum', 'polls'])) {
-            $subscriberPartner = $this->findSubscriberPartner($tabloPartner);
+        // Check subscriber Partner for delegated features (forum, polls, branding, client_orders)
+        $subscriberPartner = $this->findSubscriberPartner($tabloPartner);
 
-            if ($subscriberPartner && $subscriberPartner->hasFeature($feature)) {
-                return $next($request);
-            }
+        if ($subscriberPartner && $subscriberPartner->hasFeature($feature)) {
+            return $next($request);
         }
 
         return response()->json([
@@ -161,11 +159,16 @@ class CheckPartnerFeature
     /**
      * Find the subscriber Partner associated with a TabloPartner
      *
-     * The connection is: TabloPartner → Users → Partner (via user_id)
+     * Priority: direct FK (partner_id) → Users → Partner (via user_id)
      */
     private function findSubscriberPartner(TabloPartner $tabloPartner): ?Partner
     {
-        // Find a User that belongs to this TabloPartner and has a Partner subscription
+        // 1. Direct FK (new: tablo_partners.partner_id → partners.id)
+        if ($tabloPartner->subscriptionPartner) {
+            return $tabloPartner->subscriptionPartner;
+        }
+
+        // 2. Fallback: Find a User that belongs to this TabloPartner and has a Partner subscription
         $userWithSubscription = $tabloPartner->users()
             ->whereHas('partner', function ($query) {
                 $query->whereIn('subscription_status', ['active', 'paused']);

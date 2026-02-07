@@ -221,12 +221,19 @@ class User extends Authenticatable implements FilamentUser
             return $this->partner;
         }
 
-        // Ha csapattag, keressük meg a TabloPartner email alapján a tulajdonos Partner-jét
+        // Ha csapattag, keressük meg a Partner-t
         if ($this->tablo_partner_id) {
             $tabloPartner = TabloPartner::find($this->tablo_partner_id);
-            if ($tabloPartner && $tabloPartner->email) {
-                $ownerUser = User::where('email', $tabloPartner->email)->first();
-                return $ownerUser?->partner;
+            if ($tabloPartner) {
+                // 1. Direct FK (partner_id → Partner)
+                if ($tabloPartner->subscriptionPartner) {
+                    return $tabloPartner->subscriptionPartner;
+                }
+                // 2. Fallback: email match (legacy)
+                if ($tabloPartner->email) {
+                    $ownerUser = User::where('email', $tabloPartner->email)->first();
+                    return $ownerUser?->partner;
+                }
             }
         }
 
