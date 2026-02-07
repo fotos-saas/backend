@@ -25,13 +25,16 @@ class SecurityHeaders
             "style-src 'self' 'unsafe-inline'",
             "img-src 'self' data: blob: https:",
             "font-src 'self' https://fonts.gstatic.com",
-            "connect-src 'self' https://api.tablostudio.hu https://*.sentry.io wss:",
+            "connect-src 'self' https://api.tablostudio.hu https://api.kepvalaszto.hu https://*.ingest.de.sentry.io wss://api.tablostudio.hu wss://api.kepvalaszto.hu",
             "frame-ancestors 'none'",
             "base-uri 'self'",
             "form-action 'self'",
         ]);
 
         $response->headers->set('Content-Security-Policy', $csp);
+
+        // HSTS - enforce HTTPS
+        $response->headers->set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
 
         // Prevent MIME sniffing
         $response->headers->set('X-Content-Type-Options', 'nosniff');

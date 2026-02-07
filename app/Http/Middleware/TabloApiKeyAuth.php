@@ -23,6 +23,14 @@ class TabloApiKeyAuth
             ], 401);
         }
 
+        // Format validáció DB query előtt (Str::random(64) → 64 char alnum)
+        if (strlen($apiKey) !== 64 || ! ctype_alnum($apiKey)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Érvénytelen API kulcs formátum',
+            ], 401);
+        }
+
         $key = TabloApiKey::findByKey($apiKey);
 
         if (! $key) {
