@@ -472,7 +472,7 @@ class TabloWorkflowService
         $maxRetouchPhotos = $this->resolveMaxRetouchPhotos($gallery);
         $metadata = $this->getGalleryStepMetadata($gallery, $step, $maxRetouchPhotos);
 
-        return [
+        $result = [
             'current_step' => $step,
             'visible_photos' => $visiblePhotos->values()->toArray(),
             'selected_photos' => $selectedPhotos,
@@ -484,6 +484,13 @@ class TabloWorkflowService
                 'max_retouch_photos' => $maxRetouchPhotos,
             ],
         ];
+
+        // Completed step: add review groups (all 3 step photos grouped)
+        if ($step === 'completed' && $progress) {
+            $result['review_groups'] = $this->buildReviewGroups($gallery, $progress);
+        }
+
+        return $result;
     }
 
     /**
@@ -848,6 +855,35 @@ class TabloWorkflowService
         }
 
         return $metadata;
+    }
+
+    /**
+     * Build review groups for completed step (all 3 steps' photos grouped)
+     */
+    private function buildReviewGroups(TabloGallery $gallery, TabloUserProgress $progress): array
+    {
+        $stepsData = $progress->steps_data ?? [];
+        $allMedia = $gallery->getMedia('photos');
+
+        $formatMedia = function ($media) {
+            return [
+                'id' => $media->id,
+                'url' => $media->getUrl(),
+                'thumbnail_url' => $media->getUrl('thumb'),
+                'preview_url' => $media->getUrl('preview'),
+                'filename' => $media->file_name,
+            ];
+        };
+
+        $claimedIds = $stepsData['claimed_media_ids'] ?? [];
+        $retouchIds = $stepsData['retouch_media_ids'] ?? [];
+        $tabloId = $stepsData['tablo_media_id'] ?? null;
+
+        return [
+            'claiming' => $allMedia->filter(fn($m) => in_array($m->id, $claimedIds))->map($formatMedia)->values()->toArray(),
+            'retouch' => $allMedia->filter(fn($m) => in_array($m->id, $retouchIds))->map($formatMedia)->values()->toArray(),
+            'tablo' => $tabloId ? $allMedia->filter(fn($m) => $m->id === $tabloId)->map($formatMedia)->values()->toArray() : [],
+        ];
     }
 
     /**
