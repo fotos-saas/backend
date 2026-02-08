@@ -28,6 +28,10 @@ class SaveDraftRequest extends FormRequest
             'sortType' => 'nullable|string|in:abc,kozepre,megjegyzesben,mindegy',
             'studentDescription' => 'nullable|string',
             'teacherDescription' => 'nullable|string',
+            'teacherResolutions' => 'nullable|array',
+            'teacherResolutions.*.inputName' => 'required_with:teacherResolutions|string|max:255',
+            'teacherResolutions.*.teacherId' => 'nullable|integer',
+            'teacherResolutions.*.resolution' => 'required_with:teacherResolutions|string|in:matched,send_to_session,caption_only',
         ];
     }
 }

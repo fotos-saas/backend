@@ -39,6 +39,7 @@ class SaveFinalizationAction
                 'sort_type' => $validated['sortType'] ?? 'abc',
                 'student_description' => $validated['studentDescription'],
                 'teacher_description' => $validated['teacherDescription'],
+                'teacher_resolutions' => $validated['teacherResolutions'] ?? null,
                 'finalized_at' => now()->toIso8601String(),
                 'finalized_from' => 'frontend-tablo',
             ]);

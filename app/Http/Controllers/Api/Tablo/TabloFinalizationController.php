@@ -49,6 +49,7 @@ class TabloFinalizationController extends Controller
                 'sortType' => $data['sort_type'] ?? 'abc',
                 'studentDescription' => $data['student_description'] ?? null,
                 'teacherDescription' => $data['teacher_description'] ?? null,
+                'teacherResolutions' => $data['teacher_resolutions'] ?? null,
                 'isFinalized' => ! empty($data['finalized_at']),
                 'finalizedAt' => $data['finalized_at'] ?? null,
             ],

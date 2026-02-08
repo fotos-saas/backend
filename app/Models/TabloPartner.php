@@ -151,6 +151,14 @@ class TabloPartner extends Model
     }
 
     /**
+     * Get teachers for this partner
+     */
+    public function teachers(): HasMany
+    {
+        return $this->hasMany(TeacherArchive::class, 'partner_id');
+    }
+
+    /**
      * Get contacts for this partner
      */
     public function contacts(): HasMany

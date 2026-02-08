@@ -25,6 +25,7 @@ class SaveDraftAction
                 'sortType' => 'sort_type',
                 'studentDescription' => 'student_description',
                 'teacherDescription' => 'teacher_description',
+                'teacherResolutions' => 'teacher_resolutions',
             ];
 
             foreach ($draftFields as $inputKey => $dataKey) {

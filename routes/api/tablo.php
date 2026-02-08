@@ -17,6 +17,7 @@ use App\Http\Controllers\Api\Tablo\TabloSampleController;
 use App\Http\Controllers\Api\Tablo\TabloPersonController;
 use App\Http\Controllers\Api\Tablo\TabloProjectController;
 use App\Http\Controllers\Api\Tablo\TabloProjectSampleController;
+use App\Http\Controllers\Api\Tablo\TeacherMatchController;
 use App\Http\Middleware\SyncFotocmsId;
 use App\Http\Middleware\TabloApiKeyAuth;
 use Illuminate\Http\Request;
@@ -333,6 +334,10 @@ Route::prefix('tablo-frontend')
 
             Route::put('/contact', [TabloFrontendController::class, 'updateContact']);
         });
+
+        // Teacher name matching (AI) - rate limited
+        Route::post('/match-teachers', [TeacherMatchController::class, 'matchTeachers'])
+            ->middleware('throttle:10,1');
 
         // Order finalization endpoints
         Route::prefix('finalization')

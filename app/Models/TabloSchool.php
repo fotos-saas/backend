@@ -26,6 +26,14 @@ class TabloSchool extends Model
     }
 
     /**
+     * Get teachers for this school
+     */
+    public function teachers(): HasMany
+    {
+        return $this->hasMany(TeacherArchive::class, 'school_id');
+    }
+
+    /**
      * Get partners that have this school linked (many-to-many via partner_schools pivot)
      */
     public function partners(): BelongsToMany

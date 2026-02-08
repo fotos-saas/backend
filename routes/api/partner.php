@@ -18,6 +18,8 @@ use App\Http\Controllers\Api\Partner\PartnerQrController;
 use App\Http\Controllers\Api\Partner\PartnerAiSummaryController;
 use App\Http\Controllers\Api\Partner\PartnerSamplePackageController;
 use App\Http\Controllers\Api\Partner\PartnerSchoolController;
+use App\Http\Controllers\Api\Partner\PartnerTeacherController;
+use App\Http\Controllers\Api\Partner\PartnerTeacherPhotoController;
 use App\Http\Controllers\Api\Partner\TeamController as PartnerTeamController;
 use App\Http\Controllers\Api\Partner\PartnerBrandingController;
 use App\Http\Controllers\Api\Partner\PartnerServiceController;
@@ -180,6 +182,22 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/schools', [PartnerSchoolController::class, 'storeSchool']);
         Route::put('/schools/{schoolId}', [PartnerSchoolController::class, 'updateSchool']);
         Route::delete('/schools/{schoolId}', [PartnerSchoolController::class, 'deleteSchool']);
+
+        // Teachers management (Tanár archívum)
+        Route::get('/teachers', [PartnerTeacherController::class, 'index']);
+        Route::get('/teachers/all', [PartnerTeacherController::class, 'allTeachers']);
+        Route::get('/teachers/{id}', [PartnerTeacherController::class, 'show']);
+        Route::post('/teachers', [PartnerTeacherController::class, 'store']);
+        Route::put('/teachers/{id}', [PartnerTeacherController::class, 'update']);
+        Route::delete('/teachers/{id}', [PartnerTeacherController::class, 'destroy']);
+        Route::get('/teachers/{id}/changelog', [PartnerTeacherController::class, 'getChangelog']);
+
+        // Teacher photo management
+        Route::middleware('throttle:10,1')->group(function () {
+            Route::post('/teachers/{id}/photos', [PartnerTeacherPhotoController::class, 'uploadPhoto']);
+        });
+        Route::patch('/teachers/{id}/photos/{photoId}/active', [PartnerTeacherPhotoController::class, 'setActivePhoto']);
+        Route::delete('/teachers/{id}/photos/{photoId}', [PartnerTeacherPhotoController::class, 'deletePhoto']);
 
         // Contacts management (standalone)
         Route::get('/contacts', [PartnerContactController::class, 'contacts']);
