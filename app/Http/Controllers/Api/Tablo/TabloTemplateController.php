@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\Tablo;
 
+use App\Helpers\QueryHelper;
 use App\Http\Controllers\Controller;
 use App\Models\TabloProject;
 use App\Models\TabloSampleTemplate;
@@ -65,9 +66,10 @@ class TabloTemplateController extends Controller
 
         // Filter by search
         if ($search) {
-            $query->where(function ($q) use ($search) {
-                $q->where('name', 'ilike', "%{$search}%")
-                    ->orWhere('description', 'ilike', "%{$search}%");
+            $pattern = QueryHelper::safeLikePattern($search);
+            $query->where(function ($q) use ($pattern) {
+                $q->where('name', 'ilike', $pattern)
+                    ->orWhere('description', 'ilike', $pattern);
             });
         }
 
