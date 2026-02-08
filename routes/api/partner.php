@@ -26,6 +26,7 @@ use App\Http\Controllers\Api\Partner\PartnerStripeSettingsController;
 use App\Http\Controllers\Api\Partner\PartnerWebshopSettingsController;
 use App\Http\Controllers\Api\Partner\PartnerWebshopProductController;
 use App\Http\Controllers\Api\Partner\PartnerWebshopOrderController;
+use App\Http\Controllers\Api\Partner\PartnerPaperController;
 use App\Http\Controllers\Api\PartnerClientController;
 use App\Http\Controllers\Api\PartnerOrderAlbumController;
 use App\Http\Controllers\Api\PartnerOrderAlbumPhotoController;
@@ -283,16 +284,16 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::get('/galleries/{galleryId}/token', [PartnerWebshopSettingsController::class, 'getGalleryToken']);
 
             // Paper sizes
-            Route::get('/paper-sizes', [PartnerWebshopSettingsController::class, 'getPaperSizes']);
-            Route::post('/paper-sizes', [PartnerWebshopSettingsController::class, 'createPaperSize']);
-            Route::put('/paper-sizes/{id}', [PartnerWebshopSettingsController::class, 'updatePaperSize']);
-            Route::delete('/paper-sizes/{id}', [PartnerWebshopSettingsController::class, 'deletePaperSize']);
+            Route::get('/paper-sizes', [PartnerPaperController::class, 'getSizes']);
+            Route::post('/paper-sizes', [PartnerPaperController::class, 'createSize']);
+            Route::put('/paper-sizes/{id}', [PartnerPaperController::class, 'updateSize']);
+            Route::delete('/paper-sizes/{id}', [PartnerPaperController::class, 'deleteSize']);
 
             // Paper types
-            Route::get('/paper-types', [PartnerWebshopSettingsController::class, 'getPaperTypes']);
-            Route::post('/paper-types', [PartnerWebshopSettingsController::class, 'createPaperType']);
-            Route::put('/paper-types/{id}', [PartnerWebshopSettingsController::class, 'updatePaperType']);
-            Route::delete('/paper-types/{id}', [PartnerWebshopSettingsController::class, 'deletePaperType']);
+            Route::get('/paper-types', [PartnerPaperController::class, 'getTypes']);
+            Route::post('/paper-types', [PartnerPaperController::class, 'createType']);
+            Route::put('/paper-types/{id}', [PartnerPaperController::class, 'updateType']);
+            Route::delete('/paper-types/{id}', [PartnerPaperController::class, 'deleteType']);
 
             // Products (pricing matrix)
             Route::get('/products', [PartnerWebshopProductController::class, 'getProducts']);

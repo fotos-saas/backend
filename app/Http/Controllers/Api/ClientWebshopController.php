@@ -7,6 +7,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Actions\Webshop\CreateWebshopOrderAction;
 use App\Actions\Webshop\CreateStripeCheckoutAction;
+use App\Http\Requests\Api\CreateWebshopCheckoutRequest;
 use App\Models\PartnerAlbum;
 use App\Models\ShopProduct;
 use App\Models\ShopSetting;
@@ -100,7 +101,7 @@ class ClientWebshopController extends Controller
     }
 
     public function createCheckout(
-        Request $request,
+        CreateWebshopCheckoutRequest $request,
         string $token,
         CreateWebshopOrderAction $orderAction,
         CreateStripeCheckoutAction $checkoutAction,
@@ -110,21 +111,7 @@ class ClientWebshopController extends Controller
             return $this->errorResponse('Érvénytelen link.', 404);
         }
 
-        $validated = $request->validate([
-            'customer_name' => 'required|string|max:255',
-            'customer_email' => 'required|email|max:255',
-            'customer_phone' => 'nullable|string|max:30',
-            'delivery_method' => 'required|in:pickup,shipping',
-            'shipping_address' => 'required_if:delivery_method,shipping|nullable|string|max:500',
-            'shipping_notes' => 'nullable|string|max:500',
-            'customer_notes' => 'nullable|string|max:1000',
-            'items' => 'required|array|min:1',
-            'items.*.product_id' => 'required|integer',
-            'items.*.media_id' => 'required|integer',
-            'items.*.quantity' => 'required|integer|min:1|max:99',
-        ]);
-
-        $order = $orderAction->execute($source, $validated);
+        $order = $orderAction->execute($source, $request->validated());
 
         $result = $checkoutAction->execute($order, $token);
 

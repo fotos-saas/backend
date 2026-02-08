@@ -6,6 +6,7 @@ namespace App\Http\Controllers\Api\Partner;
 
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\Api\Partner\Traits\PartnerAuthTrait;
+use App\Http\Requests\Api\Partner\BulkUpdatePricingRequest;
 use App\Models\ShopPaperSize;
 use App\Models\ShopPaperType;
 use App\Models\ShopProduct;
@@ -50,18 +51,11 @@ class PartnerWebshopProductController extends Controller
         ]);
     }
 
-    public function bulkUpdatePricing(Request $request): JsonResponse
+    public function bulkUpdatePricing(BulkUpdatePricingRequest $request): JsonResponse
     {
         $partnerId = $this->getPartnerIdOrFail();
 
-        $request->validate([
-            'products' => 'required|array',
-            'products.*.id' => 'required|integer',
-            'products.*.price_huf' => 'required|integer|min:0',
-            'products.*.is_active' => 'required|boolean',
-        ]);
-
-        $updates = $request->input('products');
+        $updates = $request->validated()['products'];
         $productIds = array_map('intval', array_column($updates, 'id'));
 
         // Partner saját termékei-e

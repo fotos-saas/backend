@@ -6,6 +6,7 @@ use App\Actions\Billing\CreatePartnerChargeAction;
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\Api\Partner\Traits\PartnerAuthTrait;
 use App\Http\Requests\Api\Partner\StorePartnerChargeRequest;
+use App\Http\Requests\Api\Partner\UpdatePartnerChargeRequest;
 use App\Models\GuestBillingCharge;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -57,7 +58,7 @@ class PartnerBillingController extends Controller
         ], 201);
     }
 
-    public function update(Request $request, int $id): JsonResponse
+    public function update(UpdatePartnerChargeRequest $request, int $id): JsonResponse
     {
         $partnerId = $this->getPartnerIdOrFail();
 
@@ -68,14 +69,7 @@ class PartnerBillingController extends Controller
             return $this->errorResponse('Csak függőben lévő terhelés módosítható.', 422);
         }
 
-        $validated = $request->validate([
-            'description' => ['nullable', 'string', 'max:500'],
-            'amount_huf' => ['sometimes', 'integer', 'min:1', 'max:10000000'],
-            'due_date' => ['nullable', 'date'],
-            'notes' => ['nullable', 'string', 'max:1000'],
-        ]);
-
-        $charge->update($validated);
+        $charge->update($request->validated());
 
         return $this->successResponse([
             'charge' => $this->formatCharge($charge->fresh()->load(['person:id,name', 'partnerService:id,name'])),

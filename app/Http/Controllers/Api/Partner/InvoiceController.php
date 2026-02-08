@@ -53,15 +53,7 @@ class InvoiceController extends Controller
             ->orderByDesc('id')
             ->paginate($perPage);
 
-        return response()->json([
-            'data' => $invoices->items(),
-            'meta' => [
-                'current_page' => $invoices->currentPage(),
-                'last_page' => $invoices->lastPage(),
-                'per_page' => $invoices->perPage(),
-                'total' => $invoices->total(),
-            ],
-        ]);
+        return $this->paginatedResponse($invoices);
     }
 
     public function store(CreateInvoiceRequest $request, CreateInvoiceAction $action): JsonResponse
@@ -71,17 +63,10 @@ class InvoiceController extends Controller
         $result = $action->execute($partner, $request->validated());
 
         if (! $result['success']) {
-            return response()->json([
-                'success' => false,
-                'message' => $result['error'] ?? 'Számla létrehozás sikertelen',
-            ], 422);
+            return $this->errorResponse($result['error'] ?? 'Számla létrehozás sikertelen', 422);
         }
 
-        return response()->json([
-            'success' => true,
-            'message' => 'Számla sikeresen létrehozva',
-            'data' => $result['invoice'],
-        ], 201);
+        return $this->createdResponse($result['invoice'], 'Számla sikeresen létrehozva');
     }
 
     public function show(TabloInvoice $invoice): JsonResponse
@@ -90,7 +75,7 @@ class InvoiceController extends Controller
 
         $invoice->load(['items', 'project:id,name', 'contact:id,name']);
 
-        return response()->json(['data' => $invoice]);
+        return $this->successResponse($invoice);
     }
 
     public function sync(TabloInvoice $invoice, InvoiceService $invoiceService): JsonResponse
@@ -98,29 +83,21 @@ class InvoiceController extends Controller
         $this->authorizePartnerAccess($invoice);
 
         if ($invoice->status !== InvoiceStatus::DRAFT) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Csak piszkozat állapotú számla szinkronizálható',
-            ], 422);
+            return $this->errorResponse('Csak piszkozat állapotú számla szinkronizálható', 422);
         }
 
         $partner = TabloPartner::findOrFail($invoice->tablo_partner_id);
         if (! $partner->hasInvoicingEnabled()) {
-            return response()->json([
-                'success' => false,
-                'message' => 'A számlázás nincs bekapcsolva vagy hiányzik az API kulcs',
-            ], 422);
+            return $this->errorResponse('A számlázás nincs bekapcsolva vagy hiányzik az API kulcs', 422);
         }
 
         $invoice = $invoiceService->syncInvoice($invoice);
 
-        return response()->json([
-            'success' => $invoice->status === InvoiceStatus::SENT,
-            'message' => $invoice->status === InvoiceStatus::SENT
-                ? 'Számla sikeresen kiállítva'
-                : 'Számla kiállítás sikertelen',
-            'data' => $invoice,
-        ]);
+        if ($invoice->status === InvoiceStatus::SENT) {
+            return $this->successResponse($invoice, 'Számla sikeresen kiállítva');
+        }
+
+        return $this->errorResponse('Számla kiállítás sikertelen', 422);
     }
 
     public function cancel(TabloInvoice $invoice, InvoiceService $invoiceService): JsonResponse
@@ -128,21 +105,16 @@ class InvoiceController extends Controller
         $this->authorizePartnerAccess($invoice);
 
         if ($invoice->status === InvoiceStatus::CANCELLED) {
-            return response()->json([
-                'success' => false,
-                'message' => 'A számla már sztornózva van',
-            ], 422);
+            return $this->errorResponse('A számla már sztornózva van', 422);
         }
 
         $invoice = $invoiceService->cancelInvoice($invoice);
 
-        return response()->json([
-            'success' => $invoice->status === InvoiceStatus::CANCELLED,
-            'message' => $invoice->status === InvoiceStatus::CANCELLED
-                ? 'Számla sikeresen sztornózva'
-                : 'Sztornó sikertelen',
-            'data' => $invoice,
-        ]);
+        if ($invoice->status === InvoiceStatus::CANCELLED) {
+            return $this->successResponse($invoice, 'Számla sikeresen sztornózva');
+        }
+
+        return $this->errorResponse('Sztornó sikertelen', 422);
     }
 
     public function downloadPdf(TabloInvoice $invoice, InvoiceService $invoiceService): Response|JsonResponse
@@ -152,10 +124,7 @@ class InvoiceController extends Controller
         $path = $invoiceService->downloadAndStorePdf($invoice);
 
         if (! $path) {
-            return response()->json([
-                'success' => false,
-                'message' => 'PDF letöltés sikertelen',
-            ], 422);
+            return $this->errorResponse('PDF letöltés sikertelen', 422);
         }
 
         $content = Storage::disk(config('invoicing.pdf_disk', 'local'))->get($path);
@@ -172,9 +141,7 @@ class InvoiceController extends Controller
         $partnerId = $this->getPartnerIdOrFail();
         $year = $request->filled('year') ? (int) $request->input('year') : null;
 
-        return response()->json([
-            'data' => $action->execute($partnerId, $year),
-        ]);
+        return $this->successResponse($action->execute($partnerId, $year));
     }
 
     private function authorizePartnerAccess(TabloInvoice $invoice): void

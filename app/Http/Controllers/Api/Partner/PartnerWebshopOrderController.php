@@ -7,6 +7,7 @@ namespace App\Http\Controllers\Api\Partner;
 use App\Helpers\QueryHelper;
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\Api\Partner\Traits\PartnerAuthTrait;
+use App\Http\Requests\Api\Partner\UpdateOrderStatusRequest;
 use App\Models\ShopOrder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -60,15 +61,9 @@ class PartnerWebshopOrderController extends Controller
         ]);
     }
 
-    public function updateStatus(Request $request, int $id): JsonResponse
+    public function updateStatus(UpdateOrderStatusRequest $request, int $id): JsonResponse
     {
         $partnerId = $this->getPartnerIdOrFail();
-
-        $request->validate([
-            'status' => 'required|in:processing,shipped,completed,cancelled',
-            'tracking_number' => 'nullable|string|max:100',
-            'internal_notes' => 'nullable|string|max:2000',
-        ]);
 
         $order = ShopOrder::byPartner($partnerId)->findOrFail($id);
 
