@@ -241,34 +241,36 @@ Route::middleware('auth:sanctum')->group(function () {
             });
         });
 
-        // Partner Services (Szolgáltatás katalógus)
-        Route::prefix('services')->group(function () {
-            Route::get('/', [PartnerServiceController::class, 'index']);
-            Route::post('/', [PartnerServiceController::class, 'store']);
-            Route::post('/seed-defaults', [PartnerServiceController::class, 'seedDefaults']);
-            Route::put('/{id}', [PartnerServiceController::class, 'update']);
-            Route::delete('/{id}', [PartnerServiceController::class, 'destroy']);
-        });
+        // Partner Services, Billing, Stripe, Webshop - fizetési feature gate
+        Route::middleware('partner.feature:stripe_payments')->group(function () {
+            // Partner Services (Szolgáltatás katalógus)
+            Route::prefix('services')->group(function () {
+                Route::get('/', [PartnerServiceController::class, 'index']);
+                Route::post('/', [PartnerServiceController::class, 'store']);
+                Route::post('/seed-defaults', [PartnerServiceController::class, 'seedDefaults']);
+                Route::put('/{id}', [PartnerServiceController::class, 'update']);
+                Route::delete('/{id}', [PartnerServiceController::class, 'destroy']);
+            });
 
-        // Partner Billing (Terhelés kezelés)
-        Route::prefix('billing')->middleware('throttle:30,1')->group(function () {
-            Route::get('/', [PartnerBillingController::class, 'index']);
-            Route::get('/summary', [PartnerBillingController::class, 'summary']);
-            Route::post('/', [PartnerBillingController::class, 'store']);
-            Route::put('/{id}', [PartnerBillingController::class, 'update']);
-            Route::post('/{id}/cancel', [PartnerBillingController::class, 'cancel']);
-        });
+            // Partner Billing (Terhelés kezelés)
+            Route::prefix('billing')->middleware('throttle:30,1')->group(function () {
+                Route::get('/', [PartnerBillingController::class, 'index']);
+                Route::get('/summary', [PartnerBillingController::class, 'summary']);
+                Route::post('/', [PartnerBillingController::class, 'store']);
+                Route::put('/{id}', [PartnerBillingController::class, 'update']);
+                Route::post('/{id}/cancel', [PartnerBillingController::class, 'cancel']);
+            });
 
-        // Partner Stripe Settings (Fizetés beállítások)
-        Route::prefix('stripe-settings')->group(function () {
-            Route::get('/', [PartnerStripeSettingsController::class, 'show']);
-            Route::put('/', [PartnerStripeSettingsController::class, 'update']);
-            Route::post('/validate', [PartnerStripeSettingsController::class, 'validateKeys'])
-                ->middleware('throttle:10,1');
-        });
+            // Partner Stripe Settings (Fizetés beállítások)
+            Route::prefix('stripe-settings')->group(function () {
+                Route::get('/', [PartnerStripeSettingsController::class, 'show']);
+                Route::put('/', [PartnerStripeSettingsController::class, 'update']);
+                Route::post('/validate', [PartnerStripeSettingsController::class, 'validateKeys'])
+                    ->middleware('throttle:10,1');
+            });
 
-        // Webshop (Fotónyomtatás rendelés)
-        Route::prefix('webshop')->group(function () {
+            // Webshop (Fotónyomtatás rendelés)
+            Route::prefix('webshop')->group(function () {
             // Settings
             Route::get('/settings', [PartnerWebshopSettingsController::class, 'getSettings']);
             Route::put('/settings', [PartnerWebshopSettingsController::class, 'updateSettings']);
@@ -303,6 +305,7 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::get('/orders/{id}', [PartnerWebshopOrderController::class, 'show']);
             Route::patch('/orders/{id}/status', [PartnerWebshopOrderController::class, 'updateStatus']);
         });
+        }); // end stripe_payments feature gate
 
         // Client Orders (Fotós Megrendelések)
         Route::prefix('orders')->middleware('partner.feature:client_orders')->group(function () {

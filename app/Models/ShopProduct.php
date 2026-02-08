@@ -53,9 +53,4 @@ class ShopProduct extends Model
     {
         return $query->where('tablo_partner_id', $partnerId);
     }
-
-    public function getDisplayNameAttribute(): string
-    {
-        return "{$this->paperSize->name} - {$this->paperType->name}";
-    }
 }

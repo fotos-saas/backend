@@ -107,14 +107,23 @@ class PartnerBillingController extends Controller
             $query->forProject((int) $request->input('project_id'));
         }
 
+        $stats = $query->selectRaw("
+            COALESCE(SUM(amount_huf), 0) as total_amount,
+            COALESCE(SUM(CASE WHEN status = 'paid' THEN amount_huf ELSE 0 END), 0) as paid_amount,
+            COALESCE(SUM(CASE WHEN status = 'pending' THEN amount_huf ELSE 0 END), 0) as pending_amount,
+            COUNT(*) as charges_count,
+            COUNT(CASE WHEN status = 'pending' THEN 1 END) as pending_count,
+            COUNT(CASE WHEN status = 'paid' THEN 1 END) as paid_count
+        ")->first();
+
         return $this->successResponse([
             'summary' => [
-                'total_amount' => (int) (clone $query)->sum('amount_huf'),
-                'paid_amount' => (int) (clone $query)->where('status', 'paid')->sum('amount_huf'),
-                'pending_amount' => (int) (clone $query)->where('status', 'pending')->sum('amount_huf'),
-                'charges_count' => (clone $query)->count(),
-                'pending_count' => (clone $query)->where('status', 'pending')->count(),
-                'paid_count' => (clone $query)->where('status', 'paid')->count(),
+                'total_amount' => (int) $stats->total_amount,
+                'paid_amount' => (int) $stats->paid_amount,
+                'pending_amount' => (int) $stats->pending_amount,
+                'charges_count' => (int) $stats->charges_count,
+                'pending_count' => (int) $stats->pending_count,
+                'paid_count' => (int) $stats->paid_count,
             ],
         ]);
     }

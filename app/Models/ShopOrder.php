@@ -18,9 +18,6 @@ class ShopOrder extends Model
     public const STATUS_COMPLETED = 'completed';
     public const STATUS_CANCELLED = 'cancelled';
 
-    public const DELIVERY_PICKUP = 'pickup';
-    public const DELIVERY_SHIPPING = 'shipping';
-
     protected $fillable = [
         'order_number',
         'tablo_partner_id',
@@ -100,33 +97,6 @@ class ShopOrder extends Model
     public function scopePaid(Builder $query): Builder
     {
         return $query->whereNotIn('status', [self::STATUS_PENDING, self::STATUS_CANCELLED]);
-    }
-
-    // Helpers
-
-    public function isPending(): bool
-    {
-        return $this->status === self::STATUS_PENDING;
-    }
-
-    public function isPaid(): bool
-    {
-        return $this->paid_at !== null;
-    }
-
-    public function isCancelled(): bool
-    {
-        return $this->status === self::STATUS_CANCELLED;
-    }
-
-    public function isCompleted(): bool
-    {
-        return $this->status === self::STATUS_COMPLETED;
-    }
-
-    public function getItemsCount(): int
-    {
-        return $this->items->sum('quantity');
     }
 
     public static function generateOrderNumber(): string

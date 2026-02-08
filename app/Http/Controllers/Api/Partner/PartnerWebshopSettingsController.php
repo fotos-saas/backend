@@ -69,8 +69,7 @@ class PartnerWebshopSettingsController extends Controller
             ]);
         }
 
-        $action = new InitializeWebshopAction();
-        $settings = $action->execute($partnerId);
+        $settings = $this->initializeAction->execute($partnerId);
 
         return $this->successResponse([
             'settings' => $this->formatSettings($settings),

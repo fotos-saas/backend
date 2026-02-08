@@ -85,16 +85,6 @@ class GuestBillingCharge extends Model
         return $query->where('status', $status);
     }
 
-    public function scopeUnpaid($query)
-    {
-        return $query->where('status', self::STATUS_PENDING);
-    }
-
-    public function scopePaid($query)
-    {
-        return $query->where('status', self::STATUS_PAID);
-    }
-
     // ============ Helpers ============
 
     public function getServiceLabelAttribute(): string

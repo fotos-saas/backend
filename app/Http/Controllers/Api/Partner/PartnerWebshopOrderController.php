@@ -52,7 +52,7 @@ class PartnerWebshopOrderController extends Controller
         $partnerId = $this->getPartnerIdOrFail();
 
         $order = ShopOrder::byPartner($partnerId)
-            ->with(['items.media', 'items.product.paperSize', 'items.product.paperType', 'client', 'guestSession'])
+            ->with(['items.media', 'items.product.paperSize', 'items.product.paperType'])
             ->findOrFail($id);
 
         return $this->successResponse([
@@ -97,22 +97,21 @@ class PartnerWebshopOrderController extends Controller
     {
         $partnerId = $this->getPartnerIdOrFail();
 
-        $query = ShopOrder::byPartner($partnerId);
+        $startOfMonth = now()->startOfMonth()->toDateTimeString();
 
-        $totalOrders = (clone $query)->count();
-        $pendingOrders = (clone $query)->withStatus(ShopOrder::STATUS_PAID)->count()
-            + (clone $query)->withStatus(ShopOrder::STATUS_PROCESSING)->count();
-        $totalRevenue = (clone $query)->paid()->sum('total_huf');
-        $thisMonthRevenue = (clone $query)->paid()
-            ->where('paid_at', '>=', now()->startOfMonth())
-            ->sum('total_huf');
+        $stats = ShopOrder::byPartner($partnerId)->selectRaw("
+            COUNT(*) as total_orders,
+            COUNT(CASE WHEN status IN ('paid', 'processing') THEN 1 END) as pending_orders,
+            COALESCE(SUM(CASE WHEN status NOT IN ('pending', 'cancelled') THEN total_huf ELSE 0 END), 0) as total_revenue,
+            COALESCE(SUM(CASE WHEN status NOT IN ('pending', 'cancelled') AND paid_at >= ? THEN total_huf ELSE 0 END), 0) as this_month_revenue
+        ", [$startOfMonth])->first();
 
         return $this->successResponse([
             'stats' => [
-                'total_orders' => $totalOrders,
-                'pending_orders' => $pendingOrders,
-                'total_revenue_huf' => (int) $totalRevenue,
-                'this_month_revenue_huf' => (int) $thisMonthRevenue,
+                'total_orders' => (int) $stats->total_orders,
+                'pending_orders' => (int) $stats->pending_orders,
+                'total_revenue_huf' => (int) $stats->total_revenue,
+                'this_month_revenue_huf' => (int) $stats->this_month_revenue,
             ],
         ]);
     }
