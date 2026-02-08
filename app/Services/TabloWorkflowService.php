@@ -491,17 +491,27 @@ class TabloWorkflowService
 
             // Modification info for free edit window
             $project = $gallery->projects()->first();
+            $partner = $project?->partner;
+            $billingEnabled = $partner?->billing_enabled ?? false;
             $freeEditHours = $project
                 ? $project->getEffectiveFreeEditWindowHours()
                 : 24;
 
+            // Ha billing nincs engedélyezve, a módosítás mindig ingyenes
+            $isWithinFreeWindow = $billingEnabled
+                ? $progress->isWithinFreeEditWindow($freeEditHours)
+                : true;
+
             $result['modification_info'] = [
+                'billing_enabled' => $billingEnabled,
                 'free_edit_window_hours' => $freeEditHours,
                 'finalized_at' => $progress->finalized_at?->toIso8601String(),
-                'is_within_free_window' => $progress->isWithinFreeEditWindow($freeEditHours),
-                'remaining_seconds' => $progress->getFreeEditRemainingSeconds($freeEditHours),
+                'is_within_free_window' => $isWithinFreeWindow,
+                'remaining_seconds' => $billingEnabled
+                    ? $progress->getFreeEditRemainingSeconds($freeEditHours)
+                    : 0,
                 'modification_count' => $progress->modification_count ?? 0,
-                'requires_payment' => !$progress->isWithinFreeEditWindow($freeEditHours),
+                'requires_payment' => $billingEnabled && !$isWithinFreeWindow,
             ];
         }
 

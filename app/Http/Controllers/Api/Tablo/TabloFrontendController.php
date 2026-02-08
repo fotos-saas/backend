@@ -71,6 +71,7 @@ class TabloFrontendController extends Controller
                 'userStatusColor' => $tabloProject->tabloStatus?->color ?? $tabloProject->user_status_color,
                 'workSessionId' => $tabloProject->work_session_id,
                 'hasPhotoSelection' => $tabloProject->work_session_id !== null || $tabloProject->tablo_gallery_id !== null,
+                'billingEnabled' => $tabloProject->partner?->billing_enabled ?? false,
                 'tabloGalleryId' => $tabloProject->tablo_gallery_id,
                 'hasGallery' => $tabloProject->gallery !== null,
             ],
