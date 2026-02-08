@@ -84,7 +84,7 @@ class GetPersonSelectionsAction
     }
 
     /**
-     * @return array{id: int, thumbUrl: string|null, originalName: string|null}
+     * @return array{id: int, thumbUrl: string|null, url: string|null, originalName: string|null}
      */
     private function buildPhotoItem(int $mediaId, Collection $mediaCollection): array
     {
@@ -94,6 +94,7 @@ class GetPersonSelectionsAction
             return [
                 'id' => $mediaId,
                 'thumbUrl' => null,
+                'url' => null,
                 'originalName' => null,
             ];
         }
@@ -101,6 +102,7 @@ class GetPersonSelectionsAction
         return [
             'id' => $mediaId,
             'thumbUrl' => $media->getUrl('thumb'),
+            'url' => $media->getUrl('preview'),
             'originalName' => $media->file_name,
         ];
     }
