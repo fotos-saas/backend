@@ -7,24 +7,6 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class GuestBillingCharge extends Model
 {
-    public const SERVICE_TYPES = [
-        'photo_change',
-        'extra_retouch',
-        'late_fee',
-        'rush_fee',
-        'additional_copy',
-        'custom',
-    ];
-
-    public const SERVICE_LABELS = [
-        'photo_change' => 'Képcsere',
-        'extra_retouch' => 'Extra retusálás',
-        'late_fee' => 'Késedelmi díj',
-        'rush_fee' => 'Sürgősségi díj',
-        'additional_copy' => 'Plusz példány',
-        'custom' => 'Egyedi',
-    ];
-
     public const STATUS_PENDING = 'pending';
     public const STATUS_PAID = 'paid';
     public const STATUS_CANCELLED = 'cancelled';
@@ -117,7 +99,7 @@ class GuestBillingCharge extends Model
 
     public function getServiceLabelAttribute(): string
     {
-        return self::SERVICE_LABELS[$this->service_type] ?? $this->service_type;
+        return PartnerService::SERVICE_LABELS[$this->service_type] ?? $this->service_type;
     }
 
     public function isPending(): bool

@@ -39,6 +39,10 @@ class CreateWebshopOrderAction
                 throw new \InvalidArgumentException('Érvénytelen média hivatkozás.');
             }
 
+            if ($product->price_huf <= 0) {
+                throw new \InvalidArgumentException("A termék ára nem lehet 0 vagy negatív: {$product->price_huf} Ft.");
+            }
+
             $quantity = (int) $item['quantity'];
             $itemSubtotal = $product->price_huf * $quantity;
             $subtotal += $itemSubtotal;

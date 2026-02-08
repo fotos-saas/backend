@@ -7,6 +7,7 @@ namespace App\Actions\Billing;
 use App\Actions\Invoice\CreateInvoiceAction;
 use App\Models\GuestBillingCharge;
 use App\Models\TabloPartner;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 class HandlePartnerPaymentSuccessAction
@@ -17,28 +18,32 @@ class HandlePartnerPaymentSuccessAction
 
     /**
      * Sikeres fizetés feldolgozása: charge → paid + számla generálás.
+     * DB tranzakció + lockForUpdate a race condition ellen (dupla webhook retry).
      */
     public function execute(GuestBillingCharge $charge, string $paymentIntentId): void
     {
-        // Idempotencia: ha már paid, nem csinálunk semmit
-        if ($charge->isPaid()) {
-            Log::info('Charge already paid, skipping', ['charge_id' => $charge->id]);
-            return;
-        }
+        DB::transaction(function () use ($charge, $paymentIntentId) {
+            $charge = GuestBillingCharge::lockForUpdate()->find($charge->id);
 
-        $charge->update([
-            'status' => GuestBillingCharge::STATUS_PAID,
-            'paid_at' => now(),
-            'stripe_payment_intent_id' => $paymentIntentId,
-        ]);
+            if (!$charge || $charge->isPaid()) {
+                Log::info('Charge already paid, skipping', ['charge_id' => $charge?->id]);
+                return;
+            }
 
-        Log::info('Partner charge marked as paid', [
-            'charge_id' => $charge->id,
-            'payment_intent' => $paymentIntentId,
-        ]);
+            $charge->update([
+                'status' => GuestBillingCharge::STATUS_PAID,
+                'paid_at' => now(),
+                'stripe_payment_intent_id' => $paymentIntentId,
+            ]);
 
-        // Számla generálás ha a partnernek van számlázási integráció
-        $this->tryGenerateInvoice($charge);
+            Log::info('Partner charge marked as paid', [
+                'charge_id' => $charge->id,
+                'payment_intent' => $paymentIntentId,
+            ]);
+
+            // Számla generálás ha a partnernek van számlázási integráció
+            $this->tryGenerateInvoice($charge);
+        });
     }
 
     private function tryGenerateInvoice(GuestBillingCharge $charge): void

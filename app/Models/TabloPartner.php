@@ -67,6 +67,12 @@ class TabloPartner extends Model
         'invoice_eu_vat',
     ];
 
+    protected $hidden = [
+        'payment_stripe_secret_key',
+        'payment_stripe_webhook_secret',
+        'invoice_api_key',
+    ];
+
     protected $casts = [
         'features' => 'array',
         'commission_rate' => 'decimal:2',

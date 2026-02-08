@@ -11,10 +11,14 @@ use Illuminate\Support\Facades\Log;
 
 class CreateStripeCheckoutAction
 {
+    public function __construct(
+        private readonly PartnerStripeService $stripeService,
+    ) {}
+
     public function execute(ShopOrder $order, string $shopToken): array
     {
         $partner = TabloPartner::findOrFail($order->tablo_partner_id);
-        $stripeService = app(PartnerStripeService::class);
+        $stripeService = $this->stripeService;
 
         try {
             $client = $stripeService->getStripeClient($partner);

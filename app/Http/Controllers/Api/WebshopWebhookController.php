@@ -10,6 +10,7 @@ use App\Models\TabloPartner;
 use App\Services\PartnerStripeService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Stripe\Exception\SignatureVerificationException;
 
@@ -76,28 +77,32 @@ class WebshopWebhookController extends Controller
             return;
         }
 
-        $order = ShopOrder::where('tablo_partner_id', $partnerId)->find($orderId);
+        DB::transaction(function () use ($orderId, $partnerId, $session) {
+            $order = ShopOrder::where('tablo_partner_id', $partnerId)
+                ->lockForUpdate()
+                ->find($orderId);
 
-        if (!$order) {
-            Log::error('Webshop webhook: order not found or partner mismatch', ['order_id' => $orderId, 'partner_id' => $partnerId]);
-            return;
-        }
+            if (!$order) {
+                Log::error('Webshop webhook: order not found or partner mismatch', ['order_id' => $orderId, 'partner_id' => $partnerId]);
+                return;
+            }
 
-        if ($order->status !== ShopOrder::STATUS_PENDING) {
-            Log::info('Webshop webhook: order already processed', ['order_id' => $orderId]);
-            return;
-        }
+            if ($order->status !== ShopOrder::STATUS_PENDING) {
+                Log::info('Webshop webhook: order already processed', ['order_id' => $orderId]);
+                return;
+            }
 
-        $order->update([
-            'status' => ShopOrder::STATUS_PAID,
-            'stripe_payment_intent_id' => $session->payment_intent ?? null,
-            'paid_at' => now(),
-        ]);
+            $order->update([
+                'status' => ShopOrder::STATUS_PAID,
+                'stripe_payment_intent_id' => $session->payment_intent ?? null,
+                'paid_at' => now(),
+            ]);
 
-        Log::info('Webshop order paid', [
-            'order_id' => $order->id,
-            'order_number' => $order->order_number,
-            'total_huf' => $order->total_huf,
-        ]);
+            Log::info('Webshop order paid', [
+                'order_id' => $order->id,
+                'order_number' => $order->order_number,
+                'total_huf' => $order->total_huf,
+            ]);
+        });
     }
 }
