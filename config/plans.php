@@ -248,6 +248,15 @@ return [
             'free' => true,
             'available_for' => ['alap'],
         ],
+        'invoicing_pack' => [
+            'name' => 'Számlázás',
+            'description' => 'Automatikus számlakiállítás a megrendelésekhez (Számlázz.hu, Billingo)',
+            'includes' => ['invoicing'],
+            'monthly_price' => 0,
+            'yearly_price' => 0,
+            'free' => true,
+            'available_for' => ['alap'],
+        ],
     ],
 
     /*
