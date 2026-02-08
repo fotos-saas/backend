@@ -250,6 +250,21 @@ Route::prefix('tablo-frontend')
                         })()
                         : null,
                     'branding' => $tabloProject->partner?->getActiveBranding(),
+                    'webshop' => (function () use ($tabloProject) {
+                        $partnerId = $tabloProject->tablo_partner_id;
+                        $settings = \App\Models\ShopSetting::where('tablo_partner_id', $partnerId)->first();
+                        if (!$settings || !$settings->is_enabled) {
+                            return null;
+                        }
+                        $token = $tabloProject->gallery?->webshop_share_token;
+                        if (!$token) {
+                            return null;
+                        }
+                        return [
+                            'enabled' => true,
+                            'shop_url' => '/shop/' . $token,
+                        ];
+                    })(),
                 ],
                 'tokenType' => $tokenType,
                 'isGuest' => $isGuest,

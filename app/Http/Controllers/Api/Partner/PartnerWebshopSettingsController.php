@@ -4,16 +4,20 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Api\Partner;
 
+use App\Actions\Webshop\GenerateWebshopTokenAction;
 use App\Actions\Webshop\InitializeWebshopAction;
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\Api\Partner\Traits\PartnerAuthTrait;
 use App\Http\Requests\Api\Partner\CreatePaperSizeRequest;
 use App\Http\Requests\Api\Partner\CreatePaperTypeRequest;
 use App\Http\Requests\Api\Partner\UpdateWebshopSettingsRequest;
+use App\Models\PartnerAlbum;
 use App\Models\ShopPaperSize;
 use App\Models\ShopPaperType;
 use App\Models\ShopSetting;
+use App\Models\TabloGallery;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 
 class PartnerWebshopSettingsController extends Controller
 {
@@ -178,6 +182,70 @@ class PartnerWebshopSettingsController extends Controller
         $type->delete();
 
         return $this->successResponse(['message' => 'Papírtípus törölve.']);
+    }
+
+    // Token generálás
+
+    public function generateToken(Request $request): JsonResponse
+    {
+        $partnerId = $this->getPartnerIdOrFail();
+
+        $request->validate([
+            'album_id' => 'nullable|integer',
+            'gallery_id' => 'nullable|integer',
+        ]);
+
+        if (!$request->input('album_id') && !$request->input('gallery_id')) {
+            return $this->errorResponse('album_id vagy gallery_id kötelező.', 422);
+        }
+
+        $action = new GenerateWebshopTokenAction();
+        $token = $action->execute(
+            $partnerId,
+            $request->input('album_id') ? (int) $request->input('album_id') : null,
+            $request->input('gallery_id') ? (int) $request->input('gallery_id') : null,
+        );
+
+        return $this->successResponse([
+            'token' => $token,
+            'message' => 'Webshop link generálva.',
+        ]);
+    }
+
+    public function getWebshopStatus(): JsonResponse
+    {
+        $partnerId = $this->getPartnerIdOrFail();
+
+        $settings = ShopSetting::where('tablo_partner_id', $partnerId)->first();
+
+        return $this->successResponse([
+            'is_enabled' => $settings?->is_enabled ?? false,
+            'is_initialized' => $settings !== null,
+        ]);
+    }
+
+    public function getAlbumToken(int $albumId): JsonResponse
+    {
+        $partnerId = $this->getPartnerIdOrFail();
+
+        $album = PartnerAlbum::byPartner($partnerId)->findOrFail($albumId);
+
+        return $this->successResponse([
+            'token' => $album->webshop_share_token,
+        ]);
+    }
+
+    public function getGalleryToken(int $galleryId): JsonResponse
+    {
+        $partnerId = $this->getPartnerIdOrFail();
+
+        $gallery = TabloGallery::whereHas('projects', function ($q) use ($partnerId) {
+            $q->where('tablo_partner_id', $partnerId);
+        })->findOrFail($galleryId);
+
+        return $this->successResponse([
+            'token' => $gallery->webshop_share_token,
+        ]);
     }
 
     // Formatters

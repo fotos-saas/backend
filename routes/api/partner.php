@@ -274,6 +274,12 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::put('/settings', [PartnerWebshopSettingsController::class, 'updateSettings']);
             Route::post('/initialize', [PartnerWebshopSettingsController::class, 'initializeWebshop']);
 
+            // Status & Token
+            Route::get('/status', [PartnerWebshopSettingsController::class, 'getWebshopStatus']);
+            Route::post('/generate-token', [PartnerWebshopSettingsController::class, 'generateToken']);
+            Route::get('/albums/{albumId}/token', [PartnerWebshopSettingsController::class, 'getAlbumToken']);
+            Route::get('/galleries/{galleryId}/token', [PartnerWebshopSettingsController::class, 'getGalleryToken']);
+
             // Paper sizes
             Route::get('/paper-sizes', [PartnerWebshopSettingsController::class, 'getPaperSizes']);
             Route::post('/paper-sizes', [PartnerWebshopSettingsController::class, 'createPaperSize']);

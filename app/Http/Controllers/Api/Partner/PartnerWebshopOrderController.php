@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Api\Partner;
 
+use App\Helpers\QueryHelper;
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\Api\Partner\Traits\PartnerAuthTrait;
 use App\Models\ShopOrder;
@@ -27,10 +28,11 @@ class PartnerWebshopOrderController extends Controller
         }
 
         if ($search = $request->input('search')) {
-            $query->where(function ($q) use ($search) {
-                $q->where('order_number', 'ilike', "%{$search}%")
-                  ->orWhere('customer_name', 'ilike', "%{$search}%")
-                  ->orWhere('customer_email', 'ilike', "%{$search}%");
+            $safe = QueryHelper::safeLikePattern($search);
+            $query->where(function ($q) use ($safe) {
+                $q->where('order_number', 'ilike', $safe)
+                  ->orWhere('customer_name', 'ilike', $safe)
+                  ->orWhere('customer_email', 'ilike', $safe);
             });
         }
 
