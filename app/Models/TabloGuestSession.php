@@ -44,6 +44,7 @@ class TabloGuestSession extends Model
         'is_extra',
         'is_coordinator',
         'tablo_person_id',
+        'user_id',
         'verification_status',
         'qr_registration_code_id',
         'registration_type',
@@ -66,6 +67,7 @@ class TabloGuestSession extends Model
             'is_extra' => 'boolean',
             'is_coordinator' => 'boolean',
             'tablo_person_id' => 'integer',
+            'user_id' => 'integer',
             'last_activity_at' => 'datetime',
             'restore_token_expires_at' => 'datetime',
             // Gamification
@@ -114,6 +116,13 @@ class TabloGuestSession extends Model
         return $this->belongsTo(TabloPerson::class, 'tablo_person_id');
     }
 
+    /**
+     * Get the associated user (auth user aki belépett)
+     */
+    public function user(): BelongsTo
+    {
+        return $this->belongsTo(User::class);
+    }
 
     /**
      * Get votes by this guest

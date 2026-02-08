@@ -266,10 +266,19 @@ class LoginController extends Controller
             return $response;
         }
 
-        $guestSession = TabloGuestSession::where('guest_name', $user->name)
+        // Keresés: először user_id alapján, fallback guest_name-re
+        $guestSession = TabloGuestSession::where('user_id', $user->id)
             ->where('tablo_project_id', $projectId)
-            ->latest('last_activity_at')
-            ->first();
+            ->first()
+            ?? TabloGuestSession::where('guest_name', $user->name)
+                ->where('tablo_project_id', $projectId)
+                ->latest('last_activity_at')
+                ->first();
+
+        // user_id beállítása ha még nincs
+        if ($guestSession && !$guestSession->user_id) {
+            $guestSession->update(['user_id' => $user->id]);
+        }
 
         $response['user']['type'] = 'tablo-guest';
         $projectData = [

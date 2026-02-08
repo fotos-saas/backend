@@ -73,10 +73,18 @@ class LoginTabloCodeAction
                 'ip_address' => $request->ip(),
                 'last_activity_at' => now(),
                 'is_coordinator' => true,
+                'user_id' => $tabloGuestUser->id,
             ]
         );
 
-        if (!$guestSession->wasRecentlyCreated) {
+        // user_id beállítása (új és meglévő session-nél is)
+        if (!$guestSession->user_id) {
+            $guestSession->update([
+                'user_id' => $tabloGuestUser->id,
+                'last_activity_at' => now(),
+                'is_coordinator' => true,
+            ]);
+        } elseif (!$guestSession->wasRecentlyCreated) {
             $guestSession->update([
                 'last_activity_at' => now(),
                 'is_coordinator' => true,

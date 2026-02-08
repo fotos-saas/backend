@@ -7,7 +7,6 @@ namespace App\Actions\Partner;
 use App\Models\TabloGuestSession;
 use App\Models\TabloPerson;
 use App\Models\TabloUserProgress;
-use Carbon\Carbon;
 use Illuminate\Support\Collection;
 
 /**
@@ -15,6 +14,10 @@ use Illuminate\Support\Collection;
  *
  * Összepárosítja a projekt személyeit (TabloPerson) a workflow progress adatokkal
  * (TabloUserProgress) a guest session-ökön keresztül.
+ *
+ * Összekapcsolási lánc:
+ *   TabloPerson.id → TabloGuestSession.tablo_person_id
+ *   TabloGuestSession.user_id → TabloUserProgress.user_id
  */
 class GetGalleryMonitoringAction
 {
@@ -26,28 +29,26 @@ class GetGalleryMonitoringAction
      */
     public function execute(int $projectId, int $galleryId): array
     {
-        // 1. Projekt személyek a verified guest session-ökkel
+        // 1. Projekt személyek
         $persons = TabloPerson::where('tablo_project_id', $projectId)
-            ->with(['guestSession'])
             ->orderBy('name')
             ->get();
 
-        // 2. Gallery progress rekordok user_id-vel
-        $progressRecords = TabloUserProgress::where('tablo_gallery_id', $galleryId)
-            ->with('user')
-            ->get()
-            ->keyBy('user_id');
-
-        // 3. Guest session → user_id mapping (verified session-ök a projektből)
+        // 2. Verified guest session-ök person_id alapján keyelve
         $guestSessions = TabloGuestSession::where('tablo_project_id', $projectId)
             ->where('verification_status', TabloGuestSession::VERIFICATION_VERIFIED)
             ->whereNotNull('tablo_person_id')
             ->get()
             ->keyBy('tablo_person_id');
 
-        // 4. Összepárosítás: person → guestSession → user → progress
-        $personData = $persons->map(function (TabloPerson $person) use ($progressRecords, $guestSessions) {
-            return $this->buildPersonData($person, $progressRecords, $guestSessions);
+        // 3. Gallery progress rekordok user_id alapján keyelve
+        $progressRecords = TabloUserProgress::where('tablo_gallery_id', $galleryId)
+            ->get()
+            ->keyBy('user_id');
+
+        // 4. Összepárosítás: person → session (person_id) → progress (user_id)
+        $personData = $persons->map(function (TabloPerson $person) use ($guestSessions, $progressRecords) {
+            return $this->buildPersonData($person, $guestSessions, $progressRecords);
         });
 
         // 5. Összefoglaló statisztika
@@ -61,30 +62,15 @@ class GetGalleryMonitoringAction
 
     private function buildPersonData(
         TabloPerson $person,
-        Collection $progressRecords,
         Collection $guestSessions,
+        Collection $progressRecords,
     ): array {
         $session = $guestSessions->get($person->id);
         $progress = null;
 
-        // Ha van session, keressük meg a user progress-t
-        if ($session) {
-            // A guest session-höz tartozó user_id kell a progress összekapcsoláshoz
-            // A TabloGuestSession-ből nincs közvetlen user_id, de a login controller
-            // összeköti: User regisztrál → guest session → tablo_person_id
-            // A progress-t user_id alapján keressük, ami a session-ből jön
-            // Workaround: keresés a progressRecords-ban user-en keresztül
-            foreach ($progressRecords as $pr) {
-                if ($pr->user && $pr->user->name === $session->guest_name) {
-                    $progress = $pr;
-                    break;
-                }
-                // Email-alapú egyeztetés is
-                if ($session->guest_email && $pr->user && $pr->user->email === $session->guest_email) {
-                    $progress = $pr;
-                    break;
-                }
-            }
+        // Session → user_id → progress (közvetlen FK kötés)
+        if ($session && $session->user_id) {
+            $progress = $progressRecords->get($session->user_id);
         }
 
         $lastActivity = $session?->last_activity_at;

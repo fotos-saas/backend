@@ -44,6 +44,12 @@ class GuestRegistrationController extends Controller
             $validated['device_identifier'] ?? null,
             $request->ip()
         );
+
+        // user_id beállítása a session-ben
+        if ($request->user() && !$session->user_id) {
+            $session->update(['user_id' => $request->user()->id]);
+        }
+
         return response()->json([
             'success' => true,
             'message' => 'Sikeres regisztráció!',
@@ -85,6 +91,12 @@ class GuestRegistrationController extends Controller
         );
 
         $session = $result['session'];
+
+        // user_id beállítása a session-ben (auth user → guest session kötés)
+        if ($request->user() && !$session->user_id) {
+            $session->update(['user_id' => $request->user()->id]);
+        }
+
         return response()->json([
             'success' => true,
             'message' => $result['has_conflict'] ? $result['conflict_message'] : 'Sikeres regisztráció!',

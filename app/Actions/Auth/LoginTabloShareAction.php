@@ -48,6 +48,7 @@ class LoginTabloShareAction
                     'restore_token' => null,
                     'restore_token_expires_at' => null,
                     'last_activity_at' => now(),
+                    // user_id később állítjuk be, miután a User létrejött
                 ]);
             }
         }
@@ -69,6 +70,11 @@ class LoginTabloShareAction
         ]);
 
         $tabloGuestUser->assignRole(User::ROLE_GUEST);
+
+        // Restored session: user_id beállítása
+        if ($restoredSession) {
+            $restoredSession->update(['user_id' => $tabloGuestUser->id]);
+        }
 
         $tokenResult = $tabloGuestUser->createToken(TokenNames::TABLO_SHARE);
         $tokenResult->accessToken->tablo_project_id = $tabloProject->id;
