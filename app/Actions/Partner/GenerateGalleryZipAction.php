@@ -68,7 +68,6 @@ class GenerateGalleryZipAction
             $persons = $personsQuery->get();
 
             $progressRecords = TabloUserProgress::where('tablo_gallery_id', $galleryId)
-                ->with('user')
                 ->get()
                 ->keyBy('user_id');
 
@@ -266,20 +265,11 @@ class GenerateGalleryZipAction
 
     private function findProgress(?TabloGuestSession $session, Collection $progressRecords): ?TabloUserProgress
     {
-        if (!$session) {
+        if (!$session || !$session->user_id) {
             return null;
         }
 
-        foreach ($progressRecords as $pr) {
-            if ($pr->user && $pr->user->name === $session->guest_name) {
-                return $pr;
-            }
-            if ($session->guest_email && $pr->user && $pr->user->email === $session->guest_email) {
-                return $pr;
-            }
-        }
-
-        return null;
+        return $progressRecords->get($session->user_id);
     }
 
     private function sanitizeFolderName(string $name): string
