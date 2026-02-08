@@ -76,6 +76,7 @@ class TabloProject extends Model implements HasMedia
         'has_new_missing_photos',
         'max_template_selections',
         'max_retouch_photos',
+        'free_edit_window_hours',
         'data',
         'photo_date',
         'deadline',
@@ -118,6 +119,7 @@ class TabloProject extends Model implements HasMedia
             'has_new_missing_photos' => 'boolean',
             'max_template_selections' => 'integer',
             'max_retouch_photos' => 'integer',
+            'free_edit_window_hours' => 'integer',
             'data' => 'array',
             'photo_date' => 'date',
             'deadline' => 'date',
@@ -152,6 +154,23 @@ class TabloProject extends Model implements HasMedia
 
         // 4. Végső default
         return 5;
+    }
+
+    /**
+     * Effektív ingyenes módosítási időablak (prioritás: projekt → partner → 24 óra)
+     */
+    public function getEffectiveFreeEditWindowHours(): int
+    {
+        if ($this->free_edit_window_hours !== null) {
+            return $this->free_edit_window_hours;
+        }
+
+        $partner = $this->partner;
+        if ($partner && $partner->default_free_edit_window_hours !== null) {
+            return $partner->default_free_edit_window_hours;
+        }
+
+        return 24;
     }
 
     /**

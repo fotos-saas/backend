@@ -30,6 +30,8 @@ class TabloUserProgress extends Model
         'tablo_photo_id',
         'workflow_status',
         'finalized_at',
+        'modification_count',
+        'last_modification_paid_at',
     ];
 
     /**
@@ -43,6 +45,8 @@ class TabloUserProgress extends Model
             'steps_data' => 'array',
             'retouch_photo_ids' => 'array',
             'finalized_at' => 'datetime',
+            'modification_count' => 'integer',
+            'last_modification_paid_at' => 'datetime',
         ];
     }
 
@@ -100,6 +104,30 @@ class TabloUserProgress extends Model
     public function canModify(): bool
     {
         return $this->workflow_status === self::STATUS_IN_PROGRESS;
+    }
+
+    /**
+     * Check if within free edit window (finalized + time not expired)
+     */
+    public function isWithinFreeEditWindow(int $freeEditHours): bool
+    {
+        if (!$this->isFinalized() || !$this->finalized_at) {
+            return false;
+        }
+
+        return $this->finalized_at->addHours($freeEditHours)->isFuture();
+    }
+
+    /**
+     * Get remaining seconds in free edit window
+     */
+    public function getFreeEditRemainingSeconds(int $freeEditHours): int
+    {
+        if (!$this->isWithinFreeEditWindow($freeEditHours)) {
+            return 0;
+        }
+
+        return (int) now()->diffInSeconds($this->finalized_at->addHours($freeEditHours), false);
     }
 
     /**

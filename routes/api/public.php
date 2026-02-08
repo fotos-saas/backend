@@ -213,6 +213,7 @@ Route::middleware('auth:sanctum')->group(function () {
         // Status & finalization
         Route::get('/workflow/status', [TabloWorkflowControllerNew::class, 'getStatus']);
         Route::post('/workflow/finalize', [TabloWorkflowControllerNew::class, 'finalize']);
+        Route::post('/workflow/request-modification', [TabloWorkflowControllerNew::class, 'requestModification']);
     });
 
     // Work Sessions

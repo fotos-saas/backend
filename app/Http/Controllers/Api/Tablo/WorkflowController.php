@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\Tablo;
 use App\Actions\Tablo\FinalizeWorkflowAction;
 use App\Actions\Tablo\GetWorkflowStatusAction;
 use App\Actions\Tablo\NavigateWorkflowAction;
+use App\Actions\Tablo\RequestModificationAction;
 use App\Actions\Tablo\SaveClaimingSelectionAction;
 use App\Actions\Tablo\SaveRetouchSelectionAction;
 use App\Actions\Tablo\SaveTabloPhotoAction;
@@ -284,6 +285,30 @@ class WorkflowController extends Controller
      * Finalize workflow
      */
     public function finalize(Request $request, FinalizeWorkflowAction $action)
+    {
+        $validated = $request->validate([
+            'workSessionId' => 'required|exists:tablo_galleries,id',
+        ], [
+            'workSessionId.required' => 'A galéria azonosító kötelező.',
+            'workSessionId.exists' => 'A megadott galéria nem található.',
+        ]);
+
+        $gallery = TabloGallery::findOrFail($validated['workSessionId']);
+        $user = $request->user();
+
+        $result = $action->execute($user, $gallery);
+
+        if (!$result['success']) {
+            return response()->json(['message' => $result['error']], $result['status']);
+        }
+
+        return response()->json($result);
+    }
+
+    /**
+     * Request modification (un-finalize workflow)
+     */
+    public function requestModification(Request $request, RequestModificationAction $action)
     {
         $validated = $request->validate([
             'workSessionId' => 'required|exists:tablo_galleries,id',

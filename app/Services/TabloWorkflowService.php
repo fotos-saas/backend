@@ -485,9 +485,24 @@ class TabloWorkflowService
             ],
         ];
 
-        // Completed step: add review groups (all 3 step photos grouped)
+        // Completed step: add review groups + modification_info
         if ($step === 'completed' && $progress) {
             $result['review_groups'] = $this->buildReviewGroups($gallery, $progress);
+
+            // Modification info for free edit window
+            $project = $gallery->projects()->first();
+            $freeEditHours = $project
+                ? $project->getEffectiveFreeEditWindowHours()
+                : 24;
+
+            $result['modification_info'] = [
+                'free_edit_window_hours' => $freeEditHours,
+                'finalized_at' => $progress->finalized_at?->toIso8601String(),
+                'is_within_free_window' => $progress->isWithinFreeEditWindow($freeEditHours),
+                'remaining_seconds' => $progress->getFreeEditRemainingSeconds($freeEditHours),
+                'modification_count' => $progress->modification_count ?? 0,
+                'requires_payment' => !$progress->isWithinFreeEditWindow($freeEditHours),
+            ];
         }
 
         return $result;

@@ -27,6 +27,7 @@ class PartnerSettingsController extends Controller
             'data' => [
                 'default_max_retouch_photos' => $partner->default_max_retouch_photos ?? 3,
                 'default_gallery_deadline_days' => $partner->default_gallery_deadline_days ?? 14,
+                'default_free_edit_window_hours' => $partner->default_free_edit_window_hours ?? 24,
             ],
         ]);
     }
@@ -46,6 +47,10 @@ class PartnerSettingsController extends Controller
             $updateData['default_gallery_deadline_days'] = $request->validated('default_gallery_deadline_days');
         }
 
+        if ($request->has('default_free_edit_window_hours')) {
+            $updateData['default_free_edit_window_hours'] = $request->validated('default_free_edit_window_hours');
+        }
+
         $partner->update($updateData);
 
         return response()->json([
@@ -54,6 +59,7 @@ class PartnerSettingsController extends Controller
             'data' => [
                 'default_max_retouch_photos' => $partner->default_max_retouch_photos,
                 'default_gallery_deadline_days' => $partner->default_gallery_deadline_days ?? 14,
+                'default_free_edit_window_hours' => $partner->default_free_edit_window_hours ?? 24,
             ],
         ]);
     }
@@ -73,6 +79,9 @@ class PartnerSettingsController extends Controller
                 'max_retouch_photos' => $project->max_retouch_photos,
                 'effective_max_retouch_photos' => $project->getEffectiveMaxRetouchPhotos(),
                 'global_default_max_retouch_photos' => $globalDefault,
+                'free_edit_window_hours' => $project->free_edit_window_hours,
+                'effective_free_edit_window_hours' => $project->getEffectiveFreeEditWindowHours(),
+                'global_default_free_edit_window_hours' => $partner->default_free_edit_window_hours ?? 24,
             ],
         ]);
     }
@@ -84,9 +93,15 @@ class PartnerSettingsController extends Controller
     {
         $project = $this->getProjectForPartner($projectId);
 
-        $project->update([
+        $updateData = [
             'max_retouch_photos' => $request->validated('max_retouch_photos'),
-        ]);
+        ];
+
+        if ($request->has('free_edit_window_hours')) {
+            $updateData['free_edit_window_hours'] = $request->validated('free_edit_window_hours');
+        }
+
+        $project->update($updateData);
 
         return response()->json([
             'success' => true,
@@ -94,6 +109,8 @@ class PartnerSettingsController extends Controller
             'data' => [
                 'max_retouch_photos' => $project->max_retouch_photos,
                 'effective_max_retouch_photos' => $project->getEffectiveMaxRetouchPhotos(),
+                'free_edit_window_hours' => $project->free_edit_window_hours,
+                'effective_free_edit_window_hours' => $project->getEffectiveFreeEditWindowHours(),
             ],
         ]);
     }

@@ -39,6 +39,7 @@ class TabloPartner extends Model
         'partner_id',
         'default_max_retouch_photos',
         'default_gallery_deadline_days',
+        'default_free_edit_window_hours',
     ];
 
     protected $casts = [
@@ -46,6 +47,7 @@ class TabloPartner extends Model
         'commission_rate' => 'decimal:2',
         'default_max_retouch_photos' => 'integer',
         'default_gallery_deadline_days' => 'integer',
+        'default_free_edit_window_hours' => 'integer',
     ];
 
     /**
