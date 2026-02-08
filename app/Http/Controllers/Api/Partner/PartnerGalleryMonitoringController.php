@@ -7,6 +7,7 @@ namespace App\Http\Controllers\Api\Partner;
 use App\Actions\Partner\ExportGalleryMonitoringExcelAction;
 use App\Actions\Partner\GenerateGalleryZipAction;
 use App\Actions\Partner\GetGalleryMonitoringAction;
+use App\Actions\Partner\GetPersonSelectionsAction;
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\Api\Partner\Traits\PartnerAuthTrait;
 use App\Http\Requests\Gallery\DownloadGalleryZipRequest;
@@ -25,6 +26,7 @@ class PartnerGalleryMonitoringController extends Controller
 
     public function __construct(
         private readonly GetGalleryMonitoringAction $monitoringAction,
+        private readonly GetPersonSelectionsAction $selectionsAction,
         private readonly ExportGalleryMonitoringExcelAction $excelAction,
         private readonly GenerateGalleryZipAction $zipAction,
     ) {}
@@ -74,6 +76,28 @@ class PartnerGalleryMonitoringController extends Controller
         return response()->download($excelPath, $filename, [
             'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         ])->deleteFileAfterSend(true);
+    }
+
+    /**
+     * Egy személy kiválasztásainak részletezése (claimed, retouch, tablo) thumbnail URL-ekkel.
+     */
+    public function getPersonSelections(int $projectId, int $personId): JsonResponse
+    {
+        $project = $this->getProjectForPartner($projectId);
+
+        if (!$project->tablo_gallery_id) {
+            return response()->json([
+                'claimed' => [],
+                'retouch' => [],
+                'tablo' => null,
+                'workflowStatus' => null,
+                'currentStep' => null,
+            ]);
+        }
+
+        $result = $this->selectionsAction->execute($project->id, $project->tablo_gallery_id, $personId);
+
+        return response()->json($result);
     }
 
     /**
