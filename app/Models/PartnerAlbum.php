@@ -45,6 +45,7 @@ class PartnerAlbum extends Model implements HasMedia
         'expires_at',
         'download_days',
         'allow_download',
+        'webshop_share_token',
     ];
 
     protected $casts = [

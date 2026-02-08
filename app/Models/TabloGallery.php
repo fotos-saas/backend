@@ -18,6 +18,7 @@ class TabloGallery extends Model implements HasMedia
         'description',
         'status',
         'max_retouch_photos',
+        'webshop_share_token',
     ];
 
     protected $casts = [

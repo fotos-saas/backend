@@ -229,6 +229,19 @@ Route::middleware('auth:sanctum')->group(function () {
     });
 });
 
+// Webshop (Publikus - Token alapú)
+Route::prefix('shop/{token}')->middleware('throttle:60,1')->group(function () {
+    Route::get('/config', [\App\Http\Controllers\Api\ClientWebshopController::class, 'getShopConfig']);
+    Route::get('/products', [\App\Http\Controllers\Api\ClientWebshopController::class, 'getProducts']);
+    Route::get('/photos', [\App\Http\Controllers\Api\ClientWebshopController::class, 'getPhotos']);
+    Route::post('/checkout', [\App\Http\Controllers\Api\ClientWebshopController::class, 'createCheckout'])
+        ->middleware('throttle:5,1');
+});
+
+// Webshop Stripe Webhook
+Route::post('/webhooks/stripe/webshop/{partnerId}', [\App\Http\Controllers\Api\WebshopWebhookController::class, 'handle'])
+    ->middleware('throttle:100,1');
+
 // Client Routes (Partner Client - Token Auth)
 Route::post('/client/login', [App\Http\Controllers\Api\ClientAuthController::class, 'login'])
     ->middleware('throttle:5,1');
