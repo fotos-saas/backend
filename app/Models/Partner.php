@@ -172,7 +172,20 @@ class Partner extends Model
 
         // 2. Ha addon által elérhető (community_pack → forum, polls)
         foreach (self::getAddonsConfig() as $addonKey => $addon) {
-            if (in_array($feature, $addon['includes'] ?? []) && $this->hasAddon($addonKey)) {
+            if (! in_array($feature, $addon['includes'] ?? [])) {
+                continue;
+            }
+
+            // Aktív addon rekord → OK
+            if ($this->hasAddon($addonKey)) {
+                return true;
+            }
+
+            // Ingyenes addon, a partner terve jogosult rá → automatikusan elérhető
+            $isFree = $addon['free'] ?? false;
+            $availableFor = $addon['available_for'] ?? [];
+
+            if ($isFree && (empty($availableFor) || in_array($this->plan, $availableFor))) {
                 return true;
             }
         }
