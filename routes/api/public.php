@@ -118,6 +118,10 @@ Route::get('/downloads/zip/ready', [WorkSessionController::class, 'downloadReady
 // Stripe Webhook (must be public and without CSRF protection)
 Route::post('/stripe/webhook', [StripeWebhookController::class, 'handle']);
 
+// Partner Stripe Webhook (per-partner webhook endpoint)
+Route::post('/partner-stripe/webhook/{partnerId}', [\App\Http\Controllers\Api\PartnerStripeWebhookController::class, 'handle'])
+    ->middleware('throttle:100,1');
+
 // Subscription / Partner Registration (public)
 Route::prefix('subscription')->group(function () {
     Route::post('/checkout', [\App\Http\Controllers\Api\SubscriptionCheckoutController::class, 'createCheckoutSession']);

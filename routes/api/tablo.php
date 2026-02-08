@@ -475,6 +475,8 @@ Route::prefix('tablo-frontend')
             Route::get('/summary', [\App\Http\Controllers\Api\Tablo\GuestBillingController::class, 'summary']);
             Route::get('/', [\App\Http\Controllers\Api\Tablo\GuestBillingController::class, 'index']);
             Route::get('/{id}', [\App\Http\Controllers\Api\Tablo\GuestBillingController::class, 'show']);
+            Route::post('/{id}/checkout', [\App\Http\Controllers\Api\Tablo\GuestBillingController::class, 'createCheckoutSession'])
+                ->middleware('throttle:10,1');
         });
 
         // Notifications

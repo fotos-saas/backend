@@ -34,6 +34,7 @@ class GuestBillingCharge extends Model
         'tablo_project_id',
         'tablo_guest_session_id',
         'tablo_person_id',
+        'partner_service_id',
         'charge_number',
         'service_type',
         'description',
@@ -80,6 +81,11 @@ class GuestBillingCharge extends Model
         return $this->belongsTo(User::class, 'created_by');
     }
 
+    public function partnerService(): BelongsTo
+    {
+        return $this->belongsTo(PartnerService::class, 'partner_service_id');
+    }
+
     // ============ Scopes ============
 
     public function scopeForProject($query, int $projectId)
@@ -106,15 +112,6 @@ class GuestBillingCharge extends Model
     {
         return $query->where('status', self::STATUS_PAID);
     }
-
-    // ============ Stripe ============
-    // TODO: Stripe Checkout session indítás pending terheléshez
-    // TODO: Stripe webhook handler (payment_intent.succeeded → status=paid, paid_at=now)
-    // TODO: Stripe refund kezelés (charge.refunded → status=refunded)
-
-    // ============ Számlázás ============
-    // TODO: Számla generálás fizetés után (invoice_number, invoice_url kitöltése)
-    // TODO: Összekötés valódi számlázó rendszerrel (Billingo / szamlazz.hu)
 
     // ============ Helpers ============
 

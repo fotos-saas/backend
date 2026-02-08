@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\Tablo;
 
+use App\Actions\Billing\CreateCheckoutSessionAction;
 use App\Http\Controllers\Controller;
 use App\Models\GuestBillingCharge;
 use App\Models\TabloGuestSession;
@@ -89,9 +90,31 @@ class GuestBillingController extends Controller
         ]);
     }
 
-    // TODO: createCheckoutSession() - Stripe Checkout indítás pending terheléshez
-    // TODO: handleStripeWebhook() - payment_intent.succeeded → paid státusz + paid_at
-    // TODO: Partner dashboard endpoint: terhelés felvétele vendéghez (POST /api/partner/billing/charges)
+    /**
+     * Stripe Checkout indítás.
+     * POST /api/tablo-frontend/billing/{id}/checkout
+     */
+    public function createCheckoutSession(Request $request, int $id, CreateCheckoutSessionAction $action): JsonResponse
+    {
+        $token = $request->user()->currentAccessToken();
+        $projectId = $token->tablo_project_id;
+
+        $charge = GuestBillingCharge::forProject($projectId)->findOrFail($id);
+
+        if (! $charge->isPending()) {
+            return $this->errorResponse('Ez a terhelés már nem fizethető.', 422);
+        }
+
+        try {
+            $result = $action->execute($charge);
+
+            return $this->successResponse([
+                'checkout_url' => $result['checkout_url'],
+            ]);
+        } catch (\RuntimeException $e) {
+            return $this->errorResponse($e->getMessage(), 422);
+        }
+    }
 
     // ============ Private ============
 

@@ -43,6 +43,10 @@ class TabloPartner extends Model
         'default_gallery_deadline_days',
         'default_free_edit_window_hours',
         'billing_enabled',
+        'payment_stripe_public_key',
+        'payment_stripe_secret_key',
+        'payment_stripe_webhook_secret',
+        'payment_stripe_enabled',
         'default_zip_content',
         'default_file_naming',
         'export_always_ask',
@@ -70,6 +74,7 @@ class TabloPartner extends Model
         'default_gallery_deadline_days' => 'integer',
         'default_free_edit_window_hours' => 'integer',
         'billing_enabled' => 'boolean',
+        'payment_stripe_enabled' => 'boolean',
         'export_always_ask' => 'boolean',
         'invoice_provider' => InvoicingProviderType::class,
         'invoice_enabled' => 'boolean',
@@ -320,6 +325,13 @@ class TabloPartner extends Model
         return $this->invitations()->where('status', PartnerInvitation::STATUS_PENDING);
     }
 
+    // ============ Partner Services (Szolgáltatás katalógus) ============
+
+    public function partnerServices(): HasMany
+    {
+        return $this->hasMany(PartnerService::class, 'partner_id');
+    }
+
     // ============ Invoices (Számlák) ============
 
     public function invoices(): HasMany
@@ -348,6 +360,61 @@ class TabloPartner extends Model
     public function hasInvoicingEnabled(): bool
     {
         return $this->invoice_enabled && $this->invoice_api_key !== null;
+    }
+
+    // ============ Payment Stripe (Partner Stripe kulcsok) ============
+
+    public function getDecryptedStripePublicKey(): ?string
+    {
+        if (! $this->payment_stripe_public_key) {
+            return null;
+        }
+
+        try {
+            return Crypt::decryptString($this->payment_stripe_public_key);
+        } catch (\Exception) {
+            return null;
+        }
+    }
+
+    public function getDecryptedStripeSecretKey(): ?string
+    {
+        if (! $this->payment_stripe_secret_key) {
+            return null;
+        }
+
+        try {
+            return Crypt::decryptString($this->payment_stripe_secret_key);
+        } catch (\Exception) {
+            return null;
+        }
+    }
+
+    public function getDecryptedStripeWebhookSecret(): ?string
+    {
+        if (! $this->payment_stripe_webhook_secret) {
+            return null;
+        }
+
+        try {
+            return Crypt::decryptString($this->payment_stripe_webhook_secret);
+        } catch (\Exception) {
+            return null;
+        }
+    }
+
+    public function setEncryptedStripeKeys(?string $publicKey, ?string $secretKey, ?string $webhookSecret): void
+    {
+        $this->payment_stripe_public_key = $publicKey ? Crypt::encryptString($publicKey) : null;
+        $this->payment_stripe_secret_key = $secretKey ? Crypt::encryptString($secretKey) : null;
+        $this->payment_stripe_webhook_secret = $webhookSecret ? Crypt::encryptString($webhookSecret) : null;
+    }
+
+    public function hasStripePaymentEnabled(): bool
+    {
+        return $this->payment_stripe_enabled
+            && $this->payment_stripe_public_key !== null
+            && $this->payment_stripe_secret_key !== null;
     }
 
     // ============ Partner Connections (Nyomda ↔ Fotós) ============

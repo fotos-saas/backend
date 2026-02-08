@@ -5,6 +5,7 @@ use App\Http\Controllers\Api\Partner\InvoiceController;
 use App\Http\Controllers\Api\Partner\InvoiceSettingsController;
 use App\Http\Controllers\Api\Partner\InvitationController as PartnerInvitationController;
 use App\Http\Controllers\Api\Partner\PartnerAlbumController;
+use App\Http\Controllers\Api\Partner\PartnerBillingController;
 use App\Http\Controllers\Api\Partner\PartnerGalleryController;
 use App\Http\Controllers\Api\Partner\PartnerGalleryMonitoringController;
 use App\Http\Controllers\Api\Partner\PartnerContactController;
@@ -19,7 +20,9 @@ use App\Http\Controllers\Api\Partner\PartnerSamplePackageController;
 use App\Http\Controllers\Api\Partner\PartnerSchoolController;
 use App\Http\Controllers\Api\Partner\TeamController as PartnerTeamController;
 use App\Http\Controllers\Api\Partner\PartnerBrandingController;
+use App\Http\Controllers\Api\Partner\PartnerServiceController;
 use App\Http\Controllers\Api\Partner\PartnerSettingsController;
+use App\Http\Controllers\Api\Partner\PartnerStripeSettingsController;
 use App\Http\Controllers\Api\PartnerClientController;
 use App\Http\Controllers\Api\PartnerOrderAlbumController;
 use App\Http\Controllers\Api\PartnerOrderAlbumPhotoController;
@@ -230,6 +233,32 @@ Route::middleware('auth:sanctum')->group(function () {
                 Route::post('/{invoice}/cancel', [InvoiceController::class, 'cancel']);
                 Route::get('/{invoice}/pdf', [InvoiceController::class, 'downloadPdf']);
             });
+        });
+
+        // Partner Services (Szolgáltatás katalógus)
+        Route::prefix('services')->group(function () {
+            Route::get('/', [PartnerServiceController::class, 'index']);
+            Route::post('/', [PartnerServiceController::class, 'store']);
+            Route::post('/seed-defaults', [PartnerServiceController::class, 'seedDefaults']);
+            Route::put('/{id}', [PartnerServiceController::class, 'update']);
+            Route::delete('/{id}', [PartnerServiceController::class, 'destroy']);
+        });
+
+        // Partner Billing (Terhelés kezelés)
+        Route::prefix('billing')->group(function () {
+            Route::get('/', [PartnerBillingController::class, 'index']);
+            Route::get('/summary', [PartnerBillingController::class, 'summary']);
+            Route::post('/', [PartnerBillingController::class, 'store']);
+            Route::put('/{id}', [PartnerBillingController::class, 'update']);
+            Route::post('/{id}/cancel', [PartnerBillingController::class, 'cancel']);
+        });
+
+        // Partner Stripe Settings (Fizetés beállítások)
+        Route::prefix('stripe-settings')->group(function () {
+            Route::get('/', [PartnerStripeSettingsController::class, 'show']);
+            Route::put('/', [PartnerStripeSettingsController::class, 'update']);
+            Route::post('/validate', [PartnerStripeSettingsController::class, 'validateKeys'])
+                ->middleware('throttle:10,1');
         });
 
         // Client Orders (Fotós Megrendelések)
