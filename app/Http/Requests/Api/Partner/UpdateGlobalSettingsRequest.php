@@ -16,7 +16,8 @@ class UpdateGlobalSettingsRequest extends FormRequest
         return [
             'default_max_retouch_photos' => ['nullable', 'integer', 'min:1', 'max:20'],
             'default_gallery_deadline_days' => ['nullable', 'integer', 'min:1', 'max:90'],
-            'default_free_edit_window_hours' => ['nullable', 'integer', 'min:1', 'max:168'],
+            'default_free_edit_window_hours' => ['nullable', 'integer', 'min:0', 'max:168'],
+            'billing_enabled' => ['nullable', 'boolean'],
         ];
     }
 

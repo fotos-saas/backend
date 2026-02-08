@@ -28,6 +28,7 @@ class PartnerSettingsController extends Controller
                 'default_max_retouch_photos' => $partner->default_max_retouch_photos ?? 3,
                 'default_gallery_deadline_days' => $partner->default_gallery_deadline_days ?? 14,
                 'default_free_edit_window_hours' => $partner->default_free_edit_window_hours ?? 24,
+                'billing_enabled' => (bool) $partner->billing_enabled,
             ],
         ]);
     }
@@ -51,6 +52,10 @@ class PartnerSettingsController extends Controller
             $updateData['default_free_edit_window_hours'] = $request->validated('default_free_edit_window_hours');
         }
 
+        if ($request->has('billing_enabled')) {
+            $updateData['billing_enabled'] = $request->validated('billing_enabled');
+        }
+
         $partner->update($updateData);
 
         return response()->json([
@@ -60,6 +65,7 @@ class PartnerSettingsController extends Controller
                 'default_max_retouch_photos' => $partner->default_max_retouch_photos,
                 'default_gallery_deadline_days' => $partner->default_gallery_deadline_days ?? 14,
                 'default_free_edit_window_hours' => $partner->default_free_edit_window_hours ?? 24,
+                'billing_enabled' => (bool) $partner->billing_enabled,
             ],
         ]);
     }
