@@ -33,7 +33,7 @@ class GuestBillingController extends Controller
 
         $charges = $query->get();
 
-        return $this->success([
+        return $this->successResponse([
             'charges' => $charges->map(fn (GuestBillingCharge $c) => $this->formatCharge($c)),
         ]);
     }
@@ -50,10 +50,10 @@ class GuestBillingController extends Controller
         $charge = GuestBillingCharge::forProject($projectId)->find($id);
 
         if (! $charge) {
-            return $this->error('Terhelés nem található.', 404);
+            return $this->notFoundResponse('Terhelés nem található.');
         }
 
-        return $this->success([
+        return $this->successResponse([
             'charge' => $this->formatCharge($charge),
         ]);
     }
@@ -79,7 +79,7 @@ class GuestBillingController extends Controller
         $paidAmount = $charges->where('status', GuestBillingCharge::STATUS_PAID)->sum('amount_huf');
         $pendingAmount = $charges->where('status', GuestBillingCharge::STATUS_PENDING)->sum('amount_huf');
 
-        return $this->success([
+        return $this->successResponse([
             'summary' => [
                 'total_amount' => $totalAmount,
                 'paid_amount' => $paidAmount,
