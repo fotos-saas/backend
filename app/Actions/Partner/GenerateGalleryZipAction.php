@@ -133,10 +133,11 @@ class GenerateGalleryZipAction
     ): int {
         $addedCount = 0;
         $usedFilenames = [];
+        $stepsData = $progress->steps_data ?? [];
 
         // Retusált képek
         if (in_array($zipContent, ['retouch_only', 'retouch_and_tablo', 'all'])) {
-            $retouchIds = $progress->retouch_photo_ids ?? [];
+            $retouchIds = $stepsData['retouch_media_ids'] ?? [];
             if (!empty($retouchIds)) {
                 $retouchMedia = Media::whereIn('id', $retouchIds)->get();
                 $subfolder = "{$personFolder}/retusalt";
@@ -154,9 +155,9 @@ class GenerateGalleryZipAction
 
         // Tablókép
         if (in_array($zipContent, ['tablo_only', 'retouch_and_tablo', 'all'])) {
-            $tabloPhotoId = $progress->tablo_photo_id;
-            if ($tabloPhotoId) {
-                $tabloMedia = Media::find($tabloPhotoId);
+            $tabloMediaId = $stepsData['tablo_media_id'] ?? null;
+            if ($tabloMediaId) {
+                $tabloMedia = Media::find($tabloMediaId);
                 if ($tabloMedia) {
                     $subfolder = "{$personFolder}/tablokep";
                     $addedCount += $this->addMediaToZip(
@@ -167,10 +168,9 @@ class GenerateGalleryZipAction
             }
         }
 
-        // Összes saját kép (csak 'all' módban, ha a galéria media collection-ből is kell)
+        // Összes saját kép (csak 'all' módban)
         if ($zipContent === 'all') {
-            $stepsData = $progress->steps_data ?? [];
-            $claimedIds = $stepsData['claimed_photo_ids'] ?? [];
+            $claimedIds = $stepsData['claimed_media_ids'] ?? [];
             if (!empty($claimedIds)) {
                 $claimedMedia = Media::whereIn('id', $claimedIds)->get();
                 $subfolder = "{$personFolder}/osszes";
