@@ -51,6 +51,7 @@ return [
                 'templates',
                 'qr_sharing',
                 'email_support',
+                'client_orders',
             ],
 
             // Feature címkék (frontend megjelenítéshez)
@@ -63,6 +64,7 @@ return [
                 'Sablon szerkesztő',
                 'QR kódos megosztás',
                 'Email támogatás',
+                'Megrendelés kezelés',
             ],
         ],
 
@@ -97,6 +99,7 @@ return [
                 'priority_support',
                 'forum',
                 'polls',
+                'client_orders',
             ],
 
             // Feature címkék
@@ -110,6 +113,7 @@ return [
                 'Prioritás támogatás',
                 'Fórum',
                 'Szavazás',
+                'Megrendelés kezelés',
             ],
         ],
 
@@ -146,6 +150,7 @@ return [
                 'sms_notifications',
                 'forum',
                 'polls',
+                'client_orders',
             ],
 
             // Feature címkék
@@ -158,6 +163,7 @@ return [
                 'Dedikált support',
                 'Fórum',
                 'Szavazás',
+                'Megrendelés kezelés',
             ],
         ],
 
@@ -196,6 +202,7 @@ return [
                 'polls',
                 'priority_support',
                 'unlimited_storage',
+                'client_orders',
             ],
 
             // Feature címkék
@@ -209,6 +216,7 @@ return [
                 'Prioritás támogatás',
                 'Fórum',
                 'Szavazás',
+                'Megrendelés kezelés',
             ],
         ],
     ],
