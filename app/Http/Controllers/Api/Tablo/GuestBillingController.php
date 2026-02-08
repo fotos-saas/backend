@@ -89,6 +89,10 @@ class GuestBillingController extends Controller
         ]);
     }
 
+    // TODO: createCheckoutSession() - Stripe Checkout indítás pending terheléshez
+    // TODO: handleStripeWebhook() - payment_intent.succeeded → paid státusz + paid_at
+    // TODO: Partner dashboard endpoint: terhelés felvétele vendéghez (POST /api/partner/billing/charges)
+
     // ============ Private ============
 
     private function getPersonId(Request $request, int $projectId): ?int

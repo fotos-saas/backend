@@ -107,6 +107,15 @@ class GuestBillingCharge extends Model
         return $query->where('status', self::STATUS_PAID);
     }
 
+    // ============ Stripe ============
+    // TODO: Stripe Checkout session indítás pending terheléshez
+    // TODO: Stripe webhook handler (payment_intent.succeeded → status=paid, paid_at=now)
+    // TODO: Stripe refund kezelés (charge.refunded → status=refunded)
+
+    // ============ Számlázás ============
+    // TODO: Számla generálás fizetés után (invoice_number, invoice_url kitöltése)
+    // TODO: Összekötés valódi számlázó rendszerrel (Billingo / szamlazz.hu)
+
     // ============ Helpers ============
 
     public function getServiceLabelAttribute(): string
