@@ -319,6 +319,14 @@ class TabloGuestSession extends Model
     // ==========================================
 
     /**
+     * Számlázási terhelések
+     */
+    public function billingCharges(): HasMany
+    {
+        return $this->hasMany(GuestBillingCharge::class, 'tablo_guest_session_id');
+    }
+
+    /**
      * Küldött bökések
      */
     public function sentPokes(): HasMany

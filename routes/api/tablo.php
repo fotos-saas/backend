@@ -469,6 +469,13 @@ Route::prefix('tablo-frontend')
         Route::get('/participants/search', [GuestRegistrationController::class, 'searchParticipants'])
             ->middleware('throttle:60,1');
 
+        // Billing (Fizetéseim)
+        Route::prefix('billing')->group(function () {
+            Route::get('/summary', [\App\Http\Controllers\Api\Tablo\GuestBillingController::class, 'summary']);
+            Route::get('/', [\App\Http\Controllers\Api\Tablo\GuestBillingController::class, 'index']);
+            Route::get('/{id}', [\App\Http\Controllers\Api\Tablo\GuestBillingController::class, 'show']);
+        });
+
         // Notifications
         Route::prefix('notifications')->group(function () {
             Route::get('/', [\App\Http\Controllers\Api\Tablo\NotificationController::class, 'index']);
