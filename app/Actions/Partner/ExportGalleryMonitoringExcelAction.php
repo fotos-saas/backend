@@ -110,17 +110,30 @@ class ExportGalleryMonitoringExcelAction
         $row = 2;
         foreach ($data as $person) {
             $photos = $photosFn($person);
-            $photoList = implode(', ', $photos);
 
-            $sheet->setCellValue("A{$row}", $person['name']);
-            $sheet->setCellValue("B{$row}", $person['typeLabel']);
-            $sheet->setCellValue("C{$row}", $photoList ?: '-');
+            if (empty($photos)) {
+                $sheet->setCellValue("A{$row}", $person['name']);
+                $sheet->setCellValue("B{$row}", $person['typeLabel']);
+                $sheet->setCellValue("C{$row}", '-');
 
-            if ($row % 2 === 0) {
-                $sheet->getStyle("A{$row}:C{$row}")->applyFromArray(self::ZEBRA_STYLE);
+                if ($row % 2 === 0) {
+                    $sheet->getStyle("A{$row}:C{$row}")->applyFromArray(self::ZEBRA_STYLE);
+                }
+
+                $row++;
+            } else {
+                foreach ($photos as $photo) {
+                    $sheet->setCellValue("A{$row}", $person['name']);
+                    $sheet->setCellValue("B{$row}", $person['typeLabel']);
+                    $sheet->setCellValue("C{$row}", $photo);
+
+                    if ($row % 2 === 0) {
+                        $sheet->getStyle("A{$row}:C{$row}")->applyFromArray(self::ZEBRA_STYLE);
+                    }
+
+                    $row++;
+                }
             }
-
-            $row++;
         }
 
         if ($row > 2) {
