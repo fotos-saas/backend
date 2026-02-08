@@ -133,6 +133,7 @@ class ShopOrder extends Model
     {
         $date = now()->format('Ymd');
         $lastOrder = static::where('order_number', 'like', "WS{$date}-%")
+            ->lockForUpdate()
             ->orderByDesc('order_number')
             ->first();
 

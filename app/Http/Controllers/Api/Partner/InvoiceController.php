@@ -9,6 +9,7 @@ use App\Actions\Invoice\GetInvoiceStatisticsAction;
 use App\Enums\InvoiceStatus;
 use App\Http\Controllers\Api\Partner\Traits\PartnerAuthTrait;
 use App\Http\Controllers\Concerns\HasPagination;
+use App\Helpers\QueryHelper;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Partner\CreateInvoiceRequest;
 use App\Models\TabloInvoice;
@@ -40,7 +41,7 @@ class InvoiceController extends Controller
         }
 
         if ($request->filled('search')) {
-            $search = '%'.str_replace(['%', '_'], ['\%', '\_'], $request->input('search')).'%';
+            $search = QueryHelper::safeLikePattern($request->input('search'));
             $query->where(function ($q) use ($search) {
                 $q->where('invoice_number', 'ILIKE', $search)
                     ->orWhere('customer_name', 'ILIKE', $search);
@@ -158,9 +159,11 @@ class InvoiceController extends Controller
 
         $content = \Storage::disk(config('invoicing.pdf_disk', 'local'))->get($path);
 
+        $safeFilename = preg_replace('/[^A-Za-z0-9\-_]/', '_', $invoice->invoice_number);
+
         return response($content, 200)
             ->header('Content-Type', 'application/pdf')
-            ->header('Content-Disposition', 'attachment; filename="'.$invoice->invoice_number.'.pdf"');
+            ->header('Content-Disposition', 'attachment; filename="'.$safeFilename.'.pdf"');
     }
 
     public function statistics(Request $request, GetInvoiceStatisticsAction $action): JsonResponse

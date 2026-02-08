@@ -107,16 +107,14 @@ class PartnerBillingController extends Controller
             $query->forProject((int) $request->input('project_id'));
         }
 
-        $charges = $query->get();
-
         return $this->successResponse([
             'summary' => [
-                'total_amount' => $charges->sum('amount_huf'),
-                'paid_amount' => $charges->where('status', 'paid')->sum('amount_huf'),
-                'pending_amount' => $charges->where('status', 'pending')->sum('amount_huf'),
-                'charges_count' => $charges->count(),
-                'pending_count' => $charges->where('status', 'pending')->count(),
-                'paid_count' => $charges->where('status', 'paid')->count(),
+                'total_amount' => (int) (clone $query)->sum('amount_huf'),
+                'paid_amount' => (int) (clone $query)->where('status', 'paid')->sum('amount_huf'),
+                'pending_amount' => (int) (clone $query)->where('status', 'pending')->sum('amount_huf'),
+                'charges_count' => (clone $query)->count(),
+                'pending_count' => (clone $query)->where('status', 'pending')->count(),
+                'paid_count' => (clone $query)->where('status', 'paid')->count(),
             ],
         ]);
     }

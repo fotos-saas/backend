@@ -17,6 +17,8 @@ class CreateInvoiceRequest extends FormRequest
 
     public function rules(): array
     {
+        $partnerId = auth()->user()?->getEffectivePartner()?->id;
+
         return [
             'type' => ['required', Rule::in(InvoiceType::values())],
             'issue_date' => ['required', 'date'],
@@ -28,8 +30,8 @@ class CreateInvoiceRequest extends FormRequest
             'customer_address' => ['nullable', 'string', 'max:500'],
             'comment' => ['nullable', 'string', 'max:1000'],
             'internal_note' => ['nullable', 'string', 'max:1000'],
-            'tablo_project_id' => ['nullable', 'integer', 'exists:tablo_projects,id'],
-            'tablo_contact_id' => ['nullable', 'integer', 'exists:tablo_contacts,id'],
+            'tablo_project_id' => ['nullable', 'integer', Rule::exists('tablo_projects', 'id')->where('tablo_partner_id', $partnerId)],
+            'tablo_contact_id' => ['nullable', 'integer', Rule::exists('tablo_contacts', 'id')->where('tablo_partner_id', $partnerId)],
             'sync_immediately' => ['boolean'],
 
             'items' => ['required', 'array', 'min:1'],

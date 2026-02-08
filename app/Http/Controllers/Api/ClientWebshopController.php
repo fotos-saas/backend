@@ -99,14 +99,18 @@ class ClientWebshopController extends Controller
         ]);
     }
 
-    public function createCheckout(Request $request, string $token): JsonResponse
-    {
+    public function createCheckout(
+        Request $request,
+        string $token,
+        CreateWebshopOrderAction $orderAction,
+        CreateStripeCheckoutAction $checkoutAction,
+    ): JsonResponse {
         $source = $this->resolveSource($token);
         if (!$source) {
             return $this->errorResponse('Érvénytelen link.', 404);
         }
 
-        $request->validate([
+        $validated = $request->validate([
             'customer_name' => 'required|string|max:255',
             'customer_email' => 'required|email|max:255',
             'customer_phone' => 'nullable|string|max:30',
@@ -120,10 +124,8 @@ class ClientWebshopController extends Controller
             'items.*.quantity' => 'required|integer|min:1|max:99',
         ]);
 
-        $orderAction = new CreateWebshopOrderAction();
-        $order = $orderAction->execute($source, $request->all());
+        $order = $orderAction->execute($source, $validated);
 
-        $checkoutAction = new CreateStripeCheckoutAction();
         $result = $checkoutAction->execute($order, $token);
 
         if (!$result['success']) {

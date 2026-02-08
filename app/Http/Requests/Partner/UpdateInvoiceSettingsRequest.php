@@ -21,7 +21,7 @@ class UpdateInvoiceSettingsRequest extends FormRequest
             'invoice_provider' => ['required', Rule::in(InvoicingProviderType::values())],
             'invoice_enabled' => ['required', 'boolean'],
             'invoice_api_key' => ['nullable', 'string', 'max:500'],
-            'invoice_prefix' => ['required', 'string', 'max:20'],
+            'invoice_prefix' => ['required', 'string', 'max:20', 'regex:/^[A-Za-z0-9\-]+$/'],
             'invoice_currency' => ['required', 'string', 'size:3'],
             'invoice_language' => ['required', 'string', 'size:2'],
             'invoice_due_days' => ['required', 'integer', 'min:0', 'max:365'],

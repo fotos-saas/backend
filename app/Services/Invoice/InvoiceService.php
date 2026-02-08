@@ -119,17 +119,25 @@ class InvoiceService
 
     /**
      * Számlaszám generálása: PREFIX-YYYY-NNNNN
+     * Atomi: lockForUpdate + MAX-alapú sorszám.
      */
     public function generateInvoiceNumber(TabloPartner $partner): string
     {
         $prefix = $partner->invoice_prefix ?? 'PS';
         $year = now()->format('Y');
+        $pattern = sprintf('%s-%s-', $prefix, $year);
 
-        $lastNumber = TabloInvoice::where('tablo_partner_id', $partner->id)
-            ->whereYear('created_at', $year)
-            ->count();
+        $lastInvoice = TabloInvoice::where('tablo_partner_id', $partner->id)
+            ->where('invoice_number', 'like', $pattern . '%')
+            ->lockForUpdate()
+            ->orderByDesc('invoice_number')
+            ->first();
 
-        $nextNumber = $lastNumber + 1;
+        $nextNumber = 1;
+        if ($lastInvoice) {
+            $lastSequence = (int) substr($lastInvoice->invoice_number, -5);
+            $nextNumber = $lastSequence + 1;
+        }
 
         return sprintf('%s-%s-%05d', $prefix, $year, $nextNumber);
     }

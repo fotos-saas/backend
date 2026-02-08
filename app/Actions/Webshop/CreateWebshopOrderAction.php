@@ -8,6 +8,7 @@ use App\Models\ShopOrder;
 use App\Models\ShopOrderItem;
 use App\Models\ShopProduct;
 use App\Models\ShopSetting;
+use Illuminate\Support\Facades\DB;
 
 class CreateWebshopOrderAction
 {
@@ -15,6 +16,9 @@ class CreateWebshopOrderAction
     {
         $partnerId = $source['partner_id'];
         $settings = ShopSetting::where('tablo_partner_id', $partnerId)->firstOrFail();
+
+        // Elérhető média ID-k lekérése a source-ból (IDOR védelem)
+        $validMediaIds = $this->getValidMediaIds($source);
 
         // Tételek és árak validálása
         $items = $data['items'];
@@ -28,13 +32,20 @@ class CreateWebshopOrderAction
                 ->with(['paperSize', 'paperType'])
                 ->firstOrFail();
 
+            $mediaId = (int) $item['media_id'];
+
+            // Media ID validáció: csak a source-hoz tartozó médiák engedélyezettek
+            if (!in_array($mediaId, $validMediaIds, true)) {
+                throw new \InvalidArgumentException('Érvénytelen média hivatkozás.');
+            }
+
             $quantity = (int) $item['quantity'];
             $itemSubtotal = $product->price_huf * $quantity;
             $subtotal += $itemSubtotal;
 
             $validatedItems[] = [
                 'product' => $product,
-                'media_id' => (int) $item['media_id'],
+                'media_id' => $mediaId,
                 'quantity' => $quantity,
                 'subtotal' => $itemSubtotal,
             ];
@@ -58,39 +69,56 @@ class CreateWebshopOrderAction
             );
         }
 
-        // Rendelés létrehozása
-        $order = ShopOrder::create([
-            'order_number' => ShopOrder::generateOrderNumber(),
-            'tablo_partner_id' => $partnerId,
-            'partner_album_id' => $source['album_id'],
-            'tablo_gallery_id' => $source['gallery_id'],
-            'customer_name' => $data['customer_name'],
-            'customer_email' => $data['customer_email'],
-            'customer_phone' => $data['customer_phone'] ?? null,
-            'subtotal_huf' => $subtotal,
-            'shipping_cost_huf' => $shippingCost,
-            'total_huf' => $total,
-            'status' => ShopOrder::STATUS_PENDING,
-            'delivery_method' => $data['delivery_method'],
-            'shipping_address' => $data['shipping_address'] ?? null,
-            'shipping_notes' => $data['shipping_notes'] ?? null,
-            'customer_notes' => $data['customer_notes'] ?? null,
-        ]);
-
-        // Tételek létrehozása snapshot-tal
-        foreach ($validatedItems as $vi) {
-            ShopOrderItem::create([
-                'shop_order_id' => $order->id,
-                'shop_product_id' => $vi['product']->id,
-                'media_id' => $vi['media_id'],
-                'paper_size_name' => $vi['product']->paperSize->name,
-                'paper_type_name' => $vi['product']->paperType->name,
-                'unit_price_huf' => $vi['product']->price_huf,
-                'quantity' => $vi['quantity'],
-                'subtotal_huf' => $vi['subtotal'],
+        return DB::transaction(function () use ($partnerId, $source, $data, $subtotal, $shippingCost, $total, $validatedItems) {
+            // Rendelés létrehozása
+            $order = ShopOrder::create([
+                'order_number' => ShopOrder::generateOrderNumber(),
+                'tablo_partner_id' => $partnerId,
+                'partner_album_id' => $source['album_id'],
+                'tablo_gallery_id' => $source['gallery_id'],
+                'customer_name' => $data['customer_name'],
+                'customer_email' => $data['customer_email'],
+                'customer_phone' => $data['customer_phone'] ?? null,
+                'subtotal_huf' => $subtotal,
+                'shipping_cost_huf' => $shippingCost,
+                'total_huf' => $total,
+                'status' => ShopOrder::STATUS_PENDING,
+                'delivery_method' => $data['delivery_method'],
+                'shipping_address' => $data['shipping_address'] ?? null,
+                'shipping_notes' => $data['shipping_notes'] ?? null,
+                'customer_notes' => $data['customer_notes'] ?? null,
             ]);
+
+            // Tételek létrehozása snapshot-tal
+            foreach ($validatedItems as $vi) {
+                ShopOrderItem::create([
+                    'shop_order_id' => $order->id,
+                    'shop_product_id' => $vi['product']->id,
+                    'media_id' => $vi['media_id'],
+                    'paper_size_name' => $vi['product']->paperSize->name,
+                    'paper_type_name' => $vi['product']->paperType->name,
+                    'unit_price_huf' => $vi['product']->price_huf,
+                    'quantity' => $vi['quantity'],
+                    'subtotal_huf' => $vi['subtotal'],
+                ]);
+            }
+
+            return $order;
+        });
+    }
+
+    private function getValidMediaIds(array $source): array
+    {
+        $model = $source['model'];
+
+        if ($source['type'] === 'album') {
+            return $model->getMedia('photos')->pluck('id')->toArray();
         }
 
-        return $order;
+        if ($source['type'] === 'gallery') {
+            return $model->getMedia('photos')->pluck('id')->toArray();
+        }
+
+        return [];
     }
 }

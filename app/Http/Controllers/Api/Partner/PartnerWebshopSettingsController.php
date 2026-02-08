@@ -23,6 +23,11 @@ class PartnerWebshopSettingsController extends Controller
 {
     use PartnerAuthTrait;
 
+    public function __construct(
+        private readonly InitializeWebshopAction $initializeAction,
+        private readonly GenerateWebshopTokenAction $tokenAction,
+    ) {}
+
     public function getSettings(): JsonResponse
     {
         $partnerId = $this->getPartnerIdOrFail();
@@ -41,8 +46,7 @@ class PartnerWebshopSettingsController extends Controller
         $settings = ShopSetting::where('tablo_partner_id', $partnerId)->first();
 
         if (!$settings) {
-            $action = new InitializeWebshopAction();
-            $settings = $action->execute($partnerId);
+            $settings = $this->initializeAction->execute($partnerId);
         }
 
         $settings->update($request->validated());
@@ -199,8 +203,7 @@ class PartnerWebshopSettingsController extends Controller
             return $this->errorResponse('album_id vagy gallery_id kötelező.', 422);
         }
 
-        $action = new GenerateWebshopTokenAction();
-        $token = $action->execute(
+        $token = $this->tokenAction->execute(
             $partnerId,
             $request->input('album_id') ? (int) $request->input('album_id') : null,
             $request->input('gallery_id') ? (int) $request->input('gallery_id') : null,

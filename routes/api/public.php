@@ -116,7 +116,8 @@ Route::get('/downloads/zip/ready', [WorkSessionController::class, 'downloadReady
     ->name('api.work-sessions.download-ready-zip');
 
 // Stripe Webhook (must be public and without CSRF protection)
-Route::post('/stripe/webhook', [StripeWebhookController::class, 'handle']);
+Route::post('/stripe/webhook', [StripeWebhookController::class, 'handle'])
+    ->middleware('throttle:100,1');
 
 // Partner Stripe Webhook (per-partner webhook endpoint)
 Route::post('/partner-stripe/webhook/{partnerId}', [\App\Http\Controllers\Api\PartnerStripeWebhookController::class, 'handle'])

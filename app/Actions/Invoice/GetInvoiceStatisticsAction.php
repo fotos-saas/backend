@@ -18,24 +18,35 @@ class GetInvoiceStatisticsAction
     {
         $year = $year ?? (int) now()->format('Y');
 
-        $invoices = TabloInvoice::where('tablo_partner_id', $partnerId)
+        $baseQuery = TabloInvoice::where('tablo_partner_id', $partnerId)
             ->whereYear('issue_date', $year)
-            ->whereNull('deleted_at')
-            ->get(['status', 'gross_amount']);
+            ->whereNull('deleted_at');
 
-        $paid = $invoices->where('status', InvoiceStatus::PAID);
-        $pending = $invoices->whereIn('status', [InvoiceStatus::DRAFT, InvoiceStatus::SENT]);
-        $overdue = $invoices->where('status', InvoiceStatus::OVERDUE);
+        $stats = (clone $baseQuery)
+            ->selectRaw('status, COUNT(*) as cnt, COALESCE(SUM(gross_amount), 0) as total')
+            ->groupBy('status')
+            ->get()
+            ->keyBy('status');
+
+        $paidStatus = InvoiceStatus::PAID->value;
+        $draftStatus = InvoiceStatus::DRAFT->value;
+        $sentStatus = InvoiceStatus::SENT->value;
+        $overdueStatus = InvoiceStatus::OVERDUE->value;
+
+        $paidCount = (int) ($stats[$paidStatus]->cnt ?? 0);
+        $draftCount = (int) ($stats[$draftStatus]->cnt ?? 0);
+        $sentCount = (int) ($stats[$sentStatus]->cnt ?? 0);
+        $overdueCount = (int) ($stats[$overdueStatus]->cnt ?? 0);
 
         return [
-            'total_count' => $invoices->count(),
-            'paid_count' => $paid->count(),
-            'pending_count' => $pending->count(),
-            'overdue_count' => $overdue->count(),
-            'total_gross' => (float) $invoices->sum('gross_amount'),
-            'paid_gross' => (float) $paid->sum('gross_amount'),
-            'pending_gross' => (float) $pending->sum('gross_amount'),
-            'overdue_gross' => (float) $overdue->sum('gross_amount'),
+            'total_count' => $stats->sum('cnt'),
+            'paid_count' => $paidCount,
+            'pending_count' => $draftCount + $sentCount,
+            'overdue_count' => $overdueCount,
+            'total_gross' => (float) $stats->sum('total'),
+            'paid_gross' => (float) ($stats[$paidStatus]->total ?? 0),
+            'pending_gross' => (float) (($stats[$draftStatus]->total ?? 0) + ($stats[$sentStatus]->total ?? 0)),
+            'overdue_gross' => (float) ($stats[$overdueStatus]->total ?? 0),
         ];
     }
 }

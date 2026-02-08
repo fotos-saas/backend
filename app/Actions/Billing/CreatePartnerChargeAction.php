@@ -7,6 +7,7 @@ namespace App\Actions\Billing;
 use App\Models\GuestBillingCharge;
 use App\Models\PartnerService;
 use App\Models\TabloPartner;
+use App\Models\TabloPerson;
 use App\Models\TabloProject;
 use Illuminate\Support\Facades\DB;
 
@@ -31,6 +32,11 @@ class CreatePartnerChargeAction
         // Validáljuk, hogy a projekt a partnerhez tartozik
         $project = TabloProject::where('id', $data['tablo_project_id'])
             ->where('partner_id', $partner->id)
+            ->firstOrFail();
+
+        // Validáljuk, hogy a személy a projekthez tartozik
+        TabloPerson::where('id', $data['tablo_person_id'])
+            ->where('tablo_project_id', $project->id)
             ->firstOrFail();
 
         // Ha service-ből jön, az ár onnan jön (ha nem override-olták)

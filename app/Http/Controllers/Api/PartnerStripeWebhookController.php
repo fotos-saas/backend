@@ -56,15 +56,15 @@ class PartnerStripeWebhookController extends Controller
         ]);
 
         match ($event->type) {
-            'checkout.session.completed' => $this->handleCheckoutComplete($event),
-            'charge.refunded' => $this->handleRefund($event),
+            'checkout.session.completed' => $this->handleCheckoutComplete($event, $partnerId),
+            'charge.refunded' => $this->handleRefund($event, $partnerId),
             default => null,
         };
 
         return response()->json(['received' => true]);
     }
 
-    private function handleCheckoutComplete(\Stripe\Event $event): void
+    private function handleCheckoutComplete(\Stripe\Event $event, int $partnerId): void
     {
         $session = $event->data->object;
         $chargeId = $session->metadata->charge_id ?? $session->client_reference_id;
@@ -76,17 +76,18 @@ class PartnerStripeWebhookController extends Controller
             return;
         }
 
-        $charge = GuestBillingCharge::find($chargeId);
+        $charge = GuestBillingCharge::whereHas('project', fn ($q) => $q->where('tablo_partner_id', $partnerId))
+            ->find($chargeId);
 
         if (! $charge) {
-            Log::error('Partner webhook: charge not found', ['charge_id' => $chargeId]);
+            Log::error('Partner webhook: charge not found or partner mismatch', ['charge_id' => $chargeId, 'partner_id' => $partnerId]);
             return;
         }
 
         $this->paymentSuccessAction->execute($charge, $session->payment_intent ?? '');
     }
 
-    private function handleRefund(\Stripe\Event $event): void
+    private function handleRefund(\Stripe\Event $event, int $partnerId): void
     {
         $refundObject = $event->data->object;
         $paymentIntentId = $refundObject->payment_intent ?? null;
@@ -95,11 +96,14 @@ class PartnerStripeWebhookController extends Controller
             return;
         }
 
-        $charge = GuestBillingCharge::where('stripe_payment_intent_id', $paymentIntentId)->first();
+        $charge = GuestBillingCharge::where('stripe_payment_intent_id', $paymentIntentId)
+            ->whereHas('project', fn ($q) => $q->where('tablo_partner_id', $partnerId))
+            ->first();
 
         if (! $charge) {
-            Log::warning('Partner webhook refund: charge not found for PI', [
+            Log::warning('Partner webhook refund: charge not found for PI or partner mismatch', [
                 'payment_intent' => $paymentIntentId,
+                'partner_id' => $partnerId,
             ]);
             return;
         }

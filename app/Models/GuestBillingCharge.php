@@ -134,6 +134,7 @@ class GuestBillingCharge extends Model
     {
         $date = now()->format('Ymd');
         $lastCharge = static::where('charge_number', 'like', "T{$date}-%")
+            ->lockForUpdate()
             ->orderByDesc('charge_number')
             ->first();
 

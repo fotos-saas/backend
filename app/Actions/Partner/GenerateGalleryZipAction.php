@@ -26,6 +26,9 @@ use ZipArchive;
  */
 class GenerateGalleryZipAction
 {
+    /** @var string[] IPTC temp fájlok listája - ZIP lezárás után törlendők */
+    private array $tempFiles = [];
+
     /**
      * ZIP generálása.
      *
@@ -101,6 +104,7 @@ class GenerateGalleryZipAction
             }
 
             $zip->close();
+            $this->cleanupTempFiles();
 
             Log::info('GenerateGalleryZipAction: ZIP létrehozva', [
                 'project_id' => $project->id,
@@ -112,6 +116,7 @@ class GenerateGalleryZipAction
             return $zipPath;
         } catch (\Exception $e) {
             $zip->close();
+            $this->cleanupTempFiles();
             if (file_exists($zipPath)) {
                 unlink($zipPath);
             }
@@ -213,14 +218,20 @@ class GenerateGalleryZipAction
 
         $extension = pathinfo($media->file_name, PATHINFO_EXTENSION) ?: 'jpg';
 
+        $filePath = $originalPath;
+        $tempFile = null;
+
         switch ($fileNaming) {
             case 'student_name':
                 $filename = "{$personName}_{$category}_{$counter}.{$extension}";
                 break;
             case 'student_name_iptc':
-                // Eredeti fájlnév, de IPTC-be beágyazzuk a diák nevét
                 $filename = $media->file_name;
-                $this->embedIptcName($originalPath, $personName);
+                // IPTC-t temp fájlba ágyazzuk, NE az eredetibe!
+                $tempFile = tempnam(sys_get_temp_dir(), 'iptc_') . '.' . $extension;
+                copy($originalPath, $tempFile);
+                $this->embedIptcName($tempFile, $personName);
+                $filePath = $tempFile;
                 break;
             default: // 'original'
                 $filename = $media->file_name;
@@ -231,7 +242,13 @@ class GenerateGalleryZipAction
         $filename = $this->resolveUniqueFilename($filename, $usedFilenames);
         $usedFilenames[] = $filename;
 
-        $zip->addFile($originalPath, "{$subfolder}/{$filename}");
+        $zip->addFile($filePath, "{$subfolder}/{$filename}");
+
+        // Temp fájl törlés a ZIP lezárása után kell, ezért regisztráljuk
+        if ($tempFile) {
+            $this->tempFiles[] = $tempFile;
+        }
+
         return 1;
     }
 
@@ -277,6 +294,21 @@ class GenerateGalleryZipAction
         // Illegális karakterek cseréje (Windows + Unix kompatibilis)
         $name = preg_replace('/[\/\\\\:*?"<>|]/', '_', $name) ?? $name;
         return trim($name);
+    }
+
+    private function cleanupTempFiles(): void
+    {
+        foreach ($this->tempFiles as $tempFile) {
+            if (file_exists($tempFile)) {
+                @unlink($tempFile);
+            }
+            // tempnam() által létrehozott eredeti fájl (kiterjesztés nélkül) törlése
+            $withoutExt = preg_replace('/\.\w+$/', '', $tempFile);
+            if ($withoutExt !== $tempFile && file_exists($withoutExt)) {
+                @unlink($withoutExt);
+            }
+        }
+        $this->tempFiles = [];
     }
 
     private function resolveUniqueFilename(string $filename, array $usedFilenames): string

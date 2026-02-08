@@ -53,13 +53,13 @@ class WebshopWebhookController extends Controller
         ]);
 
         if ($event->type === 'checkout.session.completed') {
-            $this->handleCheckoutComplete($event);
+            $this->handleCheckoutComplete($event, $partnerId);
         }
 
         return response()->json(['received' => true]);
     }
 
-    private function handleCheckoutComplete(\Stripe\Event $event): void
+    private function handleCheckoutComplete(\Stripe\Event $event, int $partnerId): void
     {
         $session = $event->data->object;
 
@@ -76,10 +76,10 @@ class WebshopWebhookController extends Controller
             return;
         }
 
-        $order = ShopOrder::find($orderId);
+        $order = ShopOrder::where('tablo_partner_id', $partnerId)->find($orderId);
 
         if (!$order) {
-            Log::error('Webshop webhook: order not found', ['order_id' => $orderId]);
+            Log::error('Webshop webhook: order not found or partner mismatch', ['order_id' => $orderId, 'partner_id' => $partnerId]);
             return;
         }
 
