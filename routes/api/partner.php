@@ -4,6 +4,7 @@ use App\Http\Controllers\Api\BugReportController;
 use App\Http\Controllers\Api\Partner\InvitationController as PartnerInvitationController;
 use App\Http\Controllers\Api\Partner\PartnerAlbumController;
 use App\Http\Controllers\Api\Partner\PartnerGalleryController;
+use App\Http\Controllers\Api\Partner\PartnerGalleryMonitoringController;
 use App\Http\Controllers\Api\Partner\PartnerContactController;
 use App\Http\Controllers\Api\Partner\PartnerDashboardController;
 use App\Http\Controllers\Api\Partner\PartnerProjectContactController;
@@ -154,6 +155,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/projects/{projectId}/gallery/deadline', [PartnerGalleryController::class, 'setDeadline']);
         Route::delete('/projects/{projectId}/gallery/photos', [PartnerGalleryController::class, 'deletePhotos']);
         Route::delete('/projects/{projectId}/gallery/photos/{mediaId}', [PartnerGalleryController::class, 'deletePhoto']);
+        Route::get('/projects/{projectId}/gallery/monitoring', [PartnerGalleryMonitoringController::class, 'getMonitoring']);
 
         // Contact management (project-specific)
         Route::post('/projects/{projectId}/contacts', [PartnerProjectContactController::class, 'addContact']);
