@@ -112,15 +112,7 @@ class ExportGalleryMonitoringExcelAction
             $photos = $photosFn($person);
 
             if (empty($photos)) {
-                $sheet->setCellValue("A{$row}", $person['name']);
-                $sheet->setCellValue("B{$row}", $person['typeLabel']);
-                $sheet->setCellValue("C{$row}", '-');
-
-                if ($row % 2 === 0) {
-                    $sheet->getStyle("A{$row}:C{$row}")->applyFromArray(self::ZEBRA_STYLE);
-                }
-
-                $row++;
+                continue;
             } else {
                 foreach ($photos as $photo) {
                     $sheet->setCellValue("A{$row}", $person['name']);
