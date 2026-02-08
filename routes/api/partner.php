@@ -156,6 +156,8 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::delete('/projects/{projectId}/gallery/photos', [PartnerGalleryController::class, 'deletePhotos']);
         Route::delete('/projects/{projectId}/gallery/photos/{mediaId}', [PartnerGalleryController::class, 'deletePhoto']);
         Route::get('/projects/{projectId}/gallery/monitoring', [PartnerGalleryMonitoringController::class, 'getMonitoring']);
+        Route::post('/projects/{projectId}/gallery/monitoring/export-excel', [PartnerGalleryMonitoringController::class, 'exportExcel']);
+        Route::post('/projects/{projectId}/gallery/monitoring/download-zip', [PartnerGalleryMonitoringController::class, 'downloadZip']);
 
         // Contact management (project-specific)
         Route::post('/projects/{projectId}/contacts', [PartnerProjectContactController::class, 'addContact']);
