@@ -11,6 +11,7 @@ use App\Models\TabloInvoice;
 use App\Models\TabloPartner;
 use App\Services\Invoice\Providers\BillingoProvider;
 use App\Services\Invoice\Providers\SzamlazzProvider;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 
@@ -123,23 +124,25 @@ class InvoiceService
      */
     public function generateInvoiceNumber(TabloPartner $partner): string
     {
-        $prefix = $partner->invoice_prefix ?? 'PS';
-        $year = now()->format('Y');
-        $pattern = sprintf('%s-%s-', $prefix, $year);
+        return DB::transaction(function () use ($partner) {
+            $prefix = $partner->invoice_prefix ?? 'PS';
+            $year = now()->format('Y');
+            $pattern = sprintf('%s-%s-', $prefix, $year);
 
-        $lastInvoice = TabloInvoice::where('tablo_partner_id', $partner->id)
-            ->where('invoice_number', 'like', $pattern . '%')
-            ->lockForUpdate()
-            ->orderByDesc('invoice_number')
-            ->first();
+            $lastInvoice = TabloInvoice::where('tablo_partner_id', $partner->id)
+                ->where('invoice_number', 'like', $pattern . '%')
+                ->lockForUpdate()
+                ->orderByDesc('invoice_number')
+                ->first();
 
-        $nextNumber = 1;
-        if ($lastInvoice) {
-            $lastSequence = (int) substr($lastInvoice->invoice_number, -5);
-            $nextNumber = $lastSequence + 1;
-        }
+            $nextNumber = 1;
+            if ($lastInvoice) {
+                $lastSequence = (int) substr($lastInvoice->invoice_number, -5);
+                $nextNumber = $lastSequence + 1;
+            }
 
-        return sprintf('%s-%s-%05d', $prefix, $year, $nextNumber);
+            return sprintf('%s-%s-%05d', $prefix, $year, $nextNumber);
+        });
     }
 
     /**

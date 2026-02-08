@@ -251,7 +251,7 @@ Route::middleware('auth:sanctum')->group(function () {
         });
 
         // Partner Billing (Terhelés kezelés)
-        Route::prefix('billing')->group(function () {
+        Route::prefix('billing')->middleware('throttle:30,1')->group(function () {
             Route::get('/', [PartnerBillingController::class, 'index']);
             Route::get('/summary', [PartnerBillingController::class, 'summary']);
             Route::post('/', [PartnerBillingController::class, 'store']);
