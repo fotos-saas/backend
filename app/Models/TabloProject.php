@@ -84,6 +84,9 @@ class TabloProject extends Model implements HasMedia
         'expected_class_size',
         'actual_guests_count',
         'custom_properties',
+        'export_zip_content',
+        'export_file_naming',
+        'export_always_ask',
     ];
 
     /**
@@ -127,6 +130,7 @@ class TabloProject extends Model implements HasMedia
             'expected_class_size' => 'integer',
             'actual_guests_count' => 'integer',
             'custom_properties' => 'array',
+            'export_always_ask' => 'boolean',
         ];
     }
 
@@ -171,6 +175,25 @@ class TabloProject extends Model implements HasMedia
         }
 
         return 24;
+    }
+
+    /**
+     * Effektív export beállítások (prioritás: projekt → partner → default).
+     *
+     * @return array{zip_content: string, file_naming: string, always_ask: bool}
+     */
+    public function getEffectiveExportSettings(): array
+    {
+        $partner = $this->partner;
+
+        return [
+            'zip_content' => $this->export_zip_content
+                ?? ($partner?->default_zip_content ?? 'all'),
+            'file_naming' => $this->export_file_naming
+                ?? ($partner?->default_file_naming ?? 'original'),
+            'always_ask' => $this->export_always_ask
+                ?? ($partner?->export_always_ask ?? true),
+        ];
     }
 
     /**

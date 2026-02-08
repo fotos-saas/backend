@@ -41,6 +41,9 @@ class TabloPartner extends Model
         'default_gallery_deadline_days',
         'default_free_edit_window_hours',
         'billing_enabled',
+        'default_zip_content',
+        'default_file_naming',
+        'export_always_ask',
     ];
 
     protected $casts = [
@@ -50,6 +53,7 @@ class TabloPartner extends Model
         'default_gallery_deadline_days' => 'integer',
         'default_free_edit_window_hours' => 'integer',
         'billing_enabled' => 'boolean',
+        'export_always_ask' => 'boolean',
     ];
 
     /**

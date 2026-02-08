@@ -16,6 +16,9 @@ class UpdateProjectSettingsRequest extends FormRequest
         return [
             'max_retouch_photos' => ['nullable', 'integer', 'min:1', 'max:20'],
             'free_edit_window_hours' => ['nullable', 'integer', 'min:1', 'max:168'],
+            'export_zip_content' => ['nullable', 'string', 'in:all,retouch_only,tablo_only,retouch_and_tablo'],
+            'export_file_naming' => ['nullable', 'string', 'in:original,student_name,student_name_iptc'],
+            'export_always_ask' => ['nullable', 'boolean'],
         ];
     }
 
@@ -28,6 +31,8 @@ class UpdateProjectSettingsRequest extends FormRequest
             'free_edit_window_hours.integer' => 'A módosítási időablak egész szám kell legyen.',
             'free_edit_window_hours.min' => 'A módosítási időablak legalább 1 óra kell legyen.',
             'free_edit_window_hours.max' => 'A módosítási időablak maximum 168 óra (1 hét) lehet.',
+            'export_zip_content.in' => 'Érvénytelen ZIP tartalom beállítás.',
+            'export_file_naming.in' => 'Érvénytelen fájlnév stratégia.',
         ];
     }
 }
