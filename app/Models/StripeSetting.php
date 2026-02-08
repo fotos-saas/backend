@@ -14,7 +14,14 @@ class StripeSetting extends Model
         'is_active',
     ];
 
+    protected $hidden = [
+        'secret_key',
+        'webhook_secret',
+    ];
+
     protected $casts = [
+        'secret_key' => 'encrypted',
+        'webhook_secret' => 'encrypted',
         'is_test_mode' => 'boolean',
         'is_active' => 'boolean',
     ];

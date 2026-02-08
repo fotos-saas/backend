@@ -31,7 +31,8 @@ class PartnerBillingController extends Controller
             $query->byStatus($request->input('status'));
         }
 
-        $charges = $query->paginate($request->input('per_page', 20));
+        $perPage = min((int) $request->input('per_page', 20), 50);
+        $charges = $query->paginate($perPage);
 
         return $this->successResponse([
             'charges' => collect($charges->items())->map(fn ($c) => $this->formatCharge($c)),

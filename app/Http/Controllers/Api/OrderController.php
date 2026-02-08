@@ -90,7 +90,7 @@ class OrderController extends Controller
 
             return response()->json([
                 'message' => 'Checkout creation failed',
-                'error' => $e->getMessage(),
+                ...(config('app.debug') ? ['error' => $e->getMessage()] : []),
             ], 500);
         }
     }

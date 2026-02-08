@@ -46,7 +46,7 @@ class VerifyOrderPaymentAction
 
             return response()->json([
                 'message' => 'Payment verification failed',
-                'error' => $e->getMessage(),
+                ...(config('app.debug') ? ['error' => $e->getMessage()] : []),
             ], 500);
         }
     }

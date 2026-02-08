@@ -123,20 +123,23 @@ Route::post('/stripe/webhook', [StripeWebhookController::class, 'handle'])
 Route::post('/partner-stripe/webhook/{partnerId}', [\App\Http\Controllers\Api\PartnerStripeWebhookController::class, 'handle'])
     ->middleware('throttle:100,1');
 
-// Subscription / Partner Registration (public)
-Route::prefix('subscription')->group(function () {
-    Route::post('/checkout', [\App\Http\Controllers\Api\SubscriptionCheckoutController::class, 'createCheckoutSession']);
+// Subscription / Partner Registration (public) - rate limited
+Route::prefix('subscription')->middleware('throttle:10,1')->group(function () {
+    Route::post('/checkout', [\App\Http\Controllers\Api\SubscriptionCheckoutController::class, 'createCheckoutSession'])
+        ->middleware('throttle:5,1');
     Route::post('/verify', [\App\Http\Controllers\Api\SubscriptionCheckoutController::class, 'verifySession']);
     Route::post('/complete', [\App\Http\Controllers\Api\SubscriptionCheckoutController::class, 'completeRegistration']);
 });
 
-// Orders (public - supports both guest and authenticated checkout)
-Route::post('/orders', [OrderController::class, 'store']);
-Route::get('/orders/{order}', [OrderController::class, 'show']);
-Route::post('/orders/{order}/checkout', [OrderController::class, 'checkout']);
-Route::get('/orders/{order}/verify-payment', [OrderController::class, 'verifyPayment']);
-Route::get('/orders/{order}/invoice/download', [OrderController::class, 'downloadInvoice'])
-    ->name('api.orders.invoice.download');
+// Orders (public - supports both guest and authenticated checkout) - rate limited
+Route::prefix('orders')->middleware('throttle:30,1')->group(function () {
+    Route::post('/', [OrderController::class, 'store'])->middleware('throttle:10,1');
+    Route::get('/{order}', [OrderController::class, 'show']);
+    Route::post('/{order}/checkout', [OrderController::class, 'checkout'])->middleware('throttle:5,1');
+    Route::get('/{order}/verify-payment', [OrderController::class, 'verifyPayment']);
+    Route::get('/{order}/invoice/download', [OrderController::class, 'downloadInvoice'])
+        ->name('api.orders.invoice.download');
+});
 
 // Image Conversion (public - vendég is elérheti)
 Route::prefix('image-conversion')->middleware('throttle:image-conversion')->group(function () {

@@ -44,6 +44,12 @@ class ShopOrder extends Model
         'internal_notes',
     ];
 
+    protected $hidden = [
+        'stripe_checkout_session_id',
+        'stripe_payment_intent_id',
+        'internal_notes',
+    ];
+
     protected $casts = [
         'subtotal_huf' => 'integer',
         'shipping_cost_huf' => 'integer',
