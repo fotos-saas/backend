@@ -1,6 +1,8 @@
 <?php
 
 use App\Http\Controllers\Api\BugReportController;
+use App\Http\Controllers\Api\Partner\InvoiceController;
+use App\Http\Controllers\Api\Partner\InvoiceSettingsController;
 use App\Http\Controllers\Api\Partner\InvitationController as PartnerInvitationController;
 use App\Http\Controllers\Api\Partner\PartnerAlbumController;
 use App\Http\Controllers\Api\Partner\PartnerGalleryController;
@@ -209,6 +211,25 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::delete('/logo', [PartnerBrandingController::class, 'deleteLogo']);
             Route::delete('/favicon', [PartnerBrandingController::class, 'deleteFavicon']);
             Route::delete('/og-image', [PartnerBrandingController::class, 'deleteOgImage']);
+        });
+
+        // Invoice Settings & Invoices (Számlázás) - feature gated
+        Route::middleware('partner.feature:invoicing')->group(function () {
+            Route::prefix('invoice-settings')->group(function () {
+                Route::get('/', [InvoiceSettingsController::class, 'show']);
+                Route::put('/', [InvoiceSettingsController::class, 'update']);
+                Route::post('/validate', [InvoiceSettingsController::class, 'validateApiKey']);
+            });
+
+            Route::prefix('invoices')->group(function () {
+                Route::get('/', [InvoiceController::class, 'index']);
+                Route::get('/statistics', [InvoiceController::class, 'statistics']);
+                Route::post('/', [InvoiceController::class, 'store']);
+                Route::get('/{invoice}', [InvoiceController::class, 'show']);
+                Route::post('/{invoice}/sync', [InvoiceController::class, 'sync']);
+                Route::post('/{invoice}/cancel', [InvoiceController::class, 'cancel']);
+                Route::get('/{invoice}/pdf', [InvoiceController::class, 'downloadPdf']);
+            });
         });
 
         // Client Orders (Fotós Megrendelések)

@@ -2,11 +2,13 @@
 
 namespace App\Models;
 
+use App\Enums\InvoicingProviderType;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Str;
 
 /**
@@ -44,6 +46,21 @@ class TabloPartner extends Model
         'default_zip_content',
         'default_file_naming',
         'export_always_ask',
+        'invoice_provider',
+        'invoice_enabled',
+        'invoice_api_key',
+        'szamlazz_bank_name',
+        'szamlazz_bank_account',
+        'szamlazz_reply_email',
+        'billingo_block_id',
+        'billingo_bank_account_id',
+        'invoice_prefix',
+        'invoice_currency',
+        'invoice_language',
+        'invoice_due_days',
+        'invoice_vat_percentage',
+        'invoice_comment',
+        'invoice_eu_vat',
     ];
 
     protected $casts = [
@@ -54,6 +71,11 @@ class TabloPartner extends Model
         'default_free_edit_window_hours' => 'integer',
         'billing_enabled' => 'boolean',
         'export_always_ask' => 'boolean',
+        'invoice_provider' => InvoicingProviderType::class,
+        'invoice_enabled' => 'boolean',
+        'invoice_due_days' => 'integer',
+        'invoice_vat_percentage' => 'decimal:2',
+        'invoice_eu_vat' => 'boolean',
     ];
 
     /**
@@ -296,6 +318,36 @@ class TabloPartner extends Model
     public function pendingInvitations(): HasMany
     {
         return $this->invitations()->where('status', PartnerInvitation::STATUS_PENDING);
+    }
+
+    // ============ Invoices (Számlák) ============
+
+    public function invoices(): HasMany
+    {
+        return $this->hasMany(TabloInvoice::class, 'tablo_partner_id');
+    }
+
+    public function getDecryptedApiKey(): ?string
+    {
+        if (! $this->invoice_api_key) {
+            return null;
+        }
+
+        try {
+            return Crypt::decryptString($this->invoice_api_key);
+        } catch (\Exception) {
+            return null;
+        }
+    }
+
+    public function setEncryptedApiKey(?string $plainKey): void
+    {
+        $this->invoice_api_key = $plainKey ? Crypt::encryptString($plainKey) : null;
+    }
+
+    public function hasInvoicingEnabled(): bool
+    {
+        return $this->invoice_enabled && $this->invoice_api_key !== null;
     }
 
     // ============ Partner Connections (Nyomda ↔ Fotós) ============
