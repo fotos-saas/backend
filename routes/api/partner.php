@@ -23,6 +23,9 @@ use App\Http\Controllers\Api\Partner\PartnerBrandingController;
 use App\Http\Controllers\Api\Partner\PartnerServiceController;
 use App\Http\Controllers\Api\Partner\PartnerSettingsController;
 use App\Http\Controllers\Api\Partner\PartnerStripeSettingsController;
+use App\Http\Controllers\Api\Partner\PartnerWebshopSettingsController;
+use App\Http\Controllers\Api\Partner\PartnerWebshopProductController;
+use App\Http\Controllers\Api\Partner\PartnerWebshopOrderController;
 use App\Http\Controllers\Api\PartnerClientController;
 use App\Http\Controllers\Api\PartnerOrderAlbumController;
 use App\Http\Controllers\Api\PartnerOrderAlbumPhotoController;
@@ -182,6 +185,9 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/contacts/all', [PartnerContactController::class, 'allContacts']);
         Route::post('/contacts', [PartnerContactController::class, 'createStandaloneContact']);
         Route::post('/contacts/validate', [PartnerContactController::class, 'storeContact']);
+        Route::post('/contacts/export-excel', [PartnerContactController::class, 'exportExcel']);
+        Route::post('/contacts/export-vcard', [PartnerContactController::class, 'exportVcard']);
+        Route::post('/contacts/import-excel', [PartnerContactController::class, 'importExcel']);
         Route::put('/contacts/{contactId}', [PartnerContactController::class, 'updateStandaloneContact']);
         Route::delete('/contacts/{contactId}', [PartnerContactController::class, 'deleteStandaloneContact']);
 
@@ -259,6 +265,37 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::put('/', [PartnerStripeSettingsController::class, 'update']);
             Route::post('/validate', [PartnerStripeSettingsController::class, 'validateKeys'])
                 ->middleware('throttle:10,1');
+        });
+
+        // Webshop (Fotónyomtatás rendelés)
+        Route::prefix('webshop')->group(function () {
+            // Settings
+            Route::get('/settings', [PartnerWebshopSettingsController::class, 'getSettings']);
+            Route::put('/settings', [PartnerWebshopSettingsController::class, 'updateSettings']);
+            Route::post('/initialize', [PartnerWebshopSettingsController::class, 'initializeWebshop']);
+
+            // Paper sizes
+            Route::get('/paper-sizes', [PartnerWebshopSettingsController::class, 'getPaperSizes']);
+            Route::post('/paper-sizes', [PartnerWebshopSettingsController::class, 'createPaperSize']);
+            Route::put('/paper-sizes/{id}', [PartnerWebshopSettingsController::class, 'updatePaperSize']);
+            Route::delete('/paper-sizes/{id}', [PartnerWebshopSettingsController::class, 'deletePaperSize']);
+
+            // Paper types
+            Route::get('/paper-types', [PartnerWebshopSettingsController::class, 'getPaperTypes']);
+            Route::post('/paper-types', [PartnerWebshopSettingsController::class, 'createPaperType']);
+            Route::put('/paper-types/{id}', [PartnerWebshopSettingsController::class, 'updatePaperType']);
+            Route::delete('/paper-types/{id}', [PartnerWebshopSettingsController::class, 'deletePaperType']);
+
+            // Products (pricing matrix)
+            Route::get('/products', [PartnerWebshopProductController::class, 'getProducts']);
+            Route::put('/products/pricing', [PartnerWebshopProductController::class, 'bulkUpdatePricing']);
+            Route::patch('/products/{id}/toggle', [PartnerWebshopProductController::class, 'toggleProductStatus']);
+
+            // Orders
+            Route::get('/orders', [PartnerWebshopOrderController::class, 'index']);
+            Route::get('/orders/stats', [PartnerWebshopOrderController::class, 'getStats']);
+            Route::get('/orders/{id}', [PartnerWebshopOrderController::class, 'show']);
+            Route::patch('/orders/{id}/status', [PartnerWebshopOrderController::class, 'updateStatus']);
         });
 
         // Client Orders (Fotós Megrendelések)

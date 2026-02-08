@@ -2,9 +2,13 @@
 
 namespace App\Http\Controllers\Api\Partner;
 
+use App\Actions\Partner\ExportContactsExcelAction;
+use App\Actions\Partner\ExportContactsVcardAction;
+use App\Actions\Partner\ImportContactsFromExcelAction;
 use App\Http\Controllers\Api\Partner\Traits\PartnerAuthTrait;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\Partner\CreateStandaloneContactRequest;
+use App\Http\Requests\Api\Partner\ImportContactsRequest;
 use App\Http\Requests\Api\Partner\StoreContactRequest;
 use App\Http\Requests\Api\Partner\UpdateStandaloneContactRequest;
 use App\Models\TabloContact;
@@ -13,6 +17,7 @@ use App\Services\Search\SearchService;
 use Illuminate\Http\JsonResponse;
 use App\Helpers\QueryHelper;
 use Illuminate\Http\Request;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 /**
  * Partner Contact Controller - Standalone contact management for partners.
@@ -234,6 +239,50 @@ class PartnerContactController extends Controller
                 $contact->projects()->attach($projectId, ['is_primary' => false]);
             }
         }
+    }
+
+    /**
+     * Export contacts to Excel.
+     */
+    public function exportExcel(Request $request, ExportContactsExcelAction $action): BinaryFileResponse
+    {
+        $partnerId = $this->getPartnerIdOrFail();
+        $search = $request->input('search');
+
+        $filePath = $action->execute($partnerId, $search);
+
+        return response()->download($filePath, 'kapcsolattartok.xlsx', [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        ])->deleteFileAfterSend();
+    }
+
+    /**
+     * Export contacts to vCard (.vcf).
+     */
+    public function exportVcard(Request $request, ExportContactsVcardAction $action): \Illuminate\Http\Response
+    {
+        $partnerId = $this->getPartnerIdOrFail();
+        $search = $request->input('search');
+
+        $vcardContent = $action->execute($partnerId, $search);
+
+        return response($vcardContent, 200, [
+            'Content-Type' => 'text/vcard; charset=utf-8',
+            'Content-Disposition' => 'attachment; filename="kapcsolattartok.vcf"',
+        ]);
+    }
+
+    /**
+     * Import contacts from Excel file.
+     */
+    public function importExcel(ImportContactsRequest $request, ImportContactsFromExcelAction $action): JsonResponse
+    {
+        $partnerId = $this->getPartnerIdOrFail();
+        $file = $request->file('file');
+
+        $result = $action->execute($partnerId, $file->getRealPath());
+
+        return $this->successResponse($result, 'Importálás befejezve');
     }
 
     private function syncProjectsForUpdate(TabloContact $contact, Request $request, int $partnerId): void
