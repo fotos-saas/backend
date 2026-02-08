@@ -18,10 +18,9 @@ class CreateStripeCheckoutAction
     public function execute(ShopOrder $order, string $shopToken): array
     {
         $partner = TabloPartner::findOrFail($order->tablo_partner_id);
-        $stripeService = $this->stripeService;
 
         try {
-            $client = $stripeService->getStripeClient($partner);
+            $client = $this->stripeService->getStripeClient($partner);
 
             // Line items létrehozása a rendelés tételeiből
             $lineItems = [];

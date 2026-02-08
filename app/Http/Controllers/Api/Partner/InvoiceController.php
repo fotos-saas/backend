@@ -18,6 +18,7 @@ use App\Services\Invoice\InvoiceService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
+use Illuminate\Support\Facades\Storage;
 
 class InvoiceController extends Controller
 {
@@ -157,7 +158,7 @@ class InvoiceController extends Controller
             ], 422);
         }
 
-        $content = \Storage::disk(config('invoicing.pdf_disk', 'local'))->get($path);
+        $content = Storage::disk(config('invoicing.pdf_disk', 'local'))->get($path);
 
         $safeFilename = preg_replace('/[^A-Za-z0-9\-_]/', '_', $invoice->invoice_number);
 

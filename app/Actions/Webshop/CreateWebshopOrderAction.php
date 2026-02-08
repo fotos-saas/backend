@@ -113,14 +113,8 @@ class CreateWebshopOrderAction
 
     private function getValidMediaIds(array $source): array
     {
-        $model = $source['model'];
-
-        if ($source['type'] === 'album') {
-            return $model->getMedia('photos')->pluck('id')->toArray();
-        }
-
-        if ($source['type'] === 'gallery') {
-            return $model->getMedia('photos')->pluck('id')->toArray();
+        if (in_array($source['type'], ['album', 'gallery'], true)) {
+            return $source['model']->getMedia('photos')->pluck('id')->toArray();
         }
 
         return [];
