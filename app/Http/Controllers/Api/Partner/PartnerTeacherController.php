@@ -2,10 +2,14 @@
 
 namespace App\Http\Controllers\Api\Partner;
 
+use App\Actions\Teacher\BulkImportTeacherExecuteAction;
+use App\Actions\Teacher\BulkImportTeacherPreviewAction;
 use App\Actions\Teacher\CreateTeacherAction;
 use App\Actions\Teacher\UpdateTeacherAction;
 use App\Http\Controllers\Api\Partner\Traits\PartnerAuthTrait;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Api\Partner\BulkImportTeacherExecuteRequest;
+use App\Http\Requests\Api\Partner\BulkImportTeacherPreviewRequest;
 use App\Http\Requests\Api\Partner\StoreTeacherRequest;
 use App\Http\Requests\Api\Partner\UpdateTeacherRequest;
 use App\Models\TeacherArchive;
@@ -181,6 +185,39 @@ class PartnerTeacherController extends Controller
         ]);
 
         return response()->json($logs);
+    }
+
+    public function bulkImportPreview(BulkImportTeacherPreviewRequest $request, BulkImportTeacherPreviewAction $action): JsonResponse
+    {
+        $partnerId = $this->getPartnerIdOrFail();
+        $validated = $request->validated();
+
+        $results = $action->execute(
+            $partnerId,
+            (int) $validated['school_id'],
+            $validated['names'] ?? null,
+            $request->file('file'),
+        );
+
+        return response()->json(['success' => true, 'data' => $results]);
+    }
+
+    public function bulkImportExecute(BulkImportTeacherExecuteRequest $request, BulkImportTeacherExecuteAction $action): JsonResponse
+    {
+        $partnerId = $this->getPartnerIdOrFail();
+        $validated = $request->validated();
+
+        $result = $action->execute(
+            $partnerId,
+            (int) $validated['school_id'],
+            $validated['items'],
+        );
+
+        return response()->json([
+            'success' => true,
+            'message' => "Import kész: {$result['created']} létrehozva, {$result['updated']} frissítve, {$result['skipped']} kihagyva.",
+            'data' => $result,
+        ]);
     }
 
     private function formatTeacherDetail(TeacherArchive $teacher): array

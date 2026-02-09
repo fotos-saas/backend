@@ -188,6 +188,8 @@ Route::middleware('auth:sanctum')->group(function () {
         // Teachers management (Tanár archívum)
         Route::get('/teachers', [PartnerTeacherController::class, 'index']);
         Route::get('/teachers/all', [PartnerTeacherController::class, 'allTeachers']);
+        Route::post('/teachers/bulk-import/preview', [PartnerTeacherController::class, 'bulkImportPreview']);
+        Route::post('/teachers/bulk-import/execute', [PartnerTeacherController::class, 'bulkImportExecute']);
         Route::get('/teachers/{id}', [PartnerTeacherController::class, 'show']);
         Route::post('/teachers', [PartnerTeacherController::class, 'store']);
         Route::put('/teachers/{id}', [PartnerTeacherController::class, 'update']);
