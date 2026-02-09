@@ -243,71 +243,90 @@ class TeacherArchiveSeeder extends Seeder
     }
 
     /**
-     * Placeholder portré kép generálása PHP GD-vel és Spatie MediaLibrary-vel feltöltés
+     * Placeholder portré kép generálása Imagick-kel és Spatie MediaLibrary-vel feltöltés
      */
     private function createPlaceholderPhoto(TeacherArchive $teacher, string $name, int $year): ?int
     {
-        if (!extension_loaded('gd')) {
-            $this->command->warn('GD extension nincs telepítve, fotók kihagyva.');
+        if (!extension_loaded('imagick')) {
+            $this->command->warn('Imagick extension nincs telepítve, fotók kihagyva.');
             return null;
         }
 
         $size = 400;
-        $img = imagecreatetruecolor($size, $size);
 
-        // Háttérszín a név hash alapján (determnisztikus)
+        // Háttérszín a név hash alapján (determinisztikus)
         $colorIndex = crc32($name . $year) % count(self::AVATAR_COLORS);
         if ($colorIndex < 0) {
             $colorIndex += count(self::AVATAR_COLORS);
         }
         [$r, $g, $b] = self::AVATAR_COLORS[$colorIndex];
 
-        // Háttér
-        $bgColor = imagecolorallocate($img, $r, $g, $b);
-        imagefilledrectangle($img, 0, 0, $size - 1, $size - 1, $bgColor);
+        $bgHex = sprintf('#%02x%02x%02x', $r, $g, $b);
+        $lightHex = sprintf('#%02x%02x%02x', min($r + 40, 255), min($g + 40, 255), min($b + 40, 255));
+        $yearHex = sprintf('#%02x%02x%02x', min($r + 60, 255), min($g + 60, 255), min($b + 60, 255));
+
+        $img = new \Imagick();
+        $img->newImage($size, $size, new \ImagickPixel($bgHex));
+        $img->setImageFormat('png');
 
         // Fejkontúr (világosabb kör)
-        $headColor = imagecolorallocate($img, min($r + 40, 255), min($g + 40, 255), min($b + 40, 255));
+        $headDraw = new \ImagickDraw();
+        $headDraw->setFillColor(new \ImagickPixel($lightHex));
         $headY = (int)($size * 0.35);
         $headRadius = (int)($size * 0.22);
-        imagefilledellipse($img, (int)($size / 2), $headY, $headRadius * 2, $headRadius * 2, $headColor);
+        $headDraw->circle(
+            (int)($size / 2), $headY,
+            (int)($size / 2) + $headRadius, $headY
+        );
 
         // Váll/test (alsó ellipszis)
         $bodyY = (int)($size * 0.78);
-        $bodyW = (int)($size * 0.65);
-        $bodyH = (int)($size * 0.45);
-        imagefilledellipse($img, (int)($size / 2), $bodyY, $bodyW, $bodyH, $headColor);
+        $bodyRx = (int)($size * 0.325);
+        $bodyRy = (int)($size * 0.225);
+        $headDraw->ellipse(
+            (int)($size / 2), $bodyY,
+            $bodyRx, $bodyRy,
+            0, 360
+        );
+        $img->drawImage($headDraw);
+        $headDraw->destroy();
 
         // Initials (betűk)
         $parts = explode(' ', $name);
-        $initials = '';
-        if (count($parts) >= 2) {
-            $initials = mb_substr($parts[0], 0, 1) . mb_substr($parts[1], 0, 1);
-        } else {
-            $initials = mb_substr($name, 0, 2);
-        }
+        $initials = count($parts) >= 2
+            ? mb_substr($parts[0], 0, 1) . mb_substr($parts[1], 0, 1)
+            : mb_substr($name, 0, 2);
         $initials = mb_strtoupper($initials);
 
-        $textColor = imagecolorallocate($img, 255, 255, 255);
+        $fontPath = storage_path('fonts/NotoSans-Bold.ttf');
+
+        $textDraw = new \ImagickDraw();
+        $textDraw->setFont($fontPath);
+        $textDraw->setFillColor(new \ImagickPixel('#ffffff'));
+        $textDraw->setFontSize(48);
+        $textDraw->setGravity(\Imagick::GRAVITY_CENTER);
+        $textDraw->setTextAlignment(\Imagick::ALIGN_CENTER);
+
+        // Initials a fej közepére
+        $img->annotateImage($textDraw, 0, -((int)($size * 0.15)), 0, $initials);
+        $textDraw->destroy();
 
         // Év a jobb alsó sarokba
-        $yearColor = imagecolorallocate($img, min($r + 60, 255), min($g + 60, 255), min($b + 60, 255));
-        imagestring($img, 5, $size - 48, $size - 22, (string)$year, $yearColor);
-
-        // Initials középre (GD alap font-tal, nagy méretben)
-        $fontSize = 5; // largest built-in font
-        $textWidth = imagefontwidth($fontSize) * strlen($initials);
-        $textHeight = imagefontheight($fontSize);
-        $textX = (int)(($size - $textWidth) / 2);
-        $textY = $headY - (int)($textHeight / 2);
-        imagestring($img, $fontSize, $textX, $textY, $initials, $textColor);
+        $yearDraw = new \ImagickDraw();
+        $yearDraw->setFont($fontPath);
+        $yearDraw->setFillColor(new \ImagickPixel($yearHex));
+        $yearDraw->setFontSize(18);
+        $yearDraw->setGravity(\Imagick::GRAVITY_SOUTHEAST);
+        $img->annotateImage($yearDraw, 10, 8, 0, (string)$year);
+        $yearDraw->destroy();
 
         // Temp fájl mentése
         $tmpPath = tempnam(sys_get_temp_dir(), 'teacher_avatar_');
         $tmpFile = $tmpPath . '.png';
         rename($tmpPath, $tmpFile);
-        imagepng($img, $tmpFile);
-        imagedestroy($img);
+        $img->writeImage($tmpFile);
+        $img->clear();
+        $img->destroy();
 
         try {
             $media = $teacher->addMedia($tmpFile)
