@@ -10,7 +10,6 @@ use App\Http\Requests\Api\Partner\StoreTeacherRequest;
 use App\Http\Requests\Api\Partner\UpdateTeacherRequest;
 use App\Models\TeacherArchive;
 use App\Helpers\QueryHelper;
-use App\Services\Search\SearchService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -35,10 +34,17 @@ class PartnerTeacherController extends Controller
         }
 
         if ($search) {
-            $query = app(SearchService::class)->apply($query, $search, [
-                'columns' => ['canonical_name'],
-                'relations' => ['aliases' => ['alias_name']],
-            ]);
+            $pattern = QueryHelper::safeLikePattern($search);
+            $query->where(function ($q) use ($pattern, $search) {
+                $q->where('canonical_name', 'ILIKE', $pattern)
+                    ->orWhere('title_prefix', 'ILIKE', $pattern)
+                    ->orWhere('position', 'ILIKE', $pattern)
+                    ->orWhereHas('aliases', fn ($aq) => $aq->where('alias_name', 'ILIKE', $pattern))
+                    ->orWhereHas('school', fn ($sq) => $sq->where('name', 'ILIKE', $pattern))
+                    ->orWhereHas('photos', fn ($pq) =>
+                        $pq->whereHas('media', fn ($mq) => $mq->where('file_name', 'ILIKE', $pattern))
+                    );
+            });
         }
 
         $teachers = $query->orderBy('canonical_name')->paginate($perPage);

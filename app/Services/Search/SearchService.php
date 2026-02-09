@@ -124,6 +124,7 @@ class SearchService
         'name', 'email', 'phone', 'city', 'address', 'title', 'description',
         'school_name', 'class_name', 'first_name', 'last_name', 'full_name',
         'company_name', 'contact_name', 'note', 'notes', 'comment', 'body',
+        'canonical_name', 'title_prefix', 'position', 'alias_name', 'file_name',
     ];
 
     /**
