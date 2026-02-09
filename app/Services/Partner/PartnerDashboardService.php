@@ -212,6 +212,10 @@ class PartnerDashboardService
             $query->where('status', $status);
         }
 
+        if ($request->filled('school_id')) {
+            $query->where('school_id', (int) $request->input('school_id'));
+        }
+
         if ($request->filled('is_aware')) {
             $query->where('is_aware', $request->input('is_aware') === 'true');
         }

@@ -179,6 +179,8 @@ Route::middleware('auth:sanctum')->group(function () {
         // Schools management
         Route::get('/schools', [PartnerSchoolController::class, 'schools']);
         Route::get('/schools/all', [PartnerSchoolController::class, 'allSchools']);
+        Route::get('/schools/{schoolId}/detail', [PartnerSchoolController::class, 'show']);
+        Route::get('/schools/{schoolId}/changelog', [PartnerSchoolController::class, 'getChangelog']);
         Route::post('/schools', [PartnerSchoolController::class, 'storeSchool']);
         Route::put('/schools/{schoolId}', [PartnerSchoolController::class, 'updateSchool']);
         Route::delete('/schools/{schoolId}', [PartnerSchoolController::class, 'deleteSchool']);

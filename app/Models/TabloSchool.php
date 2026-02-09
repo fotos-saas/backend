@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
@@ -40,5 +41,10 @@ class TabloSchool extends Model
     {
         return $this->belongsToMany(TabloPartner::class, 'partner_schools', 'school_id', 'partner_id')
             ->withTimestamps();
+    }
+
+    public function changeLogs(): HasMany
+    {
+        return $this->hasMany(SchoolChangeLog::class, 'school_id');
     }
 }
