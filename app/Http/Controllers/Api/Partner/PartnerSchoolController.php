@@ -88,7 +88,7 @@ class PartnerSchoolController extends Controller
         $search = $request->input('search');
 
         // Only return schools linked to this partner
-        $query = TabloSchool::whereHas('partners', fn ($q) => $q->where('partner_id', $partnerId));
+        $query = TabloSchool::whereHas('partners', fn ($q) => $q->where('partner_schools.partner_id', $partnerId));
 
         if ($search) {
             $query->where(function ($q) use ($search) {
@@ -168,7 +168,7 @@ class PartnerSchoolController extends Controller
         $partnerId = $this->getPartnerIdOrFail();
 
         // Verify school belongs to partner (via pivot table)
-        $school = TabloSchool::whereHas('partners', fn ($q) => $q->where('partner_id', $partnerId))
+        $school = TabloSchool::whereHas('partners', fn ($q) => $q->where('partner_schools.partner_id', $partnerId))
             ->findOrFail($schoolId);
 
         $school->update([
@@ -196,7 +196,7 @@ class PartnerSchoolController extends Controller
         $tabloPartner = TabloPartner::find($partnerId);
 
         // Verify school belongs to partner (via pivot table)
-        $school = TabloSchool::whereHas('partners', fn ($q) => $q->where('partner_id', $partnerId))
+        $school = TabloSchool::whereHas('partners', fn ($q) => $q->where('partner_schools.partner_id', $partnerId))
             ->findOrFail($schoolId);
 
         // Check if school has any projects (from this partner)
