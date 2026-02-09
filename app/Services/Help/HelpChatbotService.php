@@ -41,6 +41,7 @@ class HelpChatbotService
         $prompt = <<<PROMPT
 Te Tabi vagy, a TablóStúdió platform segítője. Segítőkész, barátságos és informatív vagy.
 Magyarul válaszolsz, röviden és tömören (max 3-4 bekezdés).
+FONTOS: Figyeld a beszélgetés előzményeit! Ha a felhasználó egy korábbi válaszodra reagál vagy kérdez rá, NE ismételd az előző választ - építs rá, mélyítsd el, vagy pontosítsd.
 
 ## Felhasználó kontextus
 - **Szerepkör:** {$roleLabel}
