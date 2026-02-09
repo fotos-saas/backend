@@ -37,11 +37,11 @@ class PartnerSchoolController extends Controller
 
         // Schools linked to this partner via pivot table
         $query = TabloSchool::select('tablo_schools.*')
-            ->whereHas('partners', fn ($q) => $q->where('partner_id', $partnerId))
+            ->whereHas('partners', fn ($q) => $q->where('partner_schools.partner_id', $partnerId))
             ->withCount([
-                'projects as projects_count' => fn ($q) => $q->where('partner_id', $partnerId),
-                'projects as active_projects_count' => fn ($q) => $q->where('partner_id', $partnerId)
-                    ->whereNotIn('status', ['done', 'in_print']),
+                'projects as projects_count' => fn ($q) => $q->where('tablo_projects.partner_id', $partnerId),
+                'projects as active_projects_count' => fn ($q) => $q->where('tablo_projects.partner_id', $partnerId)
+                    ->whereNotIn('tablo_projects.status', ['done', 'in_print']),
             ]);
 
         // Search using centralized SearchService
