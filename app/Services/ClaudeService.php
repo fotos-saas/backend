@@ -215,6 +215,70 @@ class ClaudeService
     }
 
     /**
+     * Chat kérés küldése teljes üzenet-előzménnyel.
+     *
+     * @param  array  $messages  Üzenetek tömbje [{role: 'user'|'assistant', content: string}, ...]
+     * @param  string|null  $systemPrompt  Rendszer prompt (opcionális)
+     * @param  array  $options  További opciók (model, max_tokens, temperature)
+     * @return array{content: string, model: string, usage: array}
+     *
+     * @throws \Exception
+     */
+    public function chatWithHistory(array $messages, ?string $systemPrompt = null, array $options = []): array
+    {
+        $model = $options['model'] ?? $this->defaultModel;
+        $maxTokens = $options['max_tokens'] ?? $this->defaultMaxTokens;
+        $temperature = $options['temperature'] ?? 0.7;
+
+        $parameters = [
+            'model' => $model,
+            'max_tokens' => $maxTokens,
+            'temperature' => $temperature,
+            'messages' => $messages,
+        ];
+
+        if ($systemPrompt) {
+            $parameters['system'] = $systemPrompt;
+        }
+
+        Log::debug('Claude API chatWithHistory request', [
+            'model' => $model,
+            'message_count' => count($messages),
+            'system_prompt_length' => $systemPrompt ? strlen($systemPrompt) : 0,
+        ]);
+
+        try {
+            $response = Anthropic::messages()->create($parameters);
+
+            $content = $response->content[0]->text ?? '';
+
+            Log::debug('Claude API chatWithHistory response', [
+                'model' => $response->model,
+                'input_tokens' => $response->usage->inputTokens,
+                'output_tokens' => $response->usage->outputTokens,
+                'content_length' => strlen($content),
+            ]);
+
+            return [
+                'content' => $content,
+                'model' => $response->model,
+                'usage' => [
+                    'input_tokens' => $response->usage->inputTokens,
+                    'output_tokens' => $response->usage->outputTokens,
+                ],
+            ];
+        } catch (\Exception $e) {
+            Log::error('Claude API chatWithHistory error', [
+                'error' => $e->getMessage(),
+                'model' => $model,
+                'message_count' => count($messages),
+            ]);
+
+            throw $e;
+        }
+    }
+
+    /**
      * Keresztnév kinyerése magyar névből Haiku modellel.
      * Felismeri a magyar névsorrendet (vezetéknév + keresztnév).
      *

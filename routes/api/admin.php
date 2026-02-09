@@ -1,5 +1,7 @@
 <?php
 
+use App\Http\Controllers\Api\Admin\AdminHelpArticleController;
+use App\Http\Controllers\Api\Admin\AdminHelpTourController;
 use App\Http\Controllers\Api\Admin\BugReportController as AdminBugReportController;
 use App\Http\Controllers\Api\SuperAdminController;
 use App\Http\Controllers\Api\SuperAdminSubscriberController;
@@ -53,5 +55,11 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::delete('/subscribers/{id}/discount', [SuperAdminSubscriberController::class, 'removeDiscount'])
             ->where('id', '[0-9]+')
             ->middleware('throttle:10,1');
+
+        // Help System - KB cikkek + Túrák kezelése
+        Route::prefix('help')->group(function () {
+            Route::apiResource('articles', AdminHelpArticleController::class);
+            Route::apiResource('tours', AdminHelpTourController::class);
+        });
     });
 });

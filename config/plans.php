@@ -45,6 +45,12 @@ return [
                 'max_templates' => 10,
             ],
 
+            // AI Help limitek
+            'help_limits' => [
+                'daily_messages' => 20,
+                'daily_tokens' => 50_000,
+            ],
+
             // Feature kulcsok (backend hasFeature() ellenőrzéshez)
             'feature_keys' => [
                 'online_selection',
@@ -85,6 +91,12 @@ return [
                 'max_schools' => null,
                 'max_contacts' => null,
                 'max_templates' => null,
+            ],
+
+            // AI Help limitek
+            'help_limits' => [
+                'daily_messages' => 50,
+                'daily_tokens' => 150_000,
             ],
 
             // Feature kulcsok
@@ -136,6 +148,12 @@ return [
                 'max_templates' => null,
             ],
 
+            // AI Help limitek
+            'help_limits' => [
+                'daily_messages' => 100,
+                'daily_tokens' => 300_000,
+            ],
+
             // Feature kulcsok
             'feature_keys' => [
                 'online_selection',
@@ -184,6 +202,12 @@ return [
                 'max_schools' => null,
                 'max_contacts' => null,
                 'max_templates' => null,
+            ],
+
+            // AI Help limitek
+            'help_limits' => [
+                'daily_messages' => 200,
+                'daily_tokens' => 600_000,
             ],
 
             // Feature kulcsok
