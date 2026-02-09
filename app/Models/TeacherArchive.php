@@ -21,6 +21,7 @@ class TeacherArchive extends Model implements HasMedia
         'school_id',
         'canonical_name',
         'title_prefix',
+        'position',
         'notes',
         'is_active',
         'active_photo_id',

@@ -18,6 +18,7 @@ class UpdateTeacherRequest extends FormRequest
         return [
             'canonical_name' => 'sometimes|required|string|max:255',
             'title_prefix' => 'nullable|string|max:100',
+            'position' => 'nullable|string|max:255',
             'school_id' => 'sometimes|required|integer|exists:tablo_schools,id',
             'aliases' => 'nullable|array|max:10',
             'aliases.*' => 'string|max:255',
@@ -32,6 +33,7 @@ class UpdateTeacherRequest extends FormRequest
             'canonical_name.required' => 'A tanár neve kötelező.',
             'canonical_name.max' => 'A tanár neve maximum 255 karakter lehet.',
             'title_prefix.max' => 'A titulus maximum 100 karakter lehet.',
+            'position.max' => 'A pozíció maximum 255 karakter lehet.',
             'school_id.exists' => 'A kiválasztott iskola nem létezik.',
             'aliases.max' => 'Maximum 10 név variáns adható meg.',
             'aliases.*.max' => 'Egy név variáns maximum 255 karakter lehet.',
@@ -44,6 +46,7 @@ class UpdateTeacherRequest extends FormRequest
         return [
             'canonical_name' => 'tanár neve',
             'title_prefix' => 'titulus',
+            'position' => 'pozíció',
             'school_id' => 'iskola',
             'aliases' => 'név variánsok',
             'notes' => 'megjegyzés',

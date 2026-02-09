@@ -17,6 +17,7 @@ class CreateTeacherAction
             'school_id' => $data['school_id'],
             'canonical_name' => $data['canonical_name'],
             'title_prefix' => $data['title_prefix'] ?? null,
+            'position' => $data['position'] ?? null,
             'notes' => $data['notes'] ?? null,
             'is_active' => true,
         ]);

@@ -181,6 +181,7 @@ class PartnerTeacherController extends Controller
             'id' => $teacher->id,
             'canonicalName' => $teacher->canonical_name,
             'titlePrefix' => $teacher->title_prefix,
+            'position' => $teacher->position,
             'fullDisplayName' => $teacher->full_display_name,
             'schoolId' => $teacher->school_id,
             'schoolName' => $teacher->school?->name,

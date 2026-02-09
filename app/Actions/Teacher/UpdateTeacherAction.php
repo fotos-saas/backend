@@ -41,10 +41,20 @@ class UpdateTeacherAction
             ];
         }
 
+        // Pozíció változás tracking
+        if (array_key_exists('position', $data) && $data['position'] !== $teacher->position) {
+            $changes[] = [
+                'change_type' => 'position_changed',
+                'old_value' => $teacher->position,
+                'new_value' => $data['position'],
+            ];
+        }
+
         // Tanár frissítés
         $teacher->update(array_filter([
             'canonical_name' => $data['canonical_name'] ?? null,
             'title_prefix' => array_key_exists('title_prefix', $data) ? $data['title_prefix'] : null,
+            'position' => array_key_exists('position', $data) ? $data['position'] : null,
             'school_id' => $data['school_id'] ?? null,
             'notes' => array_key_exists('notes', $data) ? $data['notes'] : null,
             'is_active' => $data['is_active'] ?? null,
