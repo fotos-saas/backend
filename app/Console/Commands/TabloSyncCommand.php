@@ -13,6 +13,7 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 
 class TabloSyncCommand extends Command
 {
@@ -142,6 +143,8 @@ class TabloSyncCommand extends Command
 
     private function syncAllPages(TabloPartner $partner, bool $dryRun): int
     {
+        DB::connection()->disableQueryLog();
+
         $singlePage = $this->option('page');
         $page = $singlePage ? (int) $singlePage : 1;
         $lastPage = $singlePage ? (int) $singlePage : null;
@@ -169,8 +172,12 @@ class TabloSyncCommand extends Command
                 } catch (\Exception $e) {
                     $this->errors++;
                     $this->error("  HIBA projekt #{$apiProject['id']}: " . $e->getMessage());
+                    report($e);
                 }
             }
+
+            // Memoria felszabaditas oldalankent
+            gc_collect_cycles();
 
             if ($page >= $lastPage || $singlePage) {
                 break;
@@ -190,14 +197,23 @@ class TabloSyncCommand extends Command
         ]);
 
         try {
-            $response = Http::timeout(30)->get($url);
+            $response = Http::timeout(30)
+                ->retry(3, 500)
+                ->get($url);
 
             if (! $response->successful()) {
                 $this->error("API valasz: {$response->status()}");
                 return null;
             }
 
-            return $response->json();
+            $data = $response->json();
+
+            if (! is_array($data) || ! isset($data['data'])) {
+                $this->error('API valasz nem megfelelo formatumu (hianyzik a data kulcs)');
+                return null;
+            }
+
+            return $data;
         } catch (\Exception $e) {
             $this->error('API hivas sikertelen: ' . $e->getMessage());
             return null;
@@ -544,7 +560,7 @@ class TabloSyncCommand extends Command
             try {
                 $content = Http::timeout(15)->get($imageUrl)->body();
                 $ext = pathinfo(parse_url($imageUrl, PHP_URL_PATH), PATHINFO_EXTENSION) ?: 'jpg';
-                $safeName = preg_replace('/[^a-zA-Z0-9_-]/', '_', $person['name'] ?? $person['id']);
+                $safeName = Str::slug($person['name'] ?? $person['id'], '_');
                 Storage::put("{$dir}/{$safeName}_{$person['id']}.{$ext}", $content);
             } catch (\Exception $e) {
                 // Csendes hiba - nem kritikus
