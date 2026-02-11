@@ -634,6 +634,7 @@ class TabloSyncCommand extends Command
 
             $imageUrl = $imageData['url'];
             $fileName = $imageData['file_name'] ?? Str::slug($teacher['name'] ?? $teacher['id'], '_') . '.jpg';
+
             $safeName = Str::slug(pathinfo($fileName, PATHINFO_FILENAME), '_');
             $ext = pathinfo($fileName, PATHINFO_EXTENSION) ?: 'jpg';
 
