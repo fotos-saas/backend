@@ -20,17 +20,20 @@ class TeacherMatchingService
      *
      * @param  string[]  $names  Bemeneti tanárnevek
      * @param  int  $partnerId  Partner ID
-     * @param  int  $schoolId  Iskola ID
+     * @param  int|array  $schoolIds  Iskola ID vagy összekapcsolt iskola ID-k tömbje
      * @return array Párosítási eredmények
      */
-    public function matchNames(array $names, int $partnerId, int $schoolId): array
+    public function matchNames(array $names, int $partnerId, int|array $schoolIds): array
     {
+        // Backward compat: int → array
+        $schoolIds = is_array($schoolIds) ? $schoolIds : [$schoolIds];
+
         $results = [];
         $unmatchedForAi = [];
 
-        // Iskola összes tanárja (kontextus az AI-nak)
+        // Összekapcsolt iskolák összes tanárja (kontextus az AI-nak)
         $teachers = TeacherArchive::forPartner($partnerId)
-            ->forSchool($schoolId)
+            ->whereIn('school_id', $schoolIds)
             ->active()
             ->with(['aliases', 'activePhoto'])
             ->get();
@@ -49,7 +52,7 @@ class TeacherMatchingService
             }
 
             // 2. pg_trgm fuzzy match
-            $fuzzyMatch = $this->findFuzzyMatch($inputName, $partnerId, $schoolId);
+            $fuzzyMatch = $this->findFuzzyMatch($inputName, $partnerId, $schoolIds);
             if ($fuzzyMatch && $fuzzyMatch['similarity'] > 0.6) {
                 $teacher = $teachers->firstWhere('id', $fuzzyMatch['id']);
                 if ($teacher) {
@@ -111,8 +114,10 @@ class TeacherMatchingService
         return null;
     }
 
-    private function findFuzzyMatch(string $name, int $partnerId, int $schoolId): ?array
+    private function findFuzzyMatch(string $name, int $partnerId, array $schoolIds): ?array
     {
+        $placeholders = implode(',', array_fill(0, count($schoolIds), '?'));
+
         $result = DB::select("
             SELECT ta.id, ta.canonical_name,
                    GREATEST(
@@ -120,14 +125,14 @@ class TeacherMatchingService
                        COALESCE((SELECT MAX(similarity(al.alias_name, ?)) FROM teacher_aliases al WHERE al.teacher_id = ta.id), 0)
                    ) as similarity
             FROM teacher_archive ta
-            WHERE ta.partner_id = ? AND ta.school_id = ? AND ta.is_active = true
+            WHERE ta.partner_id = ? AND ta.school_id IN ({$placeholders}) AND ta.is_active = true
             HAVING GREATEST(
                        similarity(ta.canonical_name, ?),
                        COALESCE((SELECT MAX(similarity(al.alias_name, ?)) FROM teacher_aliases al WHERE al.teacher_id = ta.id), 0)
                    ) > 0.3
             ORDER BY similarity DESC
             LIMIT 1
-        ", [$name, $name, $partnerId, $schoolId, $name, $name]);
+        ", array_merge([$name, $name, $partnerId], $schoolIds, [$name, $name]));
 
         if (empty($result)) {
             return null;

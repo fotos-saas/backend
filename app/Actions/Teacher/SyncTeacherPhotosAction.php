@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Actions\Teacher;
 
 use App\Models\TabloPerson;
+use App\Models\TabloPartner;
 use App\Models\TabloProject;
 use App\Models\TeacherArchive;
 use App\Services\Teacher\TeacherMatchingService;
@@ -22,8 +23,12 @@ class SyncTeacherPhotosAction
      */
     public function execute(int $schoolId, int $partnerId, ?string $classYear = null): array
     {
+        // Összekapcsolt iskolák feloldása
+        $tabloPartner = TabloPartner::find($partnerId);
+        $linkedSchoolIds = $tabloPartner ? $tabloPartner->getLinkedSchoolIds($schoolId) : [$schoolId];
+
         $query = TabloProject::where('partner_id', $partnerId)
-            ->where('school_id', $schoolId);
+            ->whereIn('school_id', $linkedSchoolIds);
 
         if ($classYear) {
             $query->where('class_year', $classYear);
@@ -54,7 +59,7 @@ class SyncTeacherPhotosAction
         }
 
         $names = $withoutPhoto->pluck('name')->unique()->values()->toArray();
-        $matchResults = $this->matchingService->matchNames($names, $partnerId, $schoolId);
+        $matchResults = $this->matchingService->matchNames($names, $partnerId, $linkedSchoolIds);
         $matchMap = collect($matchResults)->keyBy('inputName');
 
         $synced = 0;

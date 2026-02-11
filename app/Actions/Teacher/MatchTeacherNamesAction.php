@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Actions\Teacher;
 
+use App\Models\TabloPartner;
 use App\Services\Teacher\TeacherMatchingService;
 
 class MatchTeacherNamesAction
@@ -32,7 +33,11 @@ class MatchTeacherNamesAction
 
         $names = array_slice($names, 0, 20);
 
-        $matches = $this->matchingService->matchNames($names, $partnerId, $schoolId);
+        // Összekapcsolt iskolák feloldása
+        $tabloPartner = TabloPartner::find($partnerId);
+        $linkedSchoolIds = $tabloPartner ? $tabloPartner->getLinkedSchoolIds($schoolId) : [$schoolId];
+
+        $matches = $this->matchingService->matchNames($names, $partnerId, $linkedSchoolIds);
 
         return ['matches' => $matches];
     }

@@ -15,6 +15,7 @@ use App\Services\Search\SearchService;
 use App\Helpers\QueryHelper;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 /**
  * Partner School Controller - School management for partners.
@@ -55,14 +56,46 @@ class PartnerSchoolController extends Controller
 
         $schools = $query->orderBy('name')->paginate($perPage);
 
-        $schools->getCollection()->transform(fn ($school) => [
-            'id' => $school->id,
-            'name' => $school->name,
-            'city' => $school->city,
-            'projectsCount' => $school->projects_count ?? 0,
-            'activeProjectsCount' => $school->active_projects_count ?? 0,
-            'hasActiveProjects' => ($school->active_projects_count ?? 0) > 0,
-        ]);
+        // linked_group adatok lekérése a pivot-ből
+        $pivotData = DB::table('partner_schools')
+            ->where('partner_id', $partnerId)
+            ->whereNotNull('linked_group')
+            ->get()
+            ->keyBy('school_id');
+
+        // Csoportonkénti iskola nevek (linked_group → iskolák)
+        $groupSchools = DB::table('partner_schools')
+            ->join('tablo_schools', 'tablo_schools.id', '=', 'partner_schools.school_id')
+            ->where('partner_schools.partner_id', $partnerId)
+            ->whereNotNull('partner_schools.linked_group')
+            ->select('partner_schools.linked_group', 'tablo_schools.id', 'tablo_schools.name', 'tablo_schools.city')
+            ->get()
+            ->groupBy('linked_group');
+
+        $schools->getCollection()->transform(function ($school) use ($pivotData, $groupSchools) {
+            $pivot = $pivotData->get($school->id);
+            $linkedGroup = $pivot?->linked_group;
+            $linkedSchools = [];
+
+            if ($linkedGroup && $groupSchools->has($linkedGroup)) {
+                $linkedSchools = $groupSchools->get($linkedGroup)
+                    ->where('id', '!=', $school->id)
+                    ->map(fn ($s) => ['id' => $s->id, 'name' => $s->name, 'city' => $s->city])
+                    ->values()
+                    ->toArray();
+            }
+
+            return [
+                'id' => $school->id,
+                'name' => $school->name,
+                'city' => $school->city,
+                'projectsCount' => $school->projects_count ?? 0,
+                'activeProjectsCount' => $school->active_projects_count ?? 0,
+                'hasActiveProjects' => ($school->active_projects_count ?? 0) > 0,
+                'linkedGroup' => $linkedGroup,
+                'linkedSchools' => $linkedSchools,
+            ];
+        });
 
         // Get school limits for this partner (csapattagoknak is működik)
         $partner = auth()->user()->getEffectivePartner();

@@ -18,6 +18,7 @@ use App\Http\Controllers\Api\Partner\PartnerQrController;
 use App\Http\Controllers\Api\Partner\PartnerAiSummaryController;
 use App\Http\Controllers\Api\Partner\PartnerSamplePackageController;
 use App\Http\Controllers\Api\Partner\PartnerSchoolController;
+use App\Http\Controllers\Api\Partner\PartnerSchoolLinkingController;
 use App\Http\Controllers\Api\Partner\PartnerTeacherController;
 use App\Http\Controllers\Api\Partner\PartnerTeacherPhotoController;
 use App\Http\Controllers\Api\Partner\TeamController as PartnerTeamController;
@@ -184,6 +185,11 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/schools', [PartnerSchoolController::class, 'storeSchool']);
         Route::put('/schools/{schoolId}', [PartnerSchoolController::class, 'updateSchool']);
         Route::delete('/schools/{schoolId}', [PartnerSchoolController::class, 'deleteSchool']);
+
+        // School linking (Iskola összekapcsolás)
+        Route::post('/schools/link', [PartnerSchoolLinkingController::class, 'linkSchools']);
+        Route::delete('/schools/{schoolId}/unlink', [PartnerSchoolLinkingController::class, 'unlinkSchool']);
+        Route::get('/schools/linked-groups', [PartnerSchoolLinkingController::class, 'getLinkedGroups']);
 
         // Teachers management (Tanár archívum)
         Route::get('/teachers', [PartnerTeacherController::class, 'index']);

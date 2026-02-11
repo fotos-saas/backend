@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Facades\Crypt;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
 /**
@@ -131,7 +132,31 @@ class TabloPartner extends Model
     public function schools(): BelongsToMany
     {
         return $this->belongsToMany(TabloSchool::class, 'partner_schools', 'partner_id', 'school_id')
+            ->withPivot('linked_group')
             ->withTimestamps();
+    }
+
+    /**
+     * Összekapcsolt iskolák ID-jainak lekérdezése.
+     * Ha az iskola egy linked_group-ban van, visszaadja a csoport összes iskoláját.
+     * Ha nincs csoportban, csak az adott iskola ID-t adja vissza.
+     */
+    public function getLinkedSchoolIds(int $schoolId): array
+    {
+        $linkedGroup = DB::table('partner_schools')
+            ->where('partner_id', $this->id)
+            ->where('school_id', $schoolId)
+            ->value('linked_group');
+
+        if (!$linkedGroup) {
+            return [$schoolId];
+        }
+
+        return DB::table('partner_schools')
+            ->where('partner_id', $this->id)
+            ->where('linked_group', $linkedGroup)
+            ->pluck('school_id')
+            ->toArray();
     }
 
     /**
