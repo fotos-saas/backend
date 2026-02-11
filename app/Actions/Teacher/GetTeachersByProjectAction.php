@@ -49,14 +49,15 @@ class GetTeachersByProjectAction
         // ugyanazt a group_key-t kapja (legkisebb school_id a csoportban)
         $linkedMap = $this->buildLinkedMap($partnerId, $schoolIds);
 
-        // Batch load: van-e tanár típusú személy az egyes iskolák projektjeiben
+        // Batch load: tanár típusú személyek az egyes iskolák projektjeiben
         $allProjectIds = $projects->pluck('id')->toArray();
-        $teacherPersonSchoolIds = TabloPerson::whereIn('tablo_project_id', $allProjectIds)
+        $teacherPersons = TabloPerson::whereIn('tablo_project_id', $allProjectIds)
             ->where('type', 'teacher')
             ->join('tablo_projects', 'tablo_persons.tablo_project_id', '=', 'tablo_projects.id')
-            ->distinct()
-            ->pluck('tablo_projects.school_id')
-            ->toArray();
+            ->select('tablo_persons.name', 'tablo_persons.media_id', 'tablo_projects.school_id')
+            ->get();
+
+        $teacherPersonSchoolIds = $teacherPersons->pluck('school_id')->unique()->toArray();
 
         // Batch load: partner összes aktív archive rekordja a releváns iskolákra
         $archives = TeacherArchive::forPartner($partnerId)
@@ -112,7 +113,7 @@ class GetTeachersByProjectAction
 
         $allSchools = $groupKeys->map(function ($groupKey) use (
             $projectsByGroup, $archivesByGroup, $schoolNamesByGroup,
-            $teacherPersonSchoolIds, $allNamesWithPhoto, $linkedMap
+            $teacherPersonSchoolIds, $teacherPersons, $allNamesWithPhoto, $linkedMap
         ) {
             $groupProjects = $projectsByGroup->get($groupKey, collect());
             $groupArchives = $archivesByGroup->get($groupKey, collect());
@@ -121,6 +122,34 @@ class GetTeachersByProjectAction
             if (!$schoolName || $groupProjects->isEmpty()) {
                 return null;
             }
+
+            // Csoport school_id-k meghatározása (linked iskolák)
+            $groupSchoolIds = collect();
+            foreach ($linkedMap as $sid => $gk) {
+                if ($gk === $groupKey) {
+                    $groupSchoolIds->push($sid);
+                }
+            }
+            if ($groupSchoolIds->isEmpty()) {
+                $groupSchoolIds->push($groupKey);
+            }
+
+            // TabloPerson-ök NÉV SZERINT: akiknek nincs media_id-juk ebben a csoportban
+            // Ez a sync dialog-ban szinkronizálható tanárok forrása
+            $groupPersons = $teacherPersons->whereIn('school_id', $groupSchoolIds->toArray());
+            $personNamesWithPhoto = $groupPersons->whereNotNull('media_id')
+                ->pluck('name')
+                ->map(fn (string $n) => mb_strtolower(trim($n)))
+                ->unique()
+                ->flip();
+            $personNamesWithoutPhoto = $groupPersons->filter(function ($p) use ($personNamesWithPhoto) {
+                    return $p->media_id === null
+                        && !$personNamesWithPhoto->has(mb_strtolower(trim($p->name)));
+                })
+                ->pluck('name')
+                ->map(fn (string $n) => mb_strtolower(trim($n)))
+                ->unique()
+                ->flip();
 
             // Tanárok deduplikálás NÉV alapján (linked iskolák közös tanárai)
             $seenNames = [];
@@ -132,11 +161,17 @@ class GetTeachersByProjectAction
                 }
                 $seenNames[$normalizedName] = true;
 
+                $archiveHasPhoto = $t->photo_thumb_url !== null;
+                // Cross-school sync: archívban nincs fotó, de máshol van
+                $crossSchoolSyncable = !$archiveHasPhoto && $allNamesWithPhoto->has($normalizedName);
+                // Projekt sync: archívban VAN fotó, de a TabloPerson-nél nincs media_id
+                $projectSyncable = $archiveHasPhoto && $personNamesWithoutPhoto->has($normalizedName);
+
                 $teachers->push([
                     'archiveId' => $t->id,
                     'name' => $t->full_display_name,
-                    'hasPhoto' => $t->photo_thumb_url !== null,
-                    'hasSyncablePhoto' => $t->photo_thumb_url === null && $allNamesWithPhoto->has($normalizedName),
+                    'hasPhoto' => $archiveHasPhoto,
+                    'hasSyncablePhoto' => $crossSchoolSyncable || $projectSyncable,
                     'noPhotoMarked' => $t->notes && str_contains($t->notes, 'Nem találom a képet'),
                     'photoThumbUrl' => $t->photo_thumb_url,
                     'photoUrl' => $t->photo_url,
@@ -162,20 +197,8 @@ class GetTeachersByProjectAction
             $totalCount = $teachers->count();
             $missingCount = $teachers->filter(fn ($t) => ! $t['hasPhoto'])->count();
 
-            // Sync elérhető: van-e hiányzó tanár akihez VAN fotó más iskolánál
-            $syncAvailable = $missingCount > 0 && $teachers->contains(fn ($t) => $t['hasSyncablePhoto']);
-
-            // Csoport school_id-k (hasTeacherPersons check-hez)
-            $groupSchoolIds = collect();
-            foreach ($linkedMap as $sid => $gk) {
-                if ($gk === $groupKey) {
-                    $groupSchoolIds->push($sid);
-                }
-            }
-            // Ha a groupKey nem volt a linkedMap-ben (nincs linked group)
-            if ($groupSchoolIds->isEmpty()) {
-                $groupSchoolIds->push($groupKey);
-            }
+            // Sync elérhető: van-e szinkronizálható tanár (archív cross-school VAGY projekt sync)
+            $syncAvailable = $teachers->contains(fn ($t) => $t['hasSyncablePhoto']);
 
             $hasTeacherPersons = $groupSchoolIds->contains(fn ($sid) =>
                 in_array($sid, $teacherPersonSchoolIds, true)
