@@ -52,6 +52,15 @@ class GetTeachersByProjectAction
             ->pluck('tablo_projects.school_id')
             ->toArray();
 
+        // Batch load: van-e fotó nélküli teacher person az iskolák projektjeiben
+        $schoolsWithMissingPersonPhotos = TabloPerson::whereIn('tablo_project_id', $allProjectIds)
+            ->where('type', 'teacher')
+            ->whereNull('tablo_persons.media_id')
+            ->join('tablo_projects', 'tablo_persons.tablo_project_id', '=', 'tablo_projects.id')
+            ->distinct()
+            ->pluck('tablo_projects.school_id')
+            ->toArray();
+
         // Batch load: partner összes aktív archive rekordja a releváns iskolákra
         $archives = TeacherArchive::forPartner($partnerId)
             ->active()
@@ -67,7 +76,7 @@ class GetTeachersByProjectAction
         $projectsBySchool = $projects->groupBy('school_id');
 
         // Összegyűjtjük az összes iskola adatát (summary-hoz is kell a teljes kép)
-        $allSchools = collect($schoolIds)->map(function (int $sid) use ($projectsBySchool, $archivesBySchool, $teacherPersonSchoolIds) {
+        $allSchools = collect($schoolIds)->map(function (int $sid) use ($projectsBySchool, $archivesBySchool, $teacherPersonSchoolIds, $schoolsWithMissingPersonPhotos) {
             $schoolProjects = $projectsBySchool->get($sid, collect());
             $schoolTeachers = $archivesBySchool->get($sid, collect());
 
@@ -87,6 +96,11 @@ class GetTeachersByProjectAction
 
             $totalCount = $teachers->count();
             $missingCount = $teachers->filter(fn ($t) => ! $t['hasPhoto'])->count();
+            $archiveWithPhotoCount = $teachers->filter(fn ($t) => $t['hasPhoto'])->count();
+
+            // Sync elérhető: van fotó nélküli teacher person a projektben ÉS van archív fotó
+            $hasMissingPersonPhotos = in_array($sid, $schoolsWithMissingPersonPhotos, true);
+            $syncAvailable = $hasMissingPersonPhotos && $archiveWithPhotoCount > 0;
 
             // Osztályok listája kontextusnak
             $classes = $schoolProjects->map(fn (TabloProject $p) => [
@@ -102,7 +116,8 @@ class GetTeachersByProjectAction
                 'classCount' => count($classes),
                 'teacherCount' => $totalCount,
                 'missingPhotoCount' => $missingCount,
-                'hasTeacherPersons' => in_array($sid, $teacherPersonSchoolIds),
+                'hasTeacherPersons' => in_array($sid, $teacherPersonSchoolIds, true),
+                'syncAvailable' => $syncAvailable,
                 'teachers' => $teachers->values()->toArray(),
             ];
         })->filter()->values();
