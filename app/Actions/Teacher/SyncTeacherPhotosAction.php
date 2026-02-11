@@ -4,139 +4,102 @@ declare(strict_types=1);
 
 namespace App\Actions\Teacher;
 
-use App\Models\TabloPerson;
 use App\Models\TabloPartner;
-use App\Models\TabloProject;
 use App\Models\TeacherArchive;
-use App\Services\Teacher\TeacherMatchingService;
 use Illuminate\Support\Facades\DB;
 
 class SyncTeacherPhotosAction
 {
-    public function __construct(
-        private readonly TeacherMatchingService $matchingService,
-    ) {}
-
     /**
-     * Tanár fotó szinkronizálás végrehajtása — archív fotó hozzárendelés.
-     * Linked iskolák projekttanárait is nézi, NÉV SZERINT deduplikál.
-     * Ha person_ids megadva, csak azokat szinkronizálja.
+     * Tanár fotó szinkronizálás végrehajtása — archív cross-school alapon.
      *
-     * @param int[]|null $personIds Ha megadva, csak ezeket a person-öket szinkronizálja
+     * Az archívban fotó nélküli tanároknak átmásolja az active_photo_id-t
+     * a más iskolánál megtalált donor archív rekordból.
+     *
+     * @param int[]|null $archiveIds Ha megadva, csak ezeket az archív tanárokat szinkronizálja
      */
-    public function execute(int $schoolId, int $partnerId, ?string $classYear = null, ?array $personIds = null): array
+    public function execute(int $schoolId, int $partnerId, ?string $classYear = null, ?array $archiveIds = null): array
     {
         // Összekapcsolt iskolák feloldása
         $tabloPartner = TabloPartner::find($partnerId);
         $linkedSchoolIds = $tabloPartner ? $tabloPartner->getLinkedSchoolIds($schoolId) : [$schoolId];
 
-        $query = TabloProject::where('partner_id', $partnerId)
-            ->whereIn('school_id', $linkedSchoolIds);
-
-        if ($classYear) {
-            $query->where('class_year', $classYear);
-        }
-
-        $projectIds = $query->pluck('id');
-
-        if ($projectIds->isEmpty()) {
-            return $this->emptyResult(0);
-        }
-
-        $teachers = TabloPerson::whereIn('tablo_project_id', $projectIds)
-            ->where('type', 'teacher')
+        // Archív tanárok az összekapcsolt iskolákra
+        $archives = TeacherArchive::forPartner($partnerId)
+            ->active()
+            ->whereIn('school_id', $linkedSchoolIds)
+            ->whereNull('active_photo_id')
+            ->orderBy('canonical_name')
             ->get();
 
-        if ($teachers->isEmpty()) {
+        if ($archives->isEmpty()) {
             return $this->emptyResult(0);
         }
 
-        // NÉV ALAPÚ deduplikálás: ha egy tanárnév bármely projektben
-        // már rendelkezik media_id-vel, azt kihagyjuk
-        $namesWithPhoto = $teachers->whereNotNull('media_id')
-            ->pluck('name')
-            ->map(fn (string $n) => mb_strtolower(trim($n)))
-            ->unique()
-            ->flip();
+        // Ha archive_ids megadva, csak azokat szinkronizáljuk
+        if ($archiveIds !== null) {
+            $archives = $archives->whereIn('id', $archiveIds);
+        }
 
-        // Fotó nélküli person-ök, akiknek a neve SEHOL nincs fotóval
-        $withoutPhoto = $teachers->filter(function (TabloPerson $p) use ($namesWithPhoto) {
-            if ($p->media_id !== null) {
-                return false;
+        // NÉV alapú deduplikálás (linked iskolák közös tanárai)
+        $seenNames = [];
+        $uniqueArchives = collect();
+        foreach ($archives as $t) {
+            $normalizedName = mb_strtolower(trim($t->canonical_name));
+            if (isset($seenNames[$normalizedName])) {
+                continue;
             }
-            return !$namesWithPhoto->has(mb_strtolower(trim($p->name)));
-        });
-
-        // Ha person_ids megadva, csak azokat szinkronizáljuk
-        if ($personIds !== null) {
-            $withoutPhoto = $withoutPhoto->whereIn('id', $personIds);
+            $seenNames[$normalizedName] = true;
+            $uniqueArchives->push($t);
         }
 
-        $skipped = $teachers->count() - $withoutPhoto->count();
-
-        if ($withoutPhoto->isEmpty()) {
-            return $this->emptyResult($skipped);
+        if ($uniqueArchives->isEmpty()) {
+            return $this->emptyResult(0);
         }
-
-        $names = $withoutPhoto->pluck('name')->unique()->values()->toArray();
-        $matchResults = $this->matchingService->matchNames($names, $partnerId, $linkedSchoolIds);
-        $matchMap = collect($matchResults)->keyBy('inputName');
 
         $synced = 0;
-        $noMatch = 0;
         $noPhoto = 0;
         $details = [];
 
-        DB::transaction(function () use ($withoutPhoto, $matchMap, &$synced, &$noMatch, &$noPhoto, &$details) {
-            foreach ($withoutPhoto as $person) {
-                $match = $matchMap->get($person->name);
+        DB::transaction(function () use ($uniqueArchives, $partnerId, $linkedSchoolIds, &$synced, &$noPhoto, &$details) {
+            foreach ($uniqueArchives as $t) {
+                // Donor keresése: ugyanaz a canonical_name, MÁS school_id, van active_photo_id
+                $donor = TeacherArchive::forPartner($partnerId)
+                    ->active()
+                    ->where('canonical_name', $t->canonical_name)
+                    ->whereNotIn('school_id', $linkedSchoolIds)
+                    ->whereNotNull('active_photo_id')
+                    ->first();
 
-                if (!$match || $match['matchType'] === 'no_match') {
-                    $noMatch++;
-                    $details[] = [
-                        'personId' => $person->id,
-                        'personName' => $person->name,
-                        'status' => 'no_match',
-                    ];
-                    continue;
-                }
-
-                // Van match — archív tanár active_photo_id lekérése
-                $archive = TeacherArchive::find($match['teacherId']);
-                if (!$archive || !$archive->active_photo_id) {
+                if (!$donor) {
                     $noPhoto++;
                     $details[] = [
-                        'personId' => $person->id,
-                        'personName' => $person->name,
+                        'archiveId' => $t->id,
+                        'personName' => $t->full_display_name,
                         'status' => 'no_photo',
-                        'matchType' => $match['matchType'],
-                        'teacherName' => $match['teacherName'],
-                        'confidence' => $match['confidence'],
                     ];
                     continue;
                 }
 
-                // Szinkronizálás: media_id átállítás
-                $person->media_id = $archive->active_photo_id;
-                $person->save();
+                // Szinkronizálás: active_photo_id átmásolás
+                $t->active_photo_id = $donor->active_photo_id;
+                $t->save();
 
                 $synced++;
                 $details[] = [
-                    'personId' => $person->id,
-                    'personName' => $person->name,
+                    'archiveId' => $t->id,
+                    'personName' => $t->full_display_name,
                     'status' => 'synced',
-                    'matchType' => $match['matchType'],
-                    'teacherName' => $match['teacherName'],
-                    'confidence' => $match['confidence'],
+                    'sourceSchoolId' => $donor->school_id,
                 ];
             }
         });
 
         return [
             'synced' => $synced,
-            'noMatch' => $noMatch,
+            'noMatch' => 0,
             'noPhoto' => $noPhoto,
-            'skipped' => $skipped,
+            'skipped' => 0,
             'details' => $details,
         ];
     }

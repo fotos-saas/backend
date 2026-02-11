@@ -49,15 +49,14 @@ class GetTeachersByProjectAction
         // ugyanazt a group_key-t kapja (legkisebb school_id a csoportban)
         $linkedMap = $this->buildLinkedMap($partnerId, $schoolIds);
 
-        // Batch load: tanár típusú személyek az egyes iskolák projektjeiben
+        // Batch load: van-e tanár típusú személy az egyes iskolák projektjeiben
         $allProjectIds = $projects->pluck('id')->toArray();
-        $teacherPersons = TabloPerson::whereIn('tablo_project_id', $allProjectIds)
+        $teacherPersonSchoolIds = TabloPerson::whereIn('tablo_project_id', $allProjectIds)
             ->where('type', 'teacher')
             ->join('tablo_projects', 'tablo_persons.tablo_project_id', '=', 'tablo_projects.id')
-            ->select('tablo_persons.name', 'tablo_persons.media_id', 'tablo_projects.school_id')
-            ->get();
-
-        $teacherPersonSchoolIds = $teacherPersons->pluck('school_id')->unique()->toArray();
+            ->distinct()
+            ->pluck('tablo_projects.school_id')
+            ->toArray();
 
         // Batch load: partner összes aktív archive rekordja a releváns iskolákra
         $archives = TeacherArchive::forPartner($partnerId)
@@ -113,7 +112,7 @@ class GetTeachersByProjectAction
 
         $allSchools = $groupKeys->map(function ($groupKey) use (
             $projectsByGroup, $archivesByGroup, $schoolNamesByGroup,
-            $teacherPersonSchoolIds, $teacherPersons, $allNamesWithPhoto, $linkedMap
+            $teacherPersonSchoolIds, $allNamesWithPhoto, $linkedMap
         ) {
             $groupProjects = $projectsByGroup->get($groupKey, collect());
             $groupArchives = $archivesByGroup->get($groupKey, collect());
@@ -134,23 +133,6 @@ class GetTeachersByProjectAction
                 $groupSchoolIds->push($groupKey);
             }
 
-            // TabloPerson-ök NÉV SZERINT: akiknek nincs media_id-juk ebben a csoportban
-            // Ez a sync dialog-ban szinkronizálható tanárok forrása
-            $groupPersons = $teacherPersons->whereIn('school_id', $groupSchoolIds->toArray());
-            $personNamesWithPhoto = $groupPersons->whereNotNull('media_id')
-                ->pluck('name')
-                ->map(fn (string $n) => mb_strtolower(trim($n)))
-                ->unique()
-                ->flip();
-            $personNamesWithoutPhoto = $groupPersons->filter(function ($p) use ($personNamesWithPhoto) {
-                    return $p->media_id === null
-                        && !$personNamesWithPhoto->has(mb_strtolower(trim($p->name)));
-                })
-                ->pluck('name')
-                ->map(fn (string $n) => mb_strtolower(trim($n)))
-                ->unique()
-                ->flip();
-
             // Tanárok deduplikálás NÉV alapján (linked iskolák közös tanárai)
             $seenNames = [];
             $teachers = collect();
@@ -161,17 +143,11 @@ class GetTeachersByProjectAction
                 }
                 $seenNames[$normalizedName] = true;
 
-                $archiveHasPhoto = $t->photo_thumb_url !== null;
-                // Cross-school sync: archívban nincs fotó, de máshol van
-                $crossSchoolSyncable = !$archiveHasPhoto && $allNamesWithPhoto->has($normalizedName);
-                // Projekt sync: archívban VAN fotó, de a TabloPerson-nél nincs media_id
-                $projectSyncable = $archiveHasPhoto && $personNamesWithoutPhoto->has($normalizedName);
-
                 $teachers->push([
                     'archiveId' => $t->id,
                     'name' => $t->full_display_name,
-                    'hasPhoto' => $archiveHasPhoto,
-                    'hasSyncablePhoto' => $crossSchoolSyncable || $projectSyncable,
+                    'hasPhoto' => $t->photo_thumb_url !== null,
+                    'hasSyncablePhoto' => $t->photo_thumb_url === null && $allNamesWithPhoto->has($normalizedName),
                     'noPhotoMarked' => $t->notes && str_contains($t->notes, 'Nem találom a képet'),
                     'photoThumbUrl' => $t->photo_thumb_url,
                     'photoUrl' => $t->photo_url,
