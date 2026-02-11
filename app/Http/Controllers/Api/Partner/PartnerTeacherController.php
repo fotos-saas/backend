@@ -12,10 +12,12 @@ use App\Http\Requests\Api\Partner\BulkImportTeacherExecuteRequest;
 use App\Http\Requests\Api\Partner\BulkImportTeacherPreviewRequest;
 use App\Http\Requests\Api\Partner\StoreTeacherRequest;
 use App\Http\Requests\Api\Partner\UpdateTeacherRequest;
-use App\Models\TeacherArchive;
 use App\Helpers\QueryHelper;
+use App\Models\TeacherArchive;
+use App\Services\Search\SearchService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class PartnerTeacherController extends Controller
 {
@@ -28,6 +30,7 @@ class PartnerTeacherController extends Controller
         $perPage = min((int) $request->input('per_page', 18), 50);
         $search = $request->input('search');
         $schoolId = $request->input('school_id');
+        $classYear = $request->input('class_year');
 
         $query = TeacherArchive::forPartner($partnerId)
             ->with('school', 'activePhoto')
@@ -37,18 +40,31 @@ class PartnerTeacherController extends Controller
             $query->forSchool((int) $schoolId);
         }
 
-        if ($search) {
-            $pattern = QueryHelper::safeLikePattern($search);
-            $query->where(function ($q) use ($pattern, $search) {
-                $q->where('canonical_name', 'ILIKE', $pattern)
-                    ->orWhere('title_prefix', 'ILIKE', $pattern)
-                    ->orWhere('position', 'ILIKE', $pattern)
-                    ->orWhereHas('aliases', fn ($aq) => $aq->where('alias_name', 'ILIKE', $pattern))
-                    ->orWhereHas('school', fn ($sq) => $sq->where('name', 'ILIKE', $pattern))
-                    ->orWhereHas('photos', fn ($pq) =>
-                        $pq->whereHas('media', fn ($mq) => $mq->where('file_name', 'ILIKE', $pattern))
-                    );
+        // Évfolyam szűrő: tablo_persons + tablo_projects.class_year alapján
+        if ($classYear) {
+            $query->whereIn('id', function ($sub) use ($partnerId, $classYear) {
+                $sub->select('ta.id')
+                    ->from('teacher_archive as ta')
+                    ->join('tablo_persons as tp', function ($join) {
+                        $join->on('tp.name', '=', 'ta.canonical_name')
+                            ->where('tp.type', 'teacher');
+                    })
+                    ->join('tablo_projects as tpr', function ($join) use ($partnerId) {
+                        $join->on('tpr.id', '=', 'tp.tablo_project_id')
+                            ->where('tpr.partner_id', $partnerId);
+                    })
+                    ->where('tpr.class_year', 'ILIKE', QueryHelper::safeLikePattern($classYear));
             });
+        }
+
+        if ($search) {
+            $query = app(SearchService::class)->apply($query, $search, [
+                'columns' => ['canonical_name', 'title_prefix', 'position'],
+                'relations' => [
+                    'aliases' => ['alias_name'],
+                    'school' => ['name'],
+                ],
+            ]);
         }
 
         $teachers = $query->orderBy('canonical_name')->paginate($perPage);
@@ -85,12 +101,10 @@ class PartnerTeacherController extends Controller
         }
 
         if ($search) {
-            $query->where(function ($q) use ($search) {
-                $q->where('canonical_name', 'ILIKE', QueryHelper::safeLikePattern($search))
-                    ->orWhereHas('aliases', function ($aq) use ($search) {
-                        $aq->where('alias_name', 'ILIKE', QueryHelper::safeLikePattern($search));
-                    });
-            });
+            $query = app(SearchService::class)->apply($query, $search, [
+                'columns' => ['canonical_name'],
+                'relations' => ['aliases' => ['alias_name']],
+            ]);
         }
 
         $teachers = $query->orderBy('canonical_name')->limit(50)->get();
@@ -105,6 +119,24 @@ class PartnerTeacherController extends Controller
                 'photoThumbUrl' => $t->photo_thumb_url,
             ])
         );
+    }
+
+    public function classYears(): JsonResponse
+    {
+        $partnerId = $this->getPartnerIdOrFail();
+
+        // Végzési évek kinyerése a class_year mezőből (utolsó 4 számjegy)
+        $years = DB::table('tablo_projects')
+            ->where('partner_id', $partnerId)
+            ->whereNotNull('class_year')
+            ->where('class_year', '!=', '')
+            ->selectRaw("DISTINCT regexp_replace(class_year, '.*?(\\d{4})\\s*$', '\\1') as grad_year")
+            ->orderByDesc('grad_year')
+            ->pluck('grad_year')
+            ->filter(fn ($y) => preg_match('/^\d{4}$/', $y))
+            ->values();
+
+        return response()->json($years);
     }
 
     public function show(int $id): JsonResponse
