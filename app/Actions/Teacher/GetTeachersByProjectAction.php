@@ -93,7 +93,7 @@ class GetTeachersByProjectAction
                 'noPhotoMarked' => $t->notes && str_contains($t->notes, 'Nem találom a képet'),
                 'photoThumbUrl' => $t->photo_thumb_url,
                 'photoUrl' => $t->photo_url,
-            ]);
+            ])->sortByDesc('hasSyncablePhoto');
 
             $totalCount = $teachers->count();
             $missingCount = $teachers->filter(fn ($t) => ! $t['hasPhoto'])->count();
@@ -136,10 +136,17 @@ class GetTeachersByProjectAction
                 }
                 $school['teachers'] = $filtered;
                 return $school;
-            })->filter()->sortByDesc('missingPhotoCount')->values();
-        } else {
-            $displaySchools = $allSchools->sortByDesc('missingPhotoCount')->values();
+            })->filter();
         }
+
+        // Rendezés: syncAvailable iskolák felül, aztán missingPhotoCount csökkenő
+        $displaySchools = $displaySchools->sort(function (array $a, array $b) {
+            if ($a['syncAvailable'] !== $b['syncAvailable']) {
+                return $b['syncAvailable'] <=> $a['syncAvailable'];
+            }
+
+            return $b['missingPhotoCount'] <=> $a['missingPhotoCount'];
+        })->values();
 
         return [
             'schools' => $displaySchools->toArray(),
