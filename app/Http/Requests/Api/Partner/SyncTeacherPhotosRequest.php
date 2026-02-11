@@ -12,15 +12,14 @@ class SyncTeacherPhotosRequest extends FormRequest
     public function authorize(): bool
     {
         $schoolId = (int) $this->input('school_id');
-        $user = $this->user();
-        $partner = $user?->getEffectivePartner();
+        $partnerId = $this->user()?->tablo_partner_id;
 
-        if (!$partner) {
+        if (!$partnerId || !$schoolId) {
             return false;
         }
 
         // Van-e az iskola-partner kombinációhoz tartozó projekt?
-        return TabloProject::where('partner_id', $partner->id)
+        return TabloProject::where('partner_id', $partnerId)
             ->where('school_id', $schoolId)
             ->exists();
     }
