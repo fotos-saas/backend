@@ -29,6 +29,8 @@ class SyncTeacherPhotosRequest extends FormRequest
         return [
             'school_id' => ['required', 'integer', 'exists:tablo_schools,id'],
             'class_year' => ['nullable', 'string', 'max:20'],
+            'person_ids' => ['nullable', 'array'],
+            'person_ids.*' => ['integer'],
         ];
     }
 

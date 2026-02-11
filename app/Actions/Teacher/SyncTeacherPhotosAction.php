@@ -20,8 +20,10 @@ class SyncTeacherPhotosAction
     /**
      * Tanár fotó szinkronizálás végrehajtása — archív fotó hozzárendelés.
      * Egy iskola ÖSSZES projektjére vonatkozik.
+     *
+     * @param int[]|null $personIds Ha megadva, csak ezeket a person-öket szinkronizálja
      */
-    public function execute(int $schoolId, int $partnerId, ?string $classYear = null): array
+    public function execute(int $schoolId, int $partnerId, ?string $classYear = null, ?array $personIds = null): array
     {
         // Összekapcsolt iskolák feloldása
         $tabloPartner = TabloPartner::find($partnerId);
@@ -52,6 +54,12 @@ class SyncTeacherPhotosAction
 
         $withPhoto = $teachers->whereNotNull('media_id');
         $withoutPhoto = $teachers->whereNull('media_id');
+
+        // Ha person_ids megadva, csak azokat szinkronizáljuk
+        if ($personIds !== null) {
+            $withoutPhoto = $withoutPhoto->whereIn('id', $personIds);
+        }
+
         $skipped = $withPhoto->count();
 
         if ($withoutPhoto->isEmpty()) {

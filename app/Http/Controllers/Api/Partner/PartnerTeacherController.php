@@ -325,10 +325,15 @@ class PartnerTeacherController extends Controller
         $partnerId = $this->getPartnerIdOrFail();
         $validated = $request->validated();
 
+        $personIds = isset($validated['person_ids'])
+            ? array_map('intval', $validated['person_ids'])
+            : null;
+
         $result = $action->execute(
             (int) $validated['school_id'],
             $partnerId,
             $validated['class_year'] ?? null,
+            $personIds,
         );
 
         return response()->json([
