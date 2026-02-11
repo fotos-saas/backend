@@ -19,20 +19,19 @@ class SyncTeacherPhotosAction
 
     /**
      * Tanár fotó szinkronizálás végrehajtása — archív fotó hozzárendelés.
-     * Csak a KIVÁLASZTOTT iskola projektjeire vonatkozik, DE a matching
-     * cross-school-ra fut (linked iskolák archívja ellen).
+     * Linked iskolák projekttanárait is nézi, NÉV SZERINT deduplikál.
+     * Ha person_ids megadva, csak azokat szinkronizálja.
      *
      * @param int[]|null $personIds Ha megadva, csak ezeket a person-öket szinkronizálja
      */
     public function execute(int $schoolId, int $partnerId, ?string $classYear = null, ?array $personIds = null): array
     {
-        // Összekapcsolt iskolák feloldása (matching-hez kell)
+        // Összekapcsolt iskolák feloldása
         $tabloPartner = TabloPartner::find($partnerId);
         $linkedSchoolIds = $tabloPartner ? $tabloPartner->getLinkedSchoolIds($schoolId) : [$schoolId];
 
-        // FONTOS: projekteket CSAK az eredeti school_id-re szűrjük
         $query = TabloProject::where('partner_id', $partnerId)
-            ->where('school_id', $schoolId);
+            ->whereIn('school_id', $linkedSchoolIds);
 
         if ($classYear) {
             $query->where('class_year', $classYear);
@@ -48,21 +47,32 @@ class SyncTeacherPhotosAction
             ->where('type', 'teacher')
             ->get();
 
-        $total = $teachers->count();
-
-        if ($total === 0) {
+        if ($teachers->isEmpty()) {
             return $this->emptyResult(0);
         }
 
-        $withPhoto = $teachers->whereNotNull('media_id');
-        $withoutPhoto = $teachers->whereNull('media_id');
+        // NÉV ALAPÚ deduplikálás: ha egy tanárnév bármely projektben
+        // már rendelkezik media_id-vel, azt kihagyjuk
+        $namesWithPhoto = $teachers->whereNotNull('media_id')
+            ->pluck('name')
+            ->map(fn (string $n) => mb_strtolower(trim($n)))
+            ->unique()
+            ->flip();
+
+        // Fotó nélküli person-ök, akiknek a neve SEHOL nincs fotóval
+        $withoutPhoto = $teachers->filter(function (TabloPerson $p) use ($namesWithPhoto) {
+            if ($p->media_id !== null) {
+                return false;
+            }
+            return !$namesWithPhoto->has(mb_strtolower(trim($p->name)));
+        });
 
         // Ha person_ids megadva, csak azokat szinkronizáljuk
         if ($personIds !== null) {
             $withoutPhoto = $withoutPhoto->whereIn('id', $personIds);
         }
 
-        $skipped = $withPhoto->count();
+        $skipped = $teachers->count() - $withoutPhoto->count();
 
         if ($withoutPhoto->isEmpty()) {
             return $this->emptyResult($skipped);
