@@ -57,18 +57,26 @@ class GetTeachersByProjectAction
             ->active()
             ->whereIn('school_id', $schoolIds)
             ->with('activePhoto')
-            ->withCount('photos')
             ->orderBy('canonical_name')
             ->get();
 
         // Csoportosítás school_id szerint
         $archivesBySchool = $archives->groupBy('school_id');
 
+        // Cross-school sync: partner összes tanárneve akihez VAN fotó (bármely iskolánál)
+        $allNamesWithPhoto = TeacherArchive::forPartner($partnerId)
+            ->active()
+            ->whereNotNull('active_photo_id')
+            ->pluck('canonical_name')
+            ->map(fn (string $n) => mb_strtolower(trim($n)))
+            ->unique()
+            ->flip();
+
         // Iskolánkénti csoportosítás: projektek → iskolák
         $projectsBySchool = $projects->groupBy('school_id');
 
         // Összegyűjtjük az összes iskola adatát (summary-hoz is kell a teljes kép)
-        $allSchools = collect($schoolIds)->map(function (int $sid) use ($projectsBySchool, $archivesBySchool, $teacherPersonSchoolIds) {
+        $allSchools = collect($schoolIds)->map(function (int $sid) use ($projectsBySchool, $archivesBySchool, $teacherPersonSchoolIds, $allNamesWithPhoto) {
             $schoolProjects = $projectsBySchool->get($sid, collect());
             $schoolTeachers = $archivesBySchool->get($sid, collect());
 
@@ -89,11 +97,10 @@ class GetTeachersByProjectAction
             $totalCount = $teachers->count();
             $missingCount = $teachers->filter(fn ($t) => ! $t['hasPhoto'])->count();
 
-            // Sync elérhető: van-e hiányzó fotós tanár akinek mégis van archív fotója (régebbről)
-            $missingTeachersWithAnyPhoto = $schoolTeachers
-                ->filter(fn (TeacherArchive $t) => $t->photo_thumb_url === null && $t->photos_count > 0)
-                ->isNotEmpty();
-            $syncAvailable = $missingCount > 0 && $missingTeachersWithAnyPhoto;
+            // Sync elérhető: van-e hiányzó tanár akihez a partner bármely iskolájában VAN fotó
+            $syncAvailable = $missingCount > 0 && $schoolTeachers
+                ->filter(fn (TeacherArchive $t) => $t->photo_thumb_url === null)
+                ->contains(fn (TeacherArchive $t) => $allNamesWithPhoto->has(mb_strtolower(trim($t->canonical_name))));
 
             // Osztályok listája kontextusnak
             $classes = $schoolProjects->map(fn (TabloProject $p) => [
