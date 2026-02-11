@@ -201,6 +201,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/teachers/{id}/changelog', [PartnerTeacherController::class, 'getChangelog']);
         Route::patch('/teachers/{id}/mark-no-photo', [PartnerTeacherController::class, 'markNoPhoto']);
         Route::patch('/teachers/{id}/undo-no-photo', [PartnerTeacherController::class, 'undoNoPhoto']);
+        Route::post('/teachers/{id}/sync-cross-school', [PartnerTeacherController::class, 'syncCrossSchool']);
 
         // Teacher photo management
         Route::middleware('throttle:10,1')->group(function () {

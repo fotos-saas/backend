@@ -8,6 +8,7 @@ use App\Actions\Teacher\CreateTeacherAction;
 use App\Actions\Teacher\GetTeachersByProjectAction;
 use App\Actions\Teacher\MarkNoPhotoAction;
 use App\Actions\Teacher\PreviewTeacherSyncAction;
+use App\Actions\Teacher\SyncSingleTeacherCrossSchoolAction;
 use App\Actions\Teacher\SyncTeacherPhotosAction;
 use App\Actions\Teacher\UpdateTeacherAction;
 use App\Http\Controllers\Api\Partner\Traits\PartnerAuthTrait;
@@ -230,6 +231,20 @@ class PartnerTeacherController extends Controller
         $action->undo($teacher, auth()->id());
 
         return $this->successResponse(null, 'Jelölés visszavonva');
+    }
+
+    public function syncCrossSchool(int $id, SyncSingleTeacherCrossSchoolAction $action): JsonResponse
+    {
+        $partnerId = $this->getPartnerIdOrFail();
+        $teacher = TeacherArchive::forPartner($partnerId)->findOrFail($id);
+
+        $result = $action->execute($teacher);
+
+        if (! $result['success']) {
+            return $this->errorResponse($result['message'], 422);
+        }
+
+        return $this->successResponse($result, $result['message']);
     }
 
     public function getChangelog(int $id, Request $request): JsonResponse
