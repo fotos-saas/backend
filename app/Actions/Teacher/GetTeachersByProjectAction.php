@@ -52,21 +52,12 @@ class GetTeachersByProjectAction
             ->pluck('tablo_projects.school_id')
             ->toArray();
 
-        // Batch load: fotó nélküli teacher personok iskolánként csoportosítva (név matching-hez)
-        $missingPersonsBySchool = TabloPerson::whereIn('tablo_project_id', $allProjectIds)
-            ->where('type', 'teacher')
-            ->whereNull('tablo_persons.media_id')
-            ->join('tablo_projects', 'tablo_persons.tablo_project_id', '=', 'tablo_projects.id')
-            ->select('tablo_projects.school_id', 'tablo_persons.name')
-            ->get()
-            ->groupBy('school_id')
-            ->map(fn (Collection $items) => $items->pluck('name')->map(fn ($n) => mb_strtolower(trim($n)))->unique()->values());
-
         // Batch load: partner összes aktív archive rekordja a releváns iskolákra
         $archives = TeacherArchive::forPartner($partnerId)
             ->active()
             ->whereIn('school_id', $schoolIds)
             ->with('activePhoto')
+            ->withCount('photos')
             ->orderBy('canonical_name')
             ->get();
 
@@ -77,7 +68,7 @@ class GetTeachersByProjectAction
         $projectsBySchool = $projects->groupBy('school_id');
 
         // Összegyűjtjük az összes iskola adatát (summary-hoz is kell a teljes kép)
-        $allSchools = collect($schoolIds)->map(function (int $sid) use ($projectsBySchool, $archivesBySchool, $teacherPersonSchoolIds, $missingPersonsBySchool) {
+        $allSchools = collect($schoolIds)->map(function (int $sid) use ($projectsBySchool, $archivesBySchool, $teacherPersonSchoolIds) {
             $schoolProjects = $projectsBySchool->get($sid, collect());
             $schoolTeachers = $archivesBySchool->get($sid, collect());
 
@@ -98,12 +89,11 @@ class GetTeachersByProjectAction
             $totalCount = $teachers->count();
             $missingCount = $teachers->filter(fn ($t) => ! $t['hasPhoto'])->count();
 
-            // Sync elérhető: van-e fotó nélküli teacher person akinek archívban VAN fotóval rendelkező matching tanár
-            $missingPersonNames = $missingPersonsBySchool->get($sid, collect());
-            $archiveNamesWithPhoto = $schoolTeachers
-                ->filter(fn (TeacherArchive $t) => $t->photo_thumb_url !== null)
-                ->map(fn (TeacherArchive $t) => mb_strtolower(trim($t->canonical_name)));
-            $syncAvailable = $missingPersonNames->intersect($archiveNamesWithPhoto)->isNotEmpty();
+            // Sync elérhető: van-e hiányzó fotós tanár akinek mégis van archív fotója (régebbről)
+            $missingTeachersWithAnyPhoto = $schoolTeachers
+                ->filter(fn (TeacherArchive $t) => $t->photo_thumb_url === null && $t->photos_count > 0)
+                ->isNotEmpty();
+            $syncAvailable = $missingCount > 0 && $missingTeachersWithAnyPhoto;
 
             // Osztályok listája kontextusnak
             $classes = $schoolProjects->map(fn (TabloProject $p) => [
