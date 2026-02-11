@@ -96,7 +96,7 @@ class SyncTeacherPhotosAction
                     'photoUrl' => $t->photo_url,
                     'photoThumbUrl' => $t->photo_thumb_url,
                     'photoFileName' => $media?->file_name,
-                    'photoUploadedAt' => $media?->created_at?->toIso8601String(),
+                    'photoTakenAt' => $media?->getCustomProperty('photo_taken_at'),
                 ];
             }
         });
