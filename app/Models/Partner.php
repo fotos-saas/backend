@@ -93,6 +93,19 @@ class Partner extends Model
     }
 
     /**
+     * Get plan limit with fallback, respecting null = unlimited.
+     */
+    private function getPlanLimitWithFallback(string $key, int $fallback): ?int
+    {
+        $planConfig = $this->getPlanConfig();
+        if (! empty($planConfig) && array_key_exists($key, $planConfig['limits'] ?? [])) {
+            return $planConfig['limits'][$key]; // null = korlátlan
+        }
+
+        return $fallback;
+    }
+
+    /**
      * Get the user that owns the partner account
      */
     public function user(): BelongsTo
@@ -226,7 +239,18 @@ class Partner extends Model
      */
     public function getMaxClasses(): ?int
     {
-        return $this->max_classes ?? $this->getPlanLimit('max_classes') ?? 10;
+        // Ha a DB-ben van explicit érték, azt használjuk
+        if ($this->max_classes !== null) {
+            return $this->max_classes;
+        }
+
+        // Plan config-ból (null = korlátlan)
+        $planConfig = $this->getPlanConfig();
+        if (! empty($planConfig) && array_key_exists('max_classes', $planConfig['limits'] ?? [])) {
+            return $planConfig['limits']['max_classes'];
+        }
+
+        return 10; // fallback ha nincs plan config
     }
 
     /**
@@ -234,7 +258,7 @@ class Partner extends Model
      */
     public function getMaxSchools(): ?int
     {
-        return $this->getPlanLimit('max_schools') ?? 20;
+        return $this->getPlanLimitWithFallback('max_schools', 20);
     }
 
     /**
@@ -242,7 +266,7 @@ class Partner extends Model
      */
     public function getMaxContacts(): ?int
     {
-        return $this->getPlanLimit('max_contacts') ?? 50;
+        return $this->getPlanLimitWithFallback('max_contacts', 50);
     }
 
     /**
