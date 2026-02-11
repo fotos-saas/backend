@@ -7,12 +7,15 @@ use App\Actions\Teacher\BulkImportTeacherPreviewAction;
 use App\Actions\Teacher\CreateTeacherAction;
 use App\Actions\Teacher\GetTeachersByProjectAction;
 use App\Actions\Teacher\MarkNoPhotoAction;
+use App\Actions\Teacher\PreviewTeacherSyncAction;
+use App\Actions\Teacher\SyncTeacherPhotosAction;
 use App\Actions\Teacher\UpdateTeacherAction;
 use App\Http\Controllers\Api\Partner\Traits\PartnerAuthTrait;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\Partner\BulkImportTeacherExecuteRequest;
 use App\Http\Requests\Api\Partner\BulkImportTeacherPreviewRequest;
 use App\Http\Requests\Api\Partner\StoreTeacherRequest;
+use App\Http\Requests\Api\Partner\SyncTeacherPhotosRequest;
 use App\Http\Requests\Api\Partner\UpdateTeacherRequest;
 use App\Helpers\QueryHelper;
 use App\Models\TeacherArchive;
@@ -284,6 +287,28 @@ class PartnerTeacherController extends Controller
         return response()->json([
             'success' => true,
             'message' => "Import kész: {$result['created']} létrehozva, {$result['updated']} frissítve, {$result['skipped']} kihagyva.",
+            'data' => $result,
+        ]);
+    }
+
+    public function previewSync(SyncTeacherPhotosRequest $request, PreviewTeacherSyncAction $action): JsonResponse
+    {
+        $partnerId = $this->getPartnerIdOrFail();
+
+        $result = $action->execute((int) $request->validated('project_id'), $partnerId);
+
+        return response()->json(['success' => true, 'data' => $result]);
+    }
+
+    public function executeSync(SyncTeacherPhotosRequest $request, SyncTeacherPhotosAction $action): JsonResponse
+    {
+        $partnerId = $this->getPartnerIdOrFail();
+
+        $result = $action->execute((int) $request->validated('project_id'), $partnerId);
+
+        return response()->json([
+            'success' => true,
+            'message' => "Szinkronizálás kész: {$result['synced']} tanár fotója frissítve.",
             'data' => $result,
         ]);
     }

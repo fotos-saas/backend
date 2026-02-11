@@ -192,6 +192,8 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/teachers/class-years', [PartnerTeacherController::class, 'classYears']);
         Route::post('/teachers/bulk-import/preview', [PartnerTeacherController::class, 'bulkImportPreview']);
         Route::post('/teachers/bulk-import/execute', [PartnerTeacherController::class, 'bulkImportExecute']);
+        Route::post('/teachers/sync-to-project/preview', [PartnerTeacherController::class, 'previewSync']);
+        Route::post('/teachers/sync-to-project/execute', [PartnerTeacherController::class, 'executeSync']);
         Route::get('/teachers/{id}', [PartnerTeacherController::class, 'show']);
         Route::post('/teachers', [PartnerTeacherController::class, 'store']);
         Route::put('/teachers/{id}', [PartnerTeacherController::class, 'update']);
