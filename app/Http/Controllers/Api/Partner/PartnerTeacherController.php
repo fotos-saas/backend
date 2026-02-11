@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\Partner;
 use App\Actions\Teacher\BulkImportTeacherExecuteAction;
 use App\Actions\Teacher\BulkImportTeacherPreviewAction;
 use App\Actions\Teacher\CreateTeacherAction;
+use App\Actions\Teacher\GetTeachersByProjectAction;
 use App\Actions\Teacher\UpdateTeacherAction;
 use App\Http\Controllers\Api\Partner\Traits\PartnerAuthTrait;
 use App\Http\Controllers\Controller;
@@ -85,6 +86,20 @@ class PartnerTeacherController extends Controller
         ]);
 
         return response()->json($teachers);
+    }
+
+    public function byProject(Request $request, GetTeachersByProjectAction $action): JsonResponse
+    {
+        $partnerId = $this->getPartnerIdOrFail();
+
+        $result = $action->execute(
+            $partnerId,
+            $request->input('class_year'),
+            $request->input('school_id') ? (int) $request->input('school_id') : null,
+            (bool) $request->input('missing_only', false),
+        );
+
+        return response()->json($result);
     }
 
     public function allTeachers(Request $request): JsonResponse
