@@ -2,98 +2,72 @@
 
 namespace App\Actions\Teacher;
 
+use App\Helpers\QueryHelper;
 use App\Models\TabloProject;
-use App\Models\TeacherAlias;
 use App\Models\TeacherArchive;
 use Illuminate\Support\Collection;
-use Illuminate\Support\Str;
 
 class GetTeachersByProjectAction
 {
     /**
      * Projektenként csoportosított tanárok lekérdezése.
      *
-     * A tablo_persons (type=teacher) és teacher_archive közötti
-     * kapcsolatot canonical_name + school_id egyezés adja.
+     * Logika: projekt school_id → teacher_archive rekordok az adott iskolához.
+     * Így minden projekt megjelenik, nem csak azok amelyeknek van tablo_persons rekordja.
      */
     public function execute(int $partnerId, ?string $classYear = null, ?int $schoolId = null, bool $missingOnly = false): array
     {
         $query = TabloProject::where('partner_id', $partnerId)
-            ->with(['school', 'persons' => fn ($q) => $q->where('type', 'teacher')->with('photo')]);
+            ->with('school')
+            ->whereNotNull('school_id');
 
         if ($classYear) {
-            $query->where('class_year', $classYear);
+            $query->where('class_year', 'ILIKE', QueryHelper::safeLikePattern($classYear));
         }
         if ($schoolId) {
             $query->where('school_id', $schoolId);
         }
 
         $query->orderByDesc('class_year')->orderBy('class_name');
-
         $projects = $query->get();
 
-        // Releváns school_id-k összegyűjtése
+        // Releváns school_id-k
         $schoolIds = $projects->pluck('school_id')->filter()->unique()->values()->toArray();
 
         if (empty($schoolIds)) {
-            return $this->buildResponse(collect(), $missingOnly);
+            return $this->buildResponse(collect());
         }
 
-        // Batch load: partner összes archive rekordja a releváns iskolákra
+        // Batch load: partner összes aktív archive rekordja a releváns iskolákra
         $archives = TeacherArchive::forPartner($partnerId)
+            ->active()
             ->whereIn('school_id', $schoolIds)
             ->with('activePhoto')
+            ->orderBy('canonical_name')
             ->get();
 
-        // Aliasok batch load
-        $archiveIds = $archives->pluck('id')->toArray();
-        $aliases = $archiveIds
-            ? TeacherAlias::whereIn('teacher_id', $archiveIds)->get()
-            : collect();
-
-        // Lookup map építés: [school_id][lowercase_name] => archive
-        $archiveMap = [];
-        foreach ($archives as $archive) {
-            $key = $archive->school_id . '|' . Str::lower(trim($archive->canonical_name));
-            $archiveMap[$key] = $archive;
-        }
-
-        // Alias lookup map: [school_id][lowercase_alias] => archive
-        $aliasMap = [];
-        foreach ($aliases as $alias) {
-            $archive = $archives->firstWhere('id', $alias->teacher_id);
-            if ($archive) {
-                $key = $archive->school_id . '|' . Str::lower(trim($alias->alias_name));
-                $aliasMap[$key] = $archive;
-            }
-        }
+        // Csoportosítás school_id szerint
+        $archivesBySchool = $archives->groupBy('school_id');
 
         // Projektek feldolgozása
-        $result = $projects->map(function (TabloProject $project) use ($archiveMap, $aliasMap, $missingOnly) {
-            $teachers = $project->persons
-                ->filter(fn ($p) => $p->type === 'teacher')
-                ->map(function ($person) use ($project, $archiveMap, $aliasMap) {
-                    $archive = $this->findArchive($person->name, $project->school_id, $archiveMap, $aliasMap);
+        $result = $projects->map(function (TabloProject $project) use ($archivesBySchool, $missingOnly) {
+            $schoolTeachers = $archivesBySchool->get($project->school_id, collect());
 
-                    $hasPhoto = $archive?->photo_thumb_url !== null;
+            $teachers = $schoolTeachers->map(fn (TeacherArchive $t) => [
+                'personId' => null,
+                'personName' => $t->full_display_name,
+                'archiveId' => $t->id,
+                'hasPhoto' => $t->photo_thumb_url !== null,
+                'photoThumbUrl' => $t->photo_thumb_url,
+                'photoUrl' => $t->photo_url,
+            ]);
 
-                    return [
-                        'personId' => $person->id,
-                        'personName' => $person->name,
-                        'archiveId' => $archive?->id,
-                        'hasPhoto' => $hasPhoto,
-                        'photoThumbUrl' => $archive?->photo_thumb_url,
-                        'photoUrl' => $archive?->photo_url,
-                    ];
-                })
-                ->values();
+            $totalCount = $teachers->count();
+            $missingCount = $teachers->filter(fn ($t) => ! $t['hasPhoto'])->count();
 
             if ($missingOnly) {
-                $teachers = $teachers->filter(fn ($t) => ! $t['hasPhoto'])->values();
+                $teachers = $teachers->filter(fn ($t) => ! $t['hasPhoto']);
             }
-
-            $allTeachers = $project->persons->filter(fn ($p) => $p->type === 'teacher');
-            $missingCount = $teachers->filter(fn ($t) => ! $t['hasPhoto'])->count();
 
             // missing_only szűrőnél: ha nincs hiányzó, ugorjuk a projektet
             if ($missingOnly && $teachers->isEmpty()) {
@@ -106,43 +80,18 @@ class GetTeachersByProjectAction
                 'schoolName' => $project->school?->name,
                 'className' => $project->class_name,
                 'classYear' => $project->class_year,
-                'teacherCount' => $allTeachers->count(),
+                'teacherCount' => $totalCount,
                 'missingPhotoCount' => $missingCount,
-                'teachers' => $teachers->toArray(),
+                'teachers' => $teachers->values()->toArray(),
             ];
         })
             ->filter()
             ->values();
 
-        return $this->buildResponse($result, $missingOnly);
+        return $this->buildResponse($result);
     }
 
-    /**
-     * Archive keresés: direkt név VAGY alias alapján.
-     */
-    private function findArchive(string $personName, ?int $schoolId, array $archiveMap, array $aliasMap): ?TeacherArchive
-    {
-        if (! $schoolId) {
-            return null;
-        }
-
-        $normalizedName = Str::lower(trim($personName));
-        $key = $schoolId . '|' . $normalizedName;
-
-        // 1. Direkt név egyezés
-        if (isset($archiveMap[$key])) {
-            return $archiveMap[$key];
-        }
-
-        // 2. Alias egyezés
-        if (isset($aliasMap[$key])) {
-            return $aliasMap[$key];
-        }
-
-        return null;
-    }
-
-    private function buildResponse(Collection $projects, bool $missingOnly): array
+    private function buildResponse(Collection $projects): array
     {
         $totalTeachers = 0;
         $withPhoto = 0;
