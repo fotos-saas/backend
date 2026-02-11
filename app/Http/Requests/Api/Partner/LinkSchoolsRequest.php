@@ -14,7 +14,7 @@ class LinkSchoolsRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'school_ids' => ['required', 'array', 'min:2', 'max:5'],
+            'school_ids' => ['required', 'array', 'min:2'],
             'school_ids.*' => ['required', 'integer'],
         ];
     }
@@ -24,7 +24,6 @@ class LinkSchoolsRequest extends FormRequest
         return [
             'school_ids.required' => 'Legalább két iskolát kell kiválasztani.',
             'school_ids.min' => 'Legalább két iskolát kell kiválasztani az összekapcsoláshoz.',
-            'school_ids.max' => 'Legfeljebb 5 iskola kapcsolható össze egyszerre.',
         ];
     }
 }
