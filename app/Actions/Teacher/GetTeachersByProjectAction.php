@@ -36,7 +36,10 @@ class GetTeachersByProjectAction
         $schoolIds = $projects->pluck('school_id')->filter()->unique()->values()->toArray();
 
         if (empty($schoolIds)) {
-            return $this->buildResponse(collect());
+            return [
+                'schools' => [],
+                'summary' => $this->buildSummary(collect()),
+            ];
         }
 
         // Batch load: partner összes aktív archive rekordja a releváns iskolákra
@@ -53,7 +56,8 @@ class GetTeachersByProjectAction
         // Iskolánkénti csoportosítás: projektek → iskolák
         $projectsBySchool = $projects->groupBy('school_id');
 
-        $result = collect($schoolIds)->map(function (int $sid) use ($projectsBySchool, $archivesBySchool, $missingOnly) {
+        // Összegyűjtjük az összes iskola adatát (summary-hoz is kell a teljes kép)
+        $allSchools = collect($schoolIds)->map(function (int $sid) use ($projectsBySchool, $archivesBySchool) {
             $schoolProjects = $projectsBySchool->get($sid, collect());
             $schoolTeachers = $archivesBySchool->get($sid, collect());
 
@@ -74,14 +78,6 @@ class GetTeachersByProjectAction
             $totalCount = $teachers->count();
             $missingCount = $teachers->filter(fn ($t) => ! $t['hasPhoto'])->count();
 
-            if ($missingOnly) {
-                $teachers = $teachers->filter(fn ($t) => ! $t['hasPhoto']);
-            }
-
-            if ($missingOnly && $teachers->isEmpty()) {
-                return null;
-            }
-
             // Osztályok listája kontextusnak
             $classes = $schoolProjects->map(fn (TabloProject $p) => [
                 'projectId' => $p->id,
@@ -98,15 +94,33 @@ class GetTeachersByProjectAction
                 'missingPhotoCount' => $missingCount,
                 'teachers' => $teachers->values()->toArray(),
             ];
-        })
-            ->filter()
-            ->sortByDesc('missingPhotoCount')
-            ->values();
+        })->filter()->values();
 
-        return $this->buildResponse($result);
+        // Summary MINDIG a teljes (szűretlen) adatból
+        $summary = $this->buildSummary($allSchools);
+
+        // missingOnly szűrés csak a megjelenített listára
+        $displaySchools = $allSchools;
+        if ($missingOnly) {
+            $displaySchools = $allSchools->map(function (array $school) {
+                $filtered = collect($school['teachers'])->filter(fn ($t) => ! $t['hasPhoto'])->values()->toArray();
+                if (empty($filtered)) {
+                    return null;
+                }
+                $school['teachers'] = $filtered;
+                return $school;
+            })->filter()->sortByDesc('missingPhotoCount')->values();
+        } else {
+            $displaySchools = $allSchools->sortByDesc('missingPhotoCount')->values();
+        }
+
+        return [
+            'schools' => $displaySchools->toArray(),
+            'summary' => $summary,
+        ];
     }
 
-    private function buildResponse(Collection $schools): array
+    private function buildSummary(Collection $schools): array
     {
         $totalTeachers = 0;
         $withPhoto = 0;
@@ -120,13 +134,10 @@ class GetTeachersByProjectAction
         }
 
         return [
-            'schools' => $schools->toArray(),
-            'summary' => [
-                'totalSchools' => $schools->count(),
-                'totalTeachers' => $totalTeachers,
-                'withPhoto' => $withPhoto,
-                'missingPhoto' => $missingPhoto,
-            ],
+            'totalSchools' => $schools->count(),
+            'totalTeachers' => $totalTeachers,
+            'withPhoto' => $withPhoto,
+            'missingPhoto' => $missingPhoto,
         ];
     }
 }
