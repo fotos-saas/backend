@@ -87,6 +87,7 @@ class SyncTeacherPhotosAction
                 $t->load('activePhoto');
 
                 $synced++;
+                $media = $t->activePhoto;
                 $details[] = [
                     'archiveId' => $t->id,
                     'personName' => $t->full_display_name,
@@ -94,6 +95,8 @@ class SyncTeacherPhotosAction
                     'sourceSchoolId' => $donor->school_id,
                     'photoUrl' => $t->photo_url,
                     'photoThumbUrl' => $t->photo_thumb_url,
+                    'photoFileName' => $media?->file_name,
+                    'photoUploadedAt' => $media?->created_at?->toIso8601String(),
                 ];
             }
         });

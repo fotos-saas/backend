@@ -143,6 +143,7 @@ class GetTeachersByProjectAction
                 }
                 $seenNames[$normalizedName] = true;
 
+                $media = $t->activePhoto;
                 $teachers->push([
                     'archiveId' => $t->id,
                     'name' => $t->full_display_name,
@@ -151,6 +152,8 @@ class GetTeachersByProjectAction
                     'noPhotoMarked' => $t->notes && str_contains($t->notes, 'Nem találom a képet'),
                     'photoThumbUrl' => $t->photo_thumb_url,
                     'photoUrl' => $t->photo_url,
+                    'photoFileName' => $media?->file_name,
+                    'photoUploadedAt' => $media?->created_at?->toIso8601String(),
                 ]);
             }
 
