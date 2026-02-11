@@ -10,10 +10,11 @@ use Illuminate\Support\Collection;
 class GetTeachersByProjectAction
 {
     /**
-     * Projektenként csoportosított tanárok lekérdezése.
+     * Iskolánként csoportosított tanárok lekérdezése.
      *
-     * Logika: projekt school_id → teacher_archive rekordok az adott iskolához.
-     * Így minden projekt megjelenik, nem csak azok amelyeknek van tablo_persons rekordja.
+     * Logika: projektek school_id → iskolánként egyedi tanárok az archive-ból.
+     * Az osztályok kontextusnak jelennek meg, de a tanár lista deduplikált.
+     * Így ha egy iskolának 5 osztálya van, a tanárok egyszer jelennek meg.
      */
     public function execute(int $partnerId, ?string $classYear = null, ?int $schoolId = null, bool $missingOnly = false): array
     {
@@ -49,14 +50,21 @@ class GetTeachersByProjectAction
         // Csoportosítás school_id szerint
         $archivesBySchool = $archives->groupBy('school_id');
 
-        // Projektek feldolgozása
-        $result = $projects->map(function (TabloProject $project) use ($archivesBySchool, $missingOnly) {
-            $schoolTeachers = $archivesBySchool->get($project->school_id, collect());
+        // Iskolánkénti csoportosítás: projektek → iskolák
+        $projectsBySchool = $projects->groupBy('school_id');
+
+        $result = collect($schoolIds)->map(function (int $sid) use ($projectsBySchool, $archivesBySchool, $missingOnly) {
+            $schoolProjects = $projectsBySchool->get($sid, collect());
+            $schoolTeachers = $archivesBySchool->get($sid, collect());
+
+            $school = $schoolProjects->first()?->school;
+            if (! $school) {
+                return null;
+            }
 
             $teachers = $schoolTeachers->map(fn (TeacherArchive $t) => [
-                'personId' => null,
-                'personName' => $t->full_display_name,
                 'archiveId' => $t->id,
+                'name' => $t->full_display_name,
                 'hasPhoto' => $t->photo_thumb_url !== null,
                 'photoThumbUrl' => $t->photo_thumb_url,
                 'photoUrl' => $t->photo_url,
@@ -69,45 +77,51 @@ class GetTeachersByProjectAction
                 $teachers = $teachers->filter(fn ($t) => ! $t['hasPhoto']);
             }
 
-            // missing_only szűrőnél: ha nincs hiányzó, ugorjuk a projektet
             if ($missingOnly && $teachers->isEmpty()) {
                 return null;
             }
 
+            // Osztályok listája kontextusnak
+            $classes = $schoolProjects->map(fn (TabloProject $p) => [
+                'projectId' => $p->id,
+                'className' => $p->class_name,
+                'classYear' => $p->class_year,
+            ])->values()->toArray();
+
             return [
-                'id' => $project->id,
-                'name' => $project->name,
-                'schoolName' => $project->school?->name,
-                'className' => $project->class_name,
-                'classYear' => $project->class_year,
+                'schoolId' => $sid,
+                'schoolName' => $school->name,
+                'classes' => $classes,
+                'classCount' => count($classes),
                 'teacherCount' => $totalCount,
                 'missingPhotoCount' => $missingCount,
                 'teachers' => $teachers->values()->toArray(),
             ];
         })
             ->filter()
+            ->sortByDesc('missingPhotoCount')
             ->values();
 
         return $this->buildResponse($result);
     }
 
-    private function buildResponse(Collection $projects): array
+    private function buildResponse(Collection $schools): array
     {
         $totalTeachers = 0;
         $withPhoto = 0;
         $missingPhoto = 0;
 
-        foreach ($projects as $p) {
-            $totalTeachers += $p['teacherCount'];
-            $missing = $p['missingPhotoCount'];
+        foreach ($schools as $s) {
+            $totalTeachers += $s['teacherCount'];
+            $missing = $s['missingPhotoCount'];
             $missingPhoto += $missing;
-            $withPhoto += $p['teacherCount'] - $missing;
+            $withPhoto += $s['teacherCount'] - $missing;
         }
 
         return [
-            'projects' => $projects->toArray(),
+            'schools' => $schools->toArray(),
             'summary' => [
-                'totalProjects' => $projects->count(),
+                'totalSchools' => $schools->count(),
                 'totalTeachers' => $totalTeachers,
                 'withPhoto' => $withPhoto,
                 'missingPhoto' => $missingPhoto,
