@@ -5,6 +5,7 @@ namespace App\Console\Commands;
 use App\Models\TabloPartner;
 use App\Models\TabloProject;
 use App\Models\TeacherArchive;
+use App\Models\TeacherPhoto;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
@@ -222,9 +223,27 @@ class TabloImportImagesCommand extends Command
             }
 
             try {
-                $teacher->addMedia($imageFile)
+                $media = $teacher->addMedia($imageFile)
                     ->preservingOriginal()
                     ->toMediaCollection('teacher_photos');
+
+                // TeacherPhoto pivot rekord letrehozasa
+                $hasActive = TeacherPhoto::where('teacher_id', $teacher->id)
+                    ->where('is_active', true)
+                    ->exists();
+
+                TeacherPhoto::create([
+                    'teacher_id' => $teacher->id,
+                    'media_id' => $media->id,
+                    'year' => (int) date('Y'),
+                    'is_active' => ! $hasActive,
+                ]);
+
+                // active_photo_id beallitasa ha meg nincs
+                if (! $hasActive && ! $teacher->active_photo_id) {
+                    $teacher->update(['active_photo_id' => $media->id]);
+                }
+
                 $this->importedTeachers++;
             } catch (\Exception $e) {
                 $this->errors++;
