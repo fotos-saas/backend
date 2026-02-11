@@ -27,6 +27,7 @@ class TabloSyncCommand extends Command
         {--dry-run : Csak kiirja mit csinalna}
         {--force : Megerosites kihagyasa}
         {--download-images : Kepek letoltese is (lassu!)}
+        {--images-only : CSAK kepeket tolt le (nem szinkronizal adatokat)}
         {--page= : Csak egy adott oldalt szinkronizal (teszteleshez)}';
 
     protected $description = 'Szinkronizalas a regi tablokiraly rendszerbol (REST API)';
@@ -39,6 +40,9 @@ class TabloSyncCommand extends Command
     private int $newPersons = 0;
     private int $updatedPersons = 0;
     private int $newTeacherArchive = 0;
+    private int $downloadedImages = 0;
+    private int $skippedImages = 0;
+    private int $failedImages = 0;
     private int $errors = 0;
 
     public function handle(): int
@@ -66,12 +70,17 @@ class TabloSyncCommand extends Command
         $this->info('API: ' . self::API_BASE . '?partner_id=' . self::LEGACY_PARTNER_ID);
         $this->newLine();
 
-        // 2. Fresh mod
+        // 2. Csak kepek letoltese mod
+        if ($this->option('images-only')) {
+            return $this->handleImagesOnly($partner);
+        }
+
+        // 3. Fresh mod
         if ($fresh) {
             return $this->handleFreshImport($partner, $dryRun);
         }
 
-        // 3. Inkrementalis szinkronizacio
+        // 4. Inkrementalis szinkronizacio
         return $this->handleIncrementalSync($partner, $dryRun);
     }
 
@@ -291,7 +300,7 @@ class TabloSyncCommand extends Command
                 $this->syncContact($api, $project, $partner, $dryRun);
 
                 if ($this->option('download-images')) {
-                    $this->downloadProjectImages($api, $project);
+                    $this->downloadProjectImages($api);
                 }
             }
 
@@ -540,39 +549,132 @@ class TabloSyncCommand extends Command
         return TabloProjectStatus::NotStarted;
     }
 
-    private function downloadProjectImages(array $api, TabloProject $project): void
+    private function handleImagesOnly(TabloPartner $partner): int
     {
-        $dir = "migration_images/{$project->external_id}";
-        Storage::makeDirectory($dir);
+        DB::connection()->disableQueryLog();
 
-        // Sample URL
+        $singlePage = $this->option('page');
+        $page = $singlePage ? (int) $singlePage : 1;
+        $lastPage = $singlePage ? (int) $singlePage : null;
+
+        $baseDir = storage_path('app/migration_images');
+        if (! is_dir($baseDir)) {
+            mkdir($baseDir, 0755, true);
+        }
+
+        $this->info('Kepek letoltese indul...');
+        $this->info("Cel mappa: {$baseDir}");
+
+        while (true) {
+            $this->newLine();
+            $data = $this->fetchPage($page);
+
+            if (! $data) {
+                $this->error("API hiba az {$page}. oldalon");
+                return 1;
+            }
+
+            if ($lastPage === null) {
+                $lastPage = $data['last_page'] ?? $page;
+            }
+
+            $this->info("Oldal {$page}/{$lastPage} - kepek letoltese...");
+
+            foreach ($data['data'] ?? [] as $apiProject) {
+                $this->downloadProjectImages($apiProject);
+            }
+
+            gc_collect_cycles();
+
+            if ($page >= $lastPage || $singlePage) {
+                break;
+            }
+
+            $page++;
+        }
+
+        $this->newLine();
+        $this->info('Kep letoltes osszesites:');
+        $this->line("  Letoltott: {$this->downloadedImages}");
+        $this->line("  Mar letezett (skip): {$this->skippedImages}");
+        $this->line("  Sikertelen: {$this->failedImages}");
+        $this->newLine();
+        $this->info('Kesz.');
+
+        return 0;
+    }
+
+    private function downloadProjectImages(array $api): void
+    {
+        $externalId = (string) $api['id'];
+        $projectDir = storage_path("app/migration_images/{$externalId}");
+
+        // 1. Tablo minta (sample)
         $sampleUrl = $api['sample_url'] ?? null;
         if ($sampleUrl && filter_var($sampleUrl, FILTER_VALIDATE_URL)) {
-            try {
-                $content = Http::timeout(15)->get($sampleUrl)->body();
-                $ext = pathinfo(parse_url($sampleUrl, PHP_URL_PATH), PATHINFO_EXTENSION) ?: 'jpg';
-                Storage::put("{$dir}/sample.{$ext}", $content);
-            } catch (\Exception $e) {
-                $this->warn("    Kep letoltes sikertelen (sample): {$e->getMessage()}");
+            $ext = pathinfo(parse_url($sampleUrl, PHP_URL_PATH), PATHINFO_EXTENSION) ?: 'jpg';
+            $sampleFile = "{$projectDir}/sample.{$ext}";
+
+            if (file_exists($sampleFile)) {
+                $this->skippedImages++;
+            } else {
+                if (! is_dir($projectDir)) {
+                    mkdir($projectDir, 0755, true);
+                }
+                $this->downloadFile($sampleUrl, $sampleFile, "sample (projekt #{$externalId})");
             }
         }
 
-        // Person kepek
-        $allPersons = array_merge($api['students'] ?? [], $api['teachers'] ?? []);
-        foreach ($allPersons as $person) {
-            $imageUrl = $person['selected_image'] ?? $person['image_url'] ?? null;
-            if (! $imageUrl || ! filter_var($imageUrl, FILTER_VALIDATE_URL)) {
+        // 2. Tanar kepek
+        foreach ($api['teachers'] ?? [] as $teacher) {
+            $imageData = $teacher['selected_image'] ?? null;
+            if (! $imageData || ! is_array($imageData) || empty($imageData['url'])) {
                 continue;
             }
 
-            try {
-                $content = Http::timeout(15)->get($imageUrl)->body();
-                $ext = pathinfo(parse_url($imageUrl, PHP_URL_PATH), PATHINFO_EXTENSION) ?: 'jpg';
-                $safeName = Str::slug($person['name'] ?? $person['id'], '_');
-                Storage::put("{$dir}/{$safeName}_{$person['id']}.{$ext}", $content);
-            } catch (\Exception $e) {
-                // Csendes hiba - nem kritikus
+            $imageUrl = $imageData['url'];
+            $fileName = $imageData['file_name'] ?? Str::slug($teacher['name'] ?? $teacher['id'], '_') . '.jpg';
+            $safeName = Str::slug(pathinfo($fileName, PATHINFO_FILENAME), '_');
+            $ext = pathinfo($fileName, PATHINFO_EXTENSION) ?: 'jpg';
+
+            $teacherDir = "{$projectDir}/teachers";
+            $targetFile = "{$teacherDir}/{$safeName}_{$teacher['id']}.{$ext}";
+
+            if (file_exists($targetFile)) {
+                $this->skippedImages++;
+                continue;
             }
+
+            if (! is_dir($teacherDir)) {
+                mkdir($teacherDir, 0755, true);
+            }
+
+            $this->downloadFile($imageUrl, $targetFile, $teacher['name'] ?? "teacher #{$teacher['id']}");
+        }
+    }
+
+    private function downloadFile(string $url, string $targetPath, string $label): void
+    {
+        try {
+            $response = Http::timeout(30)->retry(2, 1000)->get($url);
+
+            if (! $response->successful()) {
+                $this->failedImages++;
+                $this->warn("    ✗ {$label}: HTTP {$response->status()}");
+                return;
+            }
+
+            file_put_contents($targetPath, $response->body());
+            $size = round(filesize($targetPath) / 1024);
+            $this->downloadedImages++;
+
+            // Csak minden 50. kepnel irjunk ki progresszt
+            if ($this->downloadedImages % 50 === 0) {
+                $this->line("  ... {$this->downloadedImages} kep letoltve (skip: {$this->skippedImages}, hiba: {$this->failedImages})");
+            }
+        } catch (\Exception $e) {
+            $this->failedImages++;
+            $this->warn("    ✗ {$label}: {$e->getMessage()}");
         }
     }
 
