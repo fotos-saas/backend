@@ -8,6 +8,7 @@ use App\Models\TabloPartner;
 use App\Models\TabloPerson;
 use App\Models\TabloProject;
 use App\Models\TabloSchool;
+use App\Models\TeacherArchive;
 use Illuminate\Console\Command;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -37,6 +38,7 @@ class TabloSyncCommand extends Command
     private int $newContacts = 0;
     private int $newPersons = 0;
     private int $updatedPersons = 0;
+    private int $newTeacherArchive = 0;
     private int $errors = 0;
 
     public function handle(): int
@@ -108,6 +110,7 @@ class TabloSyncCommand extends Command
             $result = $this->syncAllPages($partner, $dryRun);
 
             if (! $dryRun) {
+                $this->syncTeacherArchive($partner);
                 DB::commit();
             }
 
@@ -137,6 +140,11 @@ class TabloSyncCommand extends Command
         }
 
         $result = $this->syncAllPages($partner, $dryRun);
+
+        if (! $dryRun) {
+            $this->syncTeacherArchive($partner);
+        }
+
         $this->printSummary();
         return $result;
     }
@@ -568,6 +576,85 @@ class TabloSyncCommand extends Command
         }
     }
 
+    private function syncTeacherArchive(TabloPartner $partner): void
+    {
+        $this->newLine();
+        $this->info('Tanar adatbazis szinkronizalasa (teacher_archive)...');
+
+        // Egyedi tanarok: nev + iskola kombinaciora csoportositva
+        $teachers = DB::table('tablo_persons as tp')
+            ->join('tablo_projects as tpr', 'tpr.id', '=', 'tp.tablo_project_id')
+            ->where('tp.type', 'teacher')
+            ->where('tpr.partner_id', $partner->id)
+            ->select(
+                'tp.name',
+                'tpr.school_id',
+                DB::raw("MAX(tp.note) as note"),
+                DB::raw("MAX(tp.position) as position_val")
+            )
+            ->groupBy('tp.name', 'tpr.school_id')
+            ->get();
+
+        foreach ($teachers as $teacher) {
+            if (empty($teacher->name)) {
+                continue;
+            }
+
+            // Nev szetvalasztasa: "Dr. Kovacs Janos" -> title_prefix="Dr.", canonical_name="Kovacs Janos"
+            $titlePrefix = null;
+            $canonicalName = trim($teacher->name);
+
+            $prefixes = ['Dr.', 'Prof.', 'dr.', 'prof.', 'Id.', 'Ifj.', 'id.', 'ifj.', 'özv.', 'Özv.'];
+            foreach ($prefixes as $prefix) {
+                if (str_starts_with($canonicalName, $prefix . ' ')) {
+                    $titlePrefix = $prefix;
+                    $canonicalName = trim(substr($canonicalName, strlen($prefix)));
+                    break;
+                }
+            }
+
+            // Letezik-e mar?
+            $existing = TeacherArchive::where('partner_id', $partner->id)
+                ->where('canonical_name', $canonicalName)
+                ->where(function ($q) use ($teacher) {
+                    if ($teacher->school_id) {
+                        $q->where('school_id', $teacher->school_id);
+                    } else {
+                        $q->whereNull('school_id');
+                    }
+                })
+                ->first();
+
+            if ($existing) {
+                continue;
+            }
+
+            // Note-bol pozicio kinyerese (szoveges, pl. "igazgato", "osztalyfonok")
+            $position = null;
+            if ($teacher->note) {
+                // "Eredeti nev: X | igazgato" -> "igazgato"
+                $parts = explode('|', $teacher->note);
+                $lastPart = trim(end($parts));
+                if ($lastPart && ! str_starts_with($lastPart, 'Eredeti nev:')) {
+                    $position = $lastPart;
+                }
+            }
+
+            TeacherArchive::create([
+                'partner_id' => $partner->id,
+                'school_id' => $teacher->school_id,
+                'canonical_name' => $canonicalName,
+                'title_prefix' => $titlePrefix,
+                'position' => $position,
+                'is_active' => true,
+            ]);
+
+            $this->newTeacherArchive++;
+        }
+
+        $this->line("  Uj tanar archivum rekordok: {$this->newTeacherArchive}");
+    }
+
     private function printSummary(): void
     {
         $this->newLine();
@@ -579,6 +666,7 @@ class TabloSyncCommand extends Command
         $this->line("  Uj kontaktok: {$this->newContacts}");
         $this->line("  Uj szemelyek: {$this->newPersons}");
         $this->line("  Frissitett szemelyek: {$this->updatedPersons}");
+        $this->line("  Uj tanar archivum: {$this->newTeacherArchive}");
 
         if ($this->errors > 0) {
             $this->error("  Hibak: {$this->errors}");
