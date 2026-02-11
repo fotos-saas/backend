@@ -7,6 +7,7 @@ use App\Models\TabloPerson;
 use App\Models\TabloProject;
 use App\Models\TeacherArchive;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 
 class GetTeachersByProjectAction
 {
@@ -14,8 +15,8 @@ class GetTeachersByProjectAction
      * Iskolánként csoportosított tanárok lekérdezése.
      *
      * Logika: projektek school_id → iskolánként egyedi tanárok az archive-ból.
-     * Az osztályok kontextusnak jelennek meg, de a tanár lista deduplikált.
-     * Így ha egy iskolának 5 osztálya van, a tanárok egyszer jelennek meg.
+     * Összekapcsolt iskolák (linked_group) egy csoportba kerülnek,
+     * a legrövidebb iskolanévvel.
      */
     public function execute(int $partnerId, ?string $classYear = null, ?int $schoolId = null, bool $missingOnly = false): array
     {
@@ -43,6 +44,11 @@ class GetTeachersByProjectAction
             ];
         }
 
+        // Linked group térkép: school_id → group_key
+        // Ha egy school_id linked_group-ban van, a csoport összes school_id-ja
+        // ugyanazt a group_key-t kapja (legkisebb school_id a csoportban)
+        $linkedMap = $this->buildLinkedMap($partnerId, $schoolIds);
+
         // Batch load: van-e tanár típusú személy az egyes iskolák projektjeiben
         $allProjectIds = $projects->pluck('id')->toArray();
         $teacherPersonSchoolIds = TabloPerson::whereIn('tablo_project_id', $allProjectIds)
@@ -60,9 +66,6 @@ class GetTeachersByProjectAction
             ->orderBy('canonical_name')
             ->get();
 
-        // Csoportosítás school_id szerint
-        $archivesBySchool = $archives->groupBy('school_id');
-
         // Cross-school sync: partner összes tanárneve akihez VAN fotó (bármely iskolánál)
         $allNamesWithPhoto = TeacherArchive::forPartner($partnerId)
             ->active()
@@ -72,52 +75,113 @@ class GetTeachersByProjectAction
             ->unique()
             ->flip();
 
-        // Iskolánkénti csoportosítás: projektek → iskolák
-        $projectsBySchool = $projects->groupBy('school_id');
+        // Projektek és archívok csoportosítása linked group szerint
+        $projectsByGroup = collect();
+        $archivesByGroup = collect();
+        $schoolNamesByGroup = collect();
 
-        // Összegyűjtjük az összes iskola adatát (summary-hoz is kell a teljes kép)
-        $allSchools = collect($schoolIds)->map(function (int $sid) use ($projectsBySchool, $archivesBySchool, $teacherPersonSchoolIds, $allNamesWithPhoto) {
-            $schoolProjects = $projectsBySchool->get($sid, collect());
-            $schoolTeachers = $archivesBySchool->get($sid, collect());
+        foreach ($schoolIds as $sid) {
+            $groupKey = $linkedMap[$sid] ?? $sid;
 
-            $school = $schoolProjects->first()?->school;
-            if (! $school) {
+            // Projektek összegyűjtése csoport szerint
+            $sidProjects = $projects->where('school_id', $sid);
+            if (!$projectsByGroup->has($groupKey)) {
+                $projectsByGroup[$groupKey] = collect();
+            }
+            $projectsByGroup[$groupKey] = $projectsByGroup[$groupKey]->merge($sidProjects);
+
+            // Archívok összegyűjtése csoport szerint
+            $sidArchives = $archives->where('school_id', $sid);
+            if (!$archivesByGroup->has($groupKey)) {
+                $archivesByGroup[$groupKey] = collect();
+            }
+            $archivesByGroup[$groupKey] = $archivesByGroup[$groupKey]->merge($sidArchives);
+
+            // Iskolanév: a legrövidebb nevet választjuk
+            $school = $sidProjects->first()?->school;
+            if ($school) {
+                $currentName = $schoolNamesByGroup->get($groupKey);
+                if ($currentName === null || mb_strlen($school->name) < mb_strlen($currentName)) {
+                    $schoolNamesByGroup[$groupKey] = $school->name;
+                }
+            }
+        }
+
+        // Egyedi csoport kulcsok
+        $groupKeys = $projectsByGroup->keys();
+
+        $allSchools = $groupKeys->map(function ($groupKey) use (
+            $projectsByGroup, $archivesByGroup, $schoolNamesByGroup,
+            $teacherPersonSchoolIds, $allNamesWithPhoto, $linkedMap
+        ) {
+            $groupProjects = $projectsByGroup->get($groupKey, collect());
+            $groupArchives = $archivesByGroup->get($groupKey, collect());
+            $schoolName = $schoolNamesByGroup->get($groupKey);
+
+            if (!$schoolName || $groupProjects->isEmpty()) {
                 return null;
             }
 
-            $teachers = $schoolTeachers->map(fn (TeacherArchive $t) => [
-                'archiveId' => $t->id,
-                'name' => $t->full_display_name,
-                'hasPhoto' => $t->photo_thumb_url !== null,
-                'hasSyncablePhoto' => $t->photo_thumb_url === null && $allNamesWithPhoto->has(mb_strtolower(trim($t->canonical_name))),
-                'noPhotoMarked' => $t->notes && str_contains($t->notes, 'Nem találom a képet'),
-                'photoThumbUrl' => $t->photo_thumb_url,
-                'photoUrl' => $t->photo_url,
-            ])->sortByDesc('hasSyncablePhoto');
+            // Tanárok deduplikálás NÉV alapján (linked iskolák közös tanárai)
+            $seenNames = [];
+            $teachers = collect();
+            foreach ($groupArchives->sortBy('canonical_name') as $t) {
+                $normalizedName = mb_strtolower(trim($t->canonical_name));
+                if (isset($seenNames[$normalizedName])) {
+                    continue;
+                }
+                $seenNames[$normalizedName] = true;
+
+                $teachers->push([
+                    'archiveId' => $t->id,
+                    'name' => $t->full_display_name,
+                    'hasPhoto' => $t->photo_thumb_url !== null,
+                    'hasSyncablePhoto' => $t->photo_thumb_url === null && $allNamesWithPhoto->has($normalizedName),
+                    'noPhotoMarked' => $t->notes && str_contains($t->notes, 'Nem találom a képet'),
+                    'photoThumbUrl' => $t->photo_thumb_url,
+                    'photoUrl' => $t->photo_url,
+                ]);
+            }
+
+            $teachers = $teachers->sortByDesc('hasSyncablePhoto');
 
             $totalCount = $teachers->count();
             $missingCount = $teachers->filter(fn ($t) => ! $t['hasPhoto'])->count();
 
-            // Sync elérhető: van-e hiányzó tanár akihez a partner bármely iskolájában VAN fotó
-            $syncAvailable = $missingCount > 0 && $schoolTeachers
-                ->filter(fn (TeacherArchive $t) => $t->photo_thumb_url === null)
-                ->contains(fn (TeacherArchive $t) => $allNamesWithPhoto->has(mb_strtolower(trim($t->canonical_name))));
+            // Sync elérhető: van-e hiányzó tanár akihez VAN fotó más iskolánál
+            $syncAvailable = $missingCount > 0 && $teachers->contains(fn ($t) => $t['hasSyncablePhoto']);
+
+            // Csoport school_id-k (hasTeacherPersons check-hez)
+            $groupSchoolIds = collect();
+            foreach ($linkedMap as $sid => $gk) {
+                if ($gk === $groupKey) {
+                    $groupSchoolIds->push($sid);
+                }
+            }
+            // Ha a groupKey nem volt a linkedMap-ben (nincs linked group)
+            if ($groupSchoolIds->isEmpty()) {
+                $groupSchoolIds->push($groupKey);
+            }
+
+            $hasTeacherPersons = $groupSchoolIds->contains(fn ($sid) =>
+                in_array($sid, $teacherPersonSchoolIds, true)
+            );
 
             // Osztályok listája kontextusnak
-            $classes = $schoolProjects->map(fn (TabloProject $p) => [
+            $classes = $groupProjects->map(fn (TabloProject $p) => [
                 'projectId' => $p->id,
                 'className' => $p->class_name,
                 'classYear' => $p->class_year,
             ])->values()->toArray();
 
             return [
-                'schoolId' => $sid,
-                'schoolName' => $school->name,
+                'schoolId' => (int) $groupKey,
+                'schoolName' => $schoolName,
                 'classes' => $classes,
                 'classCount' => count($classes),
                 'teacherCount' => $totalCount,
                 'missingPhotoCount' => $missingCount,
-                'hasTeacherPersons' => in_array($sid, $teacherPersonSchoolIds, true),
+                'hasTeacherPersons' => $hasTeacherPersons,
                 'syncAvailable' => $syncAvailable,
                 'teachers' => $teachers->values()->toArray(),
             ];
@@ -152,6 +216,43 @@ class GetTeachersByProjectAction
             'schools' => $displaySchools->toArray(),
             'summary' => $summary,
         ];
+    }
+
+    /**
+     * Linked group térkép felépítése: school_id → group_key.
+     * A group_key a csoport legkisebb school_id-ja.
+     */
+    private function buildLinkedMap(int $partnerId, array $schoolIds): array
+    {
+        $links = DB::table('partner_schools')
+            ->where('partner_id', $partnerId)
+            ->whereIn('school_id', $schoolIds)
+            ->whereNotNull('linked_group')
+            ->get(['school_id', 'linked_group']);
+
+        if ($links->isEmpty()) {
+            // Nincs linking — minden school_id önálló
+            return array_combine($schoolIds, $schoolIds);
+        }
+
+        // linked_group → school_id-k
+        $groups = $links->groupBy('linked_group');
+
+        $map = [];
+        foreach ($schoolIds as $sid) {
+            $map[$sid] = $sid; // default: önálló
+        }
+
+        foreach ($groups as $groupName => $members) {
+            $memberIds = $members->pluck('school_id')->toArray();
+            // A csoport kulcsa a legkisebb school_id
+            $groupKey = min($memberIds);
+            foreach ($memberIds as $mid) {
+                $map[$mid] = $groupKey;
+            }
+        }
+
+        return $map;
     }
 
     private function buildSummary(Collection $schools): array
