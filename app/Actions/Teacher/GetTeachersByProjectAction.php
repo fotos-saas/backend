@@ -89,6 +89,7 @@ class GetTeachersByProjectAction
                 'archiveId' => $t->id,
                 'name' => $t->full_display_name,
                 'hasPhoto' => $t->photo_thumb_url !== null,
+                'hasSyncablePhoto' => $t->photo_thumb_url === null && $allNamesWithPhoto->has(mb_strtolower(trim($t->canonical_name))),
                 'noPhotoMarked' => $t->notes && str_contains($t->notes, 'Nem találom a képet'),
                 'photoThumbUrl' => $t->photo_thumb_url,
                 'photoUrl' => $t->photo_url,
