@@ -3,6 +3,7 @@
 namespace App\Actions\Teacher;
 
 use App\Helpers\QueryHelper;
+use App\Models\TabloPerson;
 use App\Models\TabloProject;
 use App\Models\TeacherArchive;
 use Illuminate\Support\Collection;
@@ -42,6 +43,15 @@ class GetTeachersByProjectAction
             ];
         }
 
+        // Batch load: van-e tanár típusú személy az egyes iskolák projektjeiben
+        $allProjectIds = $projects->pluck('id')->toArray();
+        $teacherPersonSchoolIds = TabloPerson::whereIn('tablo_project_id', $allProjectIds)
+            ->where('type', 'teacher')
+            ->join('tablo_projects', 'tablo_persons.tablo_project_id', '=', 'tablo_projects.id')
+            ->distinct()
+            ->pluck('tablo_projects.school_id')
+            ->toArray();
+
         // Batch load: partner összes aktív archive rekordja a releváns iskolákra
         $archives = TeacherArchive::forPartner($partnerId)
             ->active()
@@ -57,7 +67,7 @@ class GetTeachersByProjectAction
         $projectsBySchool = $projects->groupBy('school_id');
 
         // Összegyűjtjük az összes iskola adatát (summary-hoz is kell a teljes kép)
-        $allSchools = collect($schoolIds)->map(function (int $sid) use ($projectsBySchool, $archivesBySchool) {
+        $allSchools = collect($schoolIds)->map(function (int $sid) use ($projectsBySchool, $archivesBySchool, $teacherPersonSchoolIds) {
             $schoolProjects = $projectsBySchool->get($sid, collect());
             $schoolTeachers = $archivesBySchool->get($sid, collect());
 
@@ -92,6 +102,7 @@ class GetTeachersByProjectAction
                 'classCount' => count($classes),
                 'teacherCount' => $totalCount,
                 'missingPhotoCount' => $missingCount,
+                'hasTeacherPersons' => in_array($sid, $teacherPersonSchoolIds),
                 'teachers' => $teachers->values()->toArray(),
             ];
         })->filter()->values();
