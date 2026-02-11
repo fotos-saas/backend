@@ -6,6 +6,7 @@ use App\Actions\Teacher\BulkImportTeacherExecuteAction;
 use App\Actions\Teacher\BulkImportTeacherPreviewAction;
 use App\Actions\Teacher\CreateTeacherAction;
 use App\Actions\Teacher\GetTeachersByProjectAction;
+use App\Actions\Teacher\MarkNoPhotoAction;
 use App\Actions\Teacher\UpdateTeacherAction;
 use App\Http\Controllers\Api\Partner\Traits\PartnerAuthTrait;
 use App\Http\Controllers\Controller;
@@ -208,27 +209,24 @@ class PartnerTeacherController extends Controller
         ]);
     }
 
-    public function markNoPhoto(int $id): JsonResponse
+    public function markNoPhoto(int $id, MarkNoPhotoAction $action): JsonResponse
     {
         $partnerId = $this->getPartnerIdOrFail();
         $teacher = TeacherArchive::forPartner($partnerId)->findOrFail($id);
 
-        $note = 'Nem találom a képet';
-        $oldNotes = $teacher->notes;
-        $newNotes = $oldNotes ? "{$oldNotes}\n{$note}" : $note;
-
-        $teacher->update(['notes' => $newNotes]);
-
-        $teacher->changeLogs()->create([
-            'user_id' => auth()->id(),
-            'change_type' => 'no_photo_marked',
-            'old_value' => $oldNotes,
-            'new_value' => $newNotes,
-            'metadata' => ['action' => 'mark_no_photo'],
-            'created_at' => now(),
-        ]);
+        $action->mark($teacher, auth()->id());
 
         return $this->successResponse(null, 'Megjegyzés mentve');
+    }
+
+    public function undoNoPhoto(int $id, MarkNoPhotoAction $action): JsonResponse
+    {
+        $partnerId = $this->getPartnerIdOrFail();
+        $teacher = TeacherArchive::forPartner($partnerId)->findOrFail($id);
+
+        $action->undo($teacher, auth()->id());
+
+        return $this->successResponse(null, 'Jelölés visszavonva');
     }
 
     public function getChangelog(int $id, Request $request): JsonResponse
