@@ -19,18 +19,20 @@ class SyncTeacherPhotosAction
 
     /**
      * Tanár fotó szinkronizálás végrehajtása — archív fotó hozzárendelés.
-     * Egy iskola ÖSSZES projektjére vonatkozik.
+     * Csak a KIVÁLASZTOTT iskola projektjeire vonatkozik, DE a matching
+     * cross-school-ra fut (linked iskolák archívja ellen).
      *
      * @param int[]|null $personIds Ha megadva, csak ezeket a person-öket szinkronizálja
      */
     public function execute(int $schoolId, int $partnerId, ?string $classYear = null, ?array $personIds = null): array
     {
-        // Összekapcsolt iskolák feloldása
+        // Összekapcsolt iskolák feloldása (matching-hez kell)
         $tabloPartner = TabloPartner::find($partnerId);
         $linkedSchoolIds = $tabloPartner ? $tabloPartner->getLinkedSchoolIds($schoolId) : [$schoolId];
 
+        // FONTOS: projekteket CSAK az eredeti school_id-re szűrjük
         $query = TabloProject::where('partner_id', $partnerId)
-            ->whereIn('school_id', $linkedSchoolIds);
+            ->where('school_id', $schoolId);
 
         if ($classYear) {
             $query->where('class_year', $classYear);

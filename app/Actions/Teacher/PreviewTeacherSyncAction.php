@@ -17,16 +17,19 @@ class PreviewTeacherSyncAction
 
     /**
      * Tanár fotó szinkronizálás előnézet — nem ír DB-be.
-     * Egy iskola ÖSSZES projektjére vonatkozik.
+     * Csak a KIVÁLASZTOTT iskola projektjeit listázza, DE a matching
+     * cross-school-ra fut (linked iskolák archívja ellen).
      */
     public function execute(int $schoolId, int $partnerId, ?string $classYear = null): array
     {
-        // Összekapcsolt iskolák feloldása
+        // Összekapcsolt iskolák feloldása (matching-hez kell)
         $tabloPartner = TabloPartner::find($partnerId);
         $linkedSchoolIds = $tabloPartner ? $tabloPartner->getLinkedSchoolIds($schoolId) : [$schoolId];
 
+        // FONTOS: projekteket CSAK az eredeti school_id-re szűrjük,
+        // ne a linked iskolák tanárait is mutassuk
         $query = TabloProject::where('partner_id', $partnerId)
-            ->whereIn('school_id', $linkedSchoolIds);
+            ->where('school_id', $schoolId);
 
         if ($classYear) {
             $query->where('class_year', $classYear);
