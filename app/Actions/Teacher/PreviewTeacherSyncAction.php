@@ -67,11 +67,11 @@ class PreviewTeacherSyncAction
 
             // Nincs archív fotó — van-e másik iskolánál?
             if ($allNamesWithPhoto->has($normalizedName)) {
-                // Donor keresése: ugyanaz a canonical_name, másik school_id, van active_photo_id
+                // Donor keresése: ugyanaz a canonical_name, bármely MÁS archív rekord ami fotóval rendelkezik
                 $donor = TeacherArchive::forPartner($partnerId)
                     ->active()
                     ->where('canonical_name', $t->canonical_name)
-                    ->whereNotIn('school_id', $linkedSchoolIds)
+                    ->where('id', '!=', $t->id)
                     ->whereNotNull('active_photo_id')
                     ->with('activePhoto')
                     ->first();

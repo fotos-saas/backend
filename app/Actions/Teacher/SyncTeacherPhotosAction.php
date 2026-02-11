@@ -61,13 +61,13 @@ class SyncTeacherPhotosAction
         $noPhoto = 0;
         $details = [];
 
-        DB::transaction(function () use ($uniqueArchives, $partnerId, $linkedSchoolIds, &$synced, &$noPhoto, &$details) {
+        DB::transaction(function () use ($uniqueArchives, $partnerId, &$synced, &$noPhoto, &$details) {
             foreach ($uniqueArchives as $t) {
-                // Donor keresése: ugyanaz a canonical_name, MÁS school_id, van active_photo_id
+                // Donor keresése: ugyanaz a canonical_name, bármely MÁS archív rekord ami fotóval rendelkezik
                 $donor = TeacherArchive::forPartner($partnerId)
                     ->active()
                     ->where('canonical_name', $t->canonical_name)
-                    ->whereNotIn('school_id', $linkedSchoolIds)
+                    ->where('id', '!=', $t->id)
                     ->whereNotNull('active_photo_id')
                     ->first();
 
