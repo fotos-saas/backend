@@ -7,7 +7,6 @@ namespace App\Console\Commands;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 use Spatie\MediaLibrary\MediaCollections\Models\Media;
-use Symfony\Component\Process\Process;
 
 class TeacherExtractExifDatesCommand extends Command
 {
@@ -62,7 +61,7 @@ class TeacherExtractExifDatesCommand extends Command
         $this->newLine(2);
         $this->info('Összesítés:');
         $this->line("  Frissítve: {$this->updated}");
-        $this->line("  Kihagyva (már volt): {$this->skipped}");
+        $this->line("  Kihagyva (nem jpg/jpeg): {$this->skipped}");
         $this->line("  Nincs EXIF dátum: {$this->noExif}");
         if ($this->errors > 0) {
             $this->error("  Hibák: {$this->errors}");
@@ -80,32 +79,37 @@ class TeacherExtractExifDatesCommand extends Command
             return;
         }
 
-        // Csak jpg/jpeg fájlokból próbálunk EXIF-et olvasni
+        // Csak jpg/jpeg fájlokból tudunk EXIF-et olvasni PHP-vel
         $ext = strtolower(pathinfo($filePath, PATHINFO_EXTENSION));
-        if (!in_array($ext, ['jpg', 'jpeg', 'tiff', 'tif'])) {
-            $this->noExif++;
+        if (!in_array($ext, ['jpg', 'jpeg'])) {
+            $this->skipped++;
             return;
         }
 
-        $process = new Process(['exiftool', '-DateTimeOriginal', '-s3', $filePath]);
-        $process->setTimeout(5);
-
         try {
-            $process->run();
+            $exif = @exif_read_data($filePath, 'EXIF', false);
         } catch (\Exception $e) {
             $this->errors++;
             return;
         }
 
-        $output = trim($process->getOutput());
-
-        if (empty($output) || $process->getExitCode() !== 0) {
+        if ($exif === false) {
             $this->noExif++;
             return;
         }
 
-        // Format: "2022:12:09 12:11:56" → "2022-12-09"
-        $date = $this->parseExifDate($output);
+        // DateTimeOriginal > DateTimeDigitized > DateTime
+        $rawDate = $exif['DateTimeOriginal']
+            ?? $exif['DateTimeDigitized']
+            ?? $exif['DateTime']
+            ?? null;
+
+        if (!$rawDate) {
+            $this->noExif++;
+            return;
+        }
+
+        $date = $this->parseExifDate($rawDate);
         if (!$date) {
             $this->noExif++;
             return;
@@ -124,14 +128,13 @@ class TeacherExtractExifDatesCommand extends Command
     private function parseExifDate(string $exifDate): ?string
     {
         // "2022:12:09 12:11:56" → "2022-12-09"
-        $parts = explode(' ', $exifDate);
+        $parts = explode(' ', trim($exifDate));
         if (empty($parts[0])) {
             return null;
         }
 
         $datePart = str_replace(':', '-', $parts[0]);
 
-        // Validáció
         if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $datePart)) {
             return null;
         }
