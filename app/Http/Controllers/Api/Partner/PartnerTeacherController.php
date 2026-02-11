@@ -208,6 +208,29 @@ class PartnerTeacherController extends Controller
         ]);
     }
 
+    public function markNoPhoto(int $id): JsonResponse
+    {
+        $partnerId = $this->getPartnerIdOrFail();
+        $teacher = TeacherArchive::forPartner($partnerId)->findOrFail($id);
+
+        $note = 'Nem találom a képet';
+        $oldNotes = $teacher->notes;
+        $newNotes = $oldNotes ? "{$oldNotes}\n{$note}" : $note;
+
+        $teacher->update(['notes' => $newNotes]);
+
+        $teacher->changeLogs()->create([
+            'user_id' => auth()->id(),
+            'change_type' => 'no_photo_marked',
+            'old_value' => $oldNotes,
+            'new_value' => $newNotes,
+            'metadata' => ['action' => 'mark_no_photo'],
+            'created_at' => now(),
+        ]);
+
+        return $this->successResponse(null, 'Megjegyzés mentve');
+    }
+
     public function getChangelog(int $id, Request $request): JsonResponse
     {
         $partnerId = $this->getPartnerIdOrFail();

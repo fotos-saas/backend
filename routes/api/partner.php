@@ -197,6 +197,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::put('/teachers/{id}', [PartnerTeacherController::class, 'update']);
         Route::delete('/teachers/{id}', [PartnerTeacherController::class, 'destroy']);
         Route::get('/teachers/{id}/changelog', [PartnerTeacherController::class, 'getChangelog']);
+        Route::patch('/teachers/{id}/mark-no-photo', [PartnerTeacherController::class, 'markNoPhoto']);
 
         // Teacher photo management
         Route::middleware('throttle:10,1')->group(function () {
