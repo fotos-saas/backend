@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\Partner;
 use App\Actions\Teacher\BulkImportTeacherExecuteAction;
 use App\Actions\Teacher\BulkImportTeacherPreviewAction;
 use App\Actions\Teacher\CreateTeacherAction;
+use App\Actions\Teacher\ExportTeacherArchiveCsvAction;
 use App\Actions\Teacher\GetTeachersByProjectAction;
 use App\Actions\Teacher\MarkNoPhotoAction;
 use App\Actions\Teacher\PreviewTeacherSyncAction;
@@ -24,6 +25,7 @@ use App\Services\Search\SearchService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class PartnerTeacherController extends Controller
 {
@@ -341,6 +343,13 @@ class PartnerTeacherController extends Controller
             'message' => "Szinkronizálás kész: {$result['synced']} tanár fotója frissítve.",
             'data' => $result,
         ]);
+    }
+
+    public function exportCsv(ExportTeacherArchiveCsvAction $action): StreamedResponse
+    {
+        $partnerId = $this->getPartnerIdOrFail();
+
+        return $action->execute($partnerId);
     }
 
     private function formatTeacherDetail(TeacherArchive $teacher): array
