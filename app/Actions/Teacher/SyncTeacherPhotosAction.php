@@ -84,6 +84,7 @@ class SyncTeacherPhotosAction
                 // Szinkronizálás: active_photo_id átmásolás
                 $t->active_photo_id = $donor->active_photo_id;
                 $t->save();
+                $t->load('activePhoto');
 
                 $synced++;
                 $details[] = [
@@ -91,6 +92,8 @@ class SyncTeacherPhotosAction
                     'personName' => $t->full_display_name,
                     'status' => 'synced',
                     'sourceSchoolId' => $donor->school_id,
+                    'photoUrl' => $t->photo_url,
+                    'photoThumbUrl' => $t->photo_thumb_url,
                 ];
             }
         });
