@@ -143,7 +143,21 @@ class GetTeachersByProjectAction
                 ]);
             }
 
-            $teachers = $teachers->sortByDesc('hasSyncablePhoto');
+            // Rendezés: hiányzó fotó felül (syncable előbb), aztán ABC
+            $teachers = $teachers->sort(function ($a, $b) {
+                // 1. Nincs fotó → felül
+                if ($a['hasPhoto'] !== $b['hasPhoto']) {
+                    return $a['hasPhoto'] <=> $b['hasPhoto'];
+                }
+                // 2. Hiányzók között: syncable előbb
+                if (!$a['hasPhoto'] && !$b['hasPhoto']) {
+                    if ($a['hasSyncablePhoto'] !== $b['hasSyncablePhoto']) {
+                        return $b['hasSyncablePhoto'] <=> $a['hasSyncablePhoto'];
+                    }
+                }
+                // 3. ABC sorrend
+                return strcmp($a['name'], $b['name']);
+            });
 
             $totalCount = $teachers->count();
             $missingCount = $teachers->filter(fn ($t) => ! $t['hasPhoto'])->count();
