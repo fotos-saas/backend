@@ -11,32 +11,33 @@ class SyncTeacherPhotosRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        $projectId = (int) $this->input('project_id');
-        $project = TabloProject::find($projectId);
-
-        if (!$project) {
-            return false;
-        }
-
-        // Partner scope ellenőrzés
+        $schoolId = (int) $this->input('school_id');
         $user = $this->user();
         $partner = $user?->getEffectivePartner();
 
-        return $partner && $project->partner_id === $partner->id;
+        if (!$partner) {
+            return false;
+        }
+
+        // Van-e az iskola-partner kombinációhoz tartozó projekt?
+        return TabloProject::where('partner_id', $partner->id)
+            ->where('school_id', $schoolId)
+            ->exists();
     }
 
     public function rules(): array
     {
         return [
-            'project_id' => ['required', 'integer', 'exists:tablo_projects,id'],
+            'school_id' => ['required', 'integer', 'exists:tablo_schools,id'],
+            'class_year' => ['nullable', 'string', 'max:20'],
         ];
     }
 
     public function messages(): array
     {
         return [
-            'project_id.required' => 'A projekt azonosító megadása kötelező.',
-            'project_id.exists' => 'A megadott projekt nem létezik.',
+            'school_id.required' => 'Az iskola azonosító megadása kötelező.',
+            'school_id.exists' => 'A megadott iskola nem létezik.',
         ];
     }
 }

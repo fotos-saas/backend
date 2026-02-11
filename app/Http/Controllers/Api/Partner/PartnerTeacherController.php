@@ -294,8 +294,13 @@ class PartnerTeacherController extends Controller
     public function previewSync(SyncTeacherPhotosRequest $request, PreviewTeacherSyncAction $action): JsonResponse
     {
         $partnerId = $this->getPartnerIdOrFail();
+        $validated = $request->validated();
 
-        $result = $action->execute((int) $request->validated('project_id'), $partnerId);
+        $result = $action->execute(
+            (int) $validated['school_id'],
+            $partnerId,
+            $validated['class_year'] ?? null,
+        );
 
         return response()->json(['success' => true, 'data' => $result]);
     }
@@ -303,8 +308,13 @@ class PartnerTeacherController extends Controller
     public function executeSync(SyncTeacherPhotosRequest $request, SyncTeacherPhotosAction $action): JsonResponse
     {
         $partnerId = $this->getPartnerIdOrFail();
+        $validated = $request->validated();
 
-        $result = $action->execute((int) $request->validated('project_id'), $partnerId);
+        $result = $action->execute(
+            (int) $validated['school_id'],
+            $partnerId,
+            $validated['class_year'] ?? null,
+        );
 
         return response()->json([
             'success' => true,

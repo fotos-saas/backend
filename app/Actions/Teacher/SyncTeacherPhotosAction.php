@@ -18,23 +18,31 @@ class SyncTeacherPhotosAction
 
     /**
      * Tanár fotó szinkronizálás végrehajtása — archív fotó hozzárendelés.
+     * Egy iskola ÖSSZES projektjére vonatkozik.
      */
-    public function execute(int $projectId, int $partnerId): array
+    public function execute(int $schoolId, int $partnerId, ?string $classYear = null): array
     {
-        $project = TabloProject::where('id', $projectId)
-            ->where('partner_id', $partnerId)
-            ->firstOrFail();
+        $query = TabloProject::where('partner_id', $partnerId)
+            ->where('school_id', $schoolId);
 
-        $schoolId = $project->school_id;
+        if ($classYear) {
+            $query->where('class_year', $classYear);
+        }
 
-        $teachers = TabloPerson::where('tablo_project_id', $projectId)
+        $projectIds = $query->pluck('id');
+
+        if ($projectIds->isEmpty()) {
+            return $this->emptyResult(0);
+        }
+
+        $teachers = TabloPerson::whereIn('tablo_project_id', $projectIds)
             ->where('type', 'teacher')
             ->get();
 
         $total = $teachers->count();
 
-        if ($total === 0 || !$schoolId) {
-            return $this->emptyResult($teachers->whereNotNull('media_id')->count());
+        if ($total === 0) {
+            return $this->emptyResult(0);
         }
 
         $withPhoto = $teachers->whereNotNull('media_id');
@@ -45,7 +53,7 @@ class SyncTeacherPhotosAction
             return $this->emptyResult($skipped);
         }
 
-        $names = $withoutPhoto->pluck('name')->toArray();
+        $names = $withoutPhoto->pluck('name')->unique()->values()->toArray();
         $matchResults = $this->matchingService->matchNames($names, $partnerId, $schoolId);
         $matchMap = collect($matchResults)->keyBy('inputName');
 
