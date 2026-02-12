@@ -175,22 +175,30 @@ class PartnerContactController extends Controller
 
     private function syncProjects(TabloContact $contact, Request $request, int $partnerId): void
     {
+        $projectIds = $this->resolveProjectIds($request, $partnerId);
+        if (! empty($projectIds)) {
+            $attachData = array_fill_keys($projectIds, ['is_primary' => false]);
+            $contact->projects()->attach($attachData);
+        }
+    }
+
+    private function resolveProjectIds(Request $request, int $partnerId): array
+    {
         $projectIds = $request->input('project_ids', []);
         if ($request->filled('project_id') && empty($projectIds)) {
             $projectIds = [$request->input('project_id')];
         }
 
-        if (!empty($projectIds)) {
-            $projectIds = array_map('intval', $projectIds);
-            $validProjects = TabloProject::whereIn('id', $projectIds)
-                ->where('partner_id', $partnerId)
-                ->pluck('id')
-                ->toArray();
-
-            foreach ($validProjects as $projectId) {
-                $contact->projects()->attach($projectId, ['is_primary' => false]);
-            }
+        if (empty($projectIds)) {
+            return [];
         }
+
+        $projectIds = array_map('intval', $projectIds);
+
+        return TabloProject::whereIn('id', $projectIds)
+            ->where('partner_id', $partnerId)
+            ->pluck('id')
+            ->toArray();
     }
 
     /**
@@ -239,21 +247,17 @@ class PartnerContactController extends Controller
 
     private function syncProjectsForUpdate(TabloContact $contact, Request $request, int $partnerId): void
     {
-        $projectIds = $request->input('project_ids', []);
-        if ($request->filled('project_id') && empty($projectIds)) {
-            $projectIds = [$request->input('project_id')];
-        }
+        $validProjects = $this->resolveProjectIds($request, $partnerId);
 
-        $projectIds = array_map('intval', $projectIds);
-        $validProjects = TabloProject::whereIn('id', $projectIds)
-            ->where('partner_id', $partnerId)
-            ->pluck('id')
-            ->toArray();
+        // Meglévő pivot adatok betöltése egyetlen query-vel (N+1 elkerülés)
+        $existingPivots = $contact->projects()
+            ->whereIn('tablo_projects.id', $validProjects)
+            ->get()
+            ->keyBy('id');
 
         $syncData = [];
         foreach ($validProjects as $projectId) {
-            $existingPivot = $contact->projects()->where('tablo_projects.id', $projectId)->first()?->pivot;
-            $syncData[$projectId] = ['is_primary' => $existingPivot?->is_primary ?? false];
+            $syncData[$projectId] = ['is_primary' => $existingPivots[$projectId]?->pivot?->is_primary ?? false];
         }
         $contact->projects()->sync($syncData);
     }

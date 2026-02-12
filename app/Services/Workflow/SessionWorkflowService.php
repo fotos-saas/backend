@@ -2,6 +2,7 @@
 
 namespace App\Services\Workflow;
 
+use App\Events\WorkSessionCreated;
 use App\Models\Album;
 use App\Models\EmailEvent;
 use App\Models\Photo;
@@ -42,6 +43,8 @@ class SessionWorkflowService
 
         $childSession->users()->attach($user->id);
         $childSession->albums()->attach($parentAlbum->id);
+
+        WorkSessionCreated::dispatch($childSession, $user);
 
         return $childSession;
     }

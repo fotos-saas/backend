@@ -22,10 +22,10 @@ class MarketerProjectContactController extends Controller
         $isPrimary = $request->boolean('isPrimary', false);
 
         if ($isPrimary) {
-            // Összes meglévő contact pivot is_primary-ját false-ra
-            foreach ($project->contacts as $existing) {
-                $project->contacts()->updateExistingPivot($existing->id, ['is_primary' => false]);
-            }
+            // Összes meglévő contact pivot is_primary-ját false-ra (egyetlen query)
+            \DB::table('tablo_contact_project')
+                ->where('tablo_project_id', $project->id)
+                ->update(['is_primary' => false]);
         }
 
         // Contact létrehozása
@@ -62,10 +62,11 @@ class MarketerProjectContactController extends Controller
         $isPrimary = $request->has('isPrimary') ? $request->boolean('isPrimary') : (bool) $contact->pivot->is_primary;
 
         if ($request->boolean('isPrimary')) {
-            // Összes többi contact pivot is_primary-ját false-ra
-            foreach ($project->contacts()->where('tablo_contacts.id', '!=', $contactId)->get() as $other) {
-                $project->contacts()->updateExistingPivot($other->id, ['is_primary' => false]);
-            }
+            // Összes többi contact pivot is_primary-ját false-ra (egyetlen query)
+            \DB::table('tablo_contact_project')
+                ->where('tablo_project_id', $project->id)
+                ->where('tablo_contact_id', '!=', $contactId)
+                ->update(['is_primary' => false]);
         }
 
         // Contact adatok frissítése

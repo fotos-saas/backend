@@ -285,13 +285,16 @@ class TabloTemplateController extends Controller
         $selections = DB::table('tablo_project_template_selections')
             ->where('tablo_project_id', $project->id)
             ->orderBy('priority')
-            ->get();
+            ->pluck('id');
 
-        $priority = 1;
-        foreach ($selections as $selection) {
-            DB::table('tablo_project_template_selections')
-                ->where('id', $selection->id)
-                ->update(['priority' => $priority++]);
+        if ($selections->isEmpty()) {
+            return;
         }
+
+        // Egyetlen UPDATE CASE statement (N+1 elkerülés)
+        $cases = $selections->map(fn ($id, $index) => "WHEN {$id} THEN " . ($index + 1))->implode(' ');
+        DB::table('tablo_project_template_selections')
+            ->whereIn('id', $selections)
+            ->update(['priority' => DB::raw("CASE id {$cases} END")]);
     }
 }

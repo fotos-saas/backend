@@ -37,14 +37,12 @@ class PollController extends BaseTabloController
         $activeOnly = $request->boolean('active_only', false);
         $polls = $this->pollService->getByProjectWithStats($project, $activeOnly);
 
-        // Get guest votes if session provided
+        // Get guest votes if session provided (batch query, N+1 elkerülés)
         $guestSession = $this->getGuestSession($request);
         $guestVotes = [];
 
         if ($guestSession && ! $guestSession->is_banned) {
-            foreach ($polls as $poll) {
-                $guestVotes[$poll->id] = $this->pollService->getGuestVotes($poll, $guestSession);
-            }
+            $guestVotes = $this->pollService->getGuestVotesForPolls($polls, $guestSession);
         }
 
         return $this->successResponse(

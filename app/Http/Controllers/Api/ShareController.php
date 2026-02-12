@@ -71,13 +71,14 @@ class ShareController extends Controller
 
         if ($workSession) {
             // Create or find guest user by token
+            $tokenHash = substr(hash('sha256', $token), 0, 16);
             $guestUser = User::firstOrCreate(
                 ['guest_token' => $token],
                 [
-                    'name' => 'Vendég #'.substr(md5($token), 0, 6), // e.g., "Vendég #7f3a2k"
-                    'email' => 'guest-'.$token.'@internal.local',
+                    'name' => 'Vendég #'.substr(md5($token), 0, 6),
+                    'email' => 'guest-'.$tokenHash.'@internal.local',
                     'password' => bcrypt(Str::random(32)),
-                    'guest_token' => $token,  // IMPORTANT: Must set guest_token in creation data too!
+                    'guest_token' => $token,
                 ]
             );
 

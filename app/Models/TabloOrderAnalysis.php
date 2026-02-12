@@ -161,7 +161,7 @@ class TabloOrderAnalysis extends Model
         $email = strtolower(trim($this->contact_email));
 
         // Keresés a ProjectEmail táblában (from_email)
-        $projectEmail = ProjectEmail::where('from_email', 'ILIKE', $email)
+        $projectEmail = ProjectEmail::whereRaw('LOWER(from_email) = ?', [$email])
             ->whereNotNull('tablo_project_id')
             ->first();
 

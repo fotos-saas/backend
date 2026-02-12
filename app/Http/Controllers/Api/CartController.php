@@ -146,7 +146,7 @@ class CartController extends Controller
 
         if (! $guestCart || $guestCart->items->isEmpty()) {
             return response()->json([
-                'message' => 'No guest cart found',
+                'message' => 'Nincs vendég kosár',
             ]);
         }
 
@@ -200,7 +200,7 @@ class CartController extends Controller
         $priceList = PriceList::latest()->first();
 
         if (! $priceList) {
-            return response()->json(['error' => 'No price list available'], 400);
+            return response()->json(['error' => 'Nincs elérhető árlista'], 400);
         }
 
         $subtotal = 0;

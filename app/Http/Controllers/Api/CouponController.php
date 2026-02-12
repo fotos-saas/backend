@@ -3,6 +3,8 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Api\Coupon\ListCouponsRequest;
+use App\Http\Requests\Api\Coupon\ValidateCouponRequest;
 use App\Models\Coupon;
 use App\Models\Package;
 use App\Models\WorkSession;
@@ -21,7 +23,7 @@ class CouponController extends Controller
     /**
      * Validate coupon by code with optional context
      */
-    public function show(Request $request, string $code)
+    public function show(ValidateCouponRequest $request, string $code)
     {
         // Reject empty or whitespace-only codes
         if (empty(trim($code))) {
@@ -146,7 +148,7 @@ class CouponController extends Controller
     /**
      * Get available coupons for context
      */
-    public function index(Request $request)
+    public function index(ListCouponsRequest $request)
     {
         $package = null;
         $workSession = null;

@@ -53,15 +53,20 @@ class PricingController extends Controller
         $subtotal = 0;
         $itemsWithPrices = [];
 
+        // Batch load: összes méret + ár egyben (N+1 elkerülés)
+        $sizeNames = collect($validated['items'])->pluck('size')->unique();
+        $printSizes = PrintSize::whereIn('name', $sizeNames)
+            ->with('prices')
+            ->get()
+            ->keyBy('name');
+
         foreach ($validated['items'] as $item) {
-            // Find price for size
-            $printSize = PrintSize::where('name', $item['size'])->first();
+            $printSize = $printSizes[$item['size']] ?? null;
             if (! $printSize) {
                 continue;
             }
 
-            $price = Price::where('print_size_id', $printSize->id)->first();
-
+            $price = $printSize->prices->first();
             if (! $price) {
                 continue;
             }

@@ -391,6 +391,23 @@ class PollService
     }
 
     /**
+     * Vendég szavazatai TÖBB poll-ban egyszerre (N+1 elkerülés).
+     *
+     * @return array<int, int[]> poll_id => [option_id, ...]
+     */
+    public function getGuestVotesForPolls(\Illuminate\Support\Collection $polls, TabloGuestSession $guest): array
+    {
+        $pollIds = $polls->pluck('id');
+
+        return TabloPollVote::whereIn('tablo_poll_id', $pollIds)
+            ->where('tablo_guest_session_id', $guest->id)
+            ->get()
+            ->groupBy('tablo_poll_id')
+            ->map(fn ($votes) => $votes->pluck('tablo_poll_option_id')->toArray())
+            ->toArray();
+    }
+
+    /**
      * Szavazás lezárása
      */
     public function close(TabloPoll $poll): TabloPoll

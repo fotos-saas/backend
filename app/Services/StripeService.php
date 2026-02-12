@@ -2,6 +2,8 @@
 
 namespace App\Services;
 
+use App\Events\OrderPaymentReceived;
+use App\Events\OrderStatusChanged;
 use App\Models\Order;
 use App\Models\StripeSetting;
 use Illuminate\Support\Facades\Log;
@@ -189,10 +191,14 @@ class StripeService
             }
 
             // Update order status and payment intent
+            $previousStatus = $order->status;
             $order->update([
                 'status' => 'paid',
                 'stripe_pi' => $session->payment_intent,
             ]);
+
+            OrderPaymentReceived::dispatch($order);
+            OrderStatusChanged::dispatch($order, $previousStatus, 'paid');
 
             Log::info('Order marked as paid', [
                 'order_id' => $order->id,

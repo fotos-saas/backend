@@ -76,7 +76,9 @@ class PartnerClientController extends Controller
 
         $client = PartnerClient::byPartner($partnerId)
             ->with(['albums' => function ($q) {
-                $q->latest();
+                $q->withCount('photos')
+                    ->with(['media' => fn ($m) => $m->where('collection_name', 'photos')->take(3)])
+                    ->latest();
             }])
             ->findOrFail($id);
 
@@ -93,9 +95,8 @@ class PartnerClientController extends Controller
             'allowRegistration' => $client->allow_registration,
             'isRegistered' => $client->is_registered,
             'albums' => $client->albums->map(function ($album) {
-                // Get first 3 photo thumbnails
-                $thumbnails = $album->getMedia('photos')
-                    ->take(3)
+                // Eager-loaded media használata (N+1 elkerülés)
+                $thumbnails = $album->media
                     ->map(fn ($media) => $media->getUrl('thumb'))
                     ->toArray();
 

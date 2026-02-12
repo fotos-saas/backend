@@ -5,6 +5,8 @@ namespace App\Http\Controllers\Api\Auth;
 use App\Actions\Auth\HandleTabloGuestLoginAction;
 use App\Actions\Auth\LoginWithCodeAction;
 use App\Constants\TokenNames;
+use App\Events\LoginFailed;
+use App\Events\UserLoggedIn;
 use App\Http\Controllers\Api\Concerns\ResolvesPartner;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\LoginCodeRequest;
@@ -59,6 +61,8 @@ class LoginController extends Controller
                 failureReason: LoginAudit::FAILURE_INVALID_CREDENTIALS
             );
 
+            LoginFailed::dispatch($credentials['email'], 'password', $ipAddress, 'invalid_credentials', $userAgent);
+
             return response()->json([
                 'message' => 'Hibás email vagy jelszó',
             ], 401);
@@ -74,6 +78,8 @@ class LoginController extends Controller
                 user: $user,
                 failureReason: LoginAudit::FAILURE_EMAIL_NOT_VERIFIED
             );
+
+            LoginFailed::dispatch($credentials['email'], 'password', $ipAddress, 'email_not_verified', $userAgent);
 
             return response()->json([
                 'message' => 'Az email címed még nincs megerősítve. Kérjük, erősítsd meg az email címedet a bejelentkezéshez.',
@@ -100,6 +106,8 @@ class LoginController extends Controller
             userAgent: $userAgent,
             user: $user
         );
+
+        UserLoggedIn::dispatch($user, 'password', $ipAddress, $userAgent);
 
         $roles = $user->getRoleNames()->toArray();
         $partnerRoles = ['partner', 'designer', 'marketer', 'printer', 'assistant'];
@@ -172,6 +180,8 @@ class LoginController extends Controller
         }
 
         $authToken = $user->createToken(TokenNames::MAGIC_LINK)->plainTextToken;
+
+        UserLoggedIn::dispatch($user, 'magic_link', $request->ip(), $request->userAgent());
 
         $response = [
             'message' => 'Sikeres bejelentkezés',

@@ -29,23 +29,14 @@ class GamificationController extends Controller
      */
     public function stats(Request $request): JsonResponse
     {
-        $token = $request->user()->currentAccessToken();
-        $projectId = $token->tablo_project_id;
-
-        $guestSession = $this->getGuestSession($request, $projectId);
-
-        if (! $guestSession) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Érvénytelen session.',
-            ], 401);
+        [$guestSession, $errorResponse] = $this->resolveGuestOrFail($request);
+        if ($errorResponse) {
+            return $errorResponse;
         }
-
-        $stats = $this->pointService->getUserStats($guestSession->id);
 
         return response()->json([
             'success' => true,
-            'data' => $stats,
+            'data' => $this->pointService->getUserStats($guestSession->id),
         ]);
     }
 
@@ -55,16 +46,9 @@ class GamificationController extends Controller
      */
     public function badges(Request $request): JsonResponse
     {
-        $token = $request->user()->currentAccessToken();
-        $projectId = $token->tablo_project_id;
-
-        $guestSession = $this->getGuestSession($request, $projectId);
-
-        if (! $guestSession) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Érvénytelen session.',
-            ], 401);
+        [$guestSession, $errorResponse] = $this->resolveGuestOrFail($request);
+        if ($errorResponse) {
+            return $errorResponse;
         }
 
         $badges = $this->badgeService->getUserBadges($guestSession->id);
@@ -85,16 +69,9 @@ class GamificationController extends Controller
      */
     public function markBadgesViewed(Request $request): JsonResponse
     {
-        $token = $request->user()->currentAccessToken();
-        $projectId = $token->tablo_project_id;
-
-        $guestSession = $this->getGuestSession($request, $projectId);
-
-        if (! $guestSession) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Érvénytelen session.',
-            ], 401);
+        [$guestSession, $errorResponse] = $this->resolveGuestOrFail($request);
+        if ($errorResponse) {
+            return $errorResponse;
         }
 
         $this->badgeService->markBadgesAsViewed($guestSession->id);
@@ -111,23 +88,14 @@ class GamificationController extends Controller
      */
     public function rank(Request $request): JsonResponse
     {
-        $token = $request->user()->currentAccessToken();
-        $projectId = $token->tablo_project_id;
-
-        $guestSession = $this->getGuestSession($request, $projectId);
-
-        if (! $guestSession) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Érvénytelen session.',
-            ], 401);
+        [$guestSession, $errorResponse, $projectId] = $this->resolveGuestOrFail($request);
+        if ($errorResponse) {
+            return $errorResponse;
         }
-
-        $rank = $this->leaderboardService->getUserRank($projectId, $guestSession->id);
 
         return response()->json([
             'success' => true,
-            'data' => $rank,
+            'data' => $this->leaderboardService->getUserRank($projectId, $guestSession->id),
         ]);
     }
 
@@ -137,8 +105,7 @@ class GamificationController extends Controller
      */
     public function leaderboard(Request $request): JsonResponse
     {
-        $token = $request->user()->currentAccessToken();
-        $projectId = $token->tablo_project_id;
+        $projectId = $request->user()->currentAccessToken()->tablo_project_id;
 
         $type = $request->get('type', 'points');
         $limit = $request->integer('limit', 10);
@@ -161,16 +128,12 @@ class GamificationController extends Controller
      */
     public function weeklyLeaderboard(Request $request): JsonResponse
     {
-        $token = $request->user()->currentAccessToken();
-        $projectId = $token->tablo_project_id;
-
+        $projectId = $request->user()->currentAccessToken()->tablo_project_id;
         $limit = $request->integer('limit', 5);
-
-        $entries = $this->leaderboardService->getWeeklyTop($projectId, $limit);
 
         return response()->json([
             'success' => true,
-            'data' => $entries,
+            'data' => $this->leaderboardService->getWeeklyTop($projectId, $limit),
         ]);
     }
 
@@ -180,16 +143,9 @@ class GamificationController extends Controller
      */
     public function pointHistory(Request $request): JsonResponse
     {
-        $token = $request->user()->currentAccessToken();
-        $projectId = $token->tablo_project_id;
-
-        $guestSession = $this->getGuestSession($request, $projectId);
-
-        if (! $guestSession) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Érvénytelen session.',
-            ], 401);
+        [$guestSession, $errorResponse] = $this->resolveGuestOrFail($request);
+        if ($errorResponse) {
+            return $errorResponse;
         }
 
         $limit = $request->integer('limit', 50);
@@ -208,23 +164,26 @@ class GamificationController extends Controller
     }
 
     /**
-     * Get guest session from request.
+     * Resolve guest session from request token, or return error response.
+     *
+     * @return array{0: ?TabloGuestSession, 1: ?JsonResponse, 2: ?int}
      */
-    private function getGuestSession(Request $request, int $projectId): ?TabloGuestSession
+    private function resolveGuestOrFail(Request $request): array
     {
+        $projectId = $request->user()->currentAccessToken()->tablo_project_id;
         $guestSessionToken = $request->header('X-Guest-Session');
 
         if (! $guestSessionToken) {
-            return null;
+            return [null, response()->json(['success' => false, 'message' => 'Érvénytelen session.'], 401), $projectId];
         }
 
         $guestSession = TabloGuestSession::findByTokenAndProject($guestSessionToken, $projectId);
 
         if (! $guestSession || $guestSession->is_banned) {
-            return null;
+            return [null, response()->json(['success' => false, 'message' => 'Érvénytelen session.'], 401), $projectId];
         }
 
-        return $guestSession;
+        return [$guestSession, null, $projectId];
     }
 
     /**
