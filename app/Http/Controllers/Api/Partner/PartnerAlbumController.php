@@ -4,11 +4,11 @@ namespace App\Http\Controllers\Api\Partner;
 
 use App\Http\Controllers\Api\Partner\Traits\PartnerAuthTrait;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Api\Partner\UploadAlbumPhotosRequest;
 use App\Services\PartnerAlbumService;
 use App\Services\PartnerPhotoService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Validator;
 
 /**
  * Partner Album Controller - Album management for partners.
@@ -64,7 +64,7 @@ class PartnerAlbumController extends Controller
     /**
      * Upload photos to a specific album.
      */
-    public function uploadToAlbum(int $projectId, string $album, Request $request): JsonResponse
+    public function uploadToAlbum(int $projectId, string $album, UploadAlbumPhotosRequest $request): JsonResponse
     {
         $project = $this->getProjectForPartner($projectId);
 
@@ -76,27 +76,6 @@ class PartnerAlbumController extends Controller
                 'success' => false,
                 'message' => 'Érvénytelen album típus. Használható: students, teachers',
             ], 400);
-        }
-
-        $validator = Validator::make($request->all(), [
-            'photos' => 'required_without:zip|array|max:50',
-            'photos.*' => 'file|mimes:jpg,jpeg,png,webp|max:20480', // max 20MB per file
-            'zip' => 'required_without:photos|file|mimes:zip|max:524288', // max 512MB
-        ], [
-            'photos.required_without' => 'Képek vagy ZIP fájl megadása kötelező.',
-            'photos.max' => 'Maximum 50 kép tölthető fel egyszerre.',
-            'photos.*.mimes' => 'Csak JPG, PNG és WebP képek engedélyezettek.',
-            'photos.*.max' => 'Maximum fájlméret: 20MB.',
-            'zip.mimes' => 'Csak ZIP fájl engedélyezett.',
-            'zip.max' => 'Maximum ZIP méret: 512MB.',
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Validációs hiba',
-                'errors' => $validator->errors(),
-            ], 422);
         }
 
         /** @var PartnerPhotoService $photoService */
