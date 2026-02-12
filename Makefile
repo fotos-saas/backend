@@ -29,7 +29,7 @@ up: ## Kontenerek inditasa
 	@echo ""
 	@echo "Szolgaltatasok:"
 	@echo "  Laravel API:  http://localhost:8000"
-	@echo "  Mailpit:      http://localhost:8025"
+	@echo "  Mailpit:      http://localhost:8026"
 	@echo "  PostgreSQL:   localhost:5433"
 	@echo "  Redis:        localhost:6380"
 	@echo ""
