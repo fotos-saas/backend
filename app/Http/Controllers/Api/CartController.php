@@ -20,11 +20,11 @@ class CartController extends Controller
     /**
      * Get current cart for authenticated user or guest session
      */
-    public function index(Request $request)
+    public function index(Request $request): \Illuminate\Http\JsonResponse
     {
         $cart = $this->getOrCreateCart($request);
 
-        return response()->json([
+        return $this->jsonWithSessionToken($request, [
             'data' => $cart->load(['items.photo', 'items.printSize', 'workSession', 'package']),
         ]);
     }
@@ -32,7 +32,7 @@ class CartController extends Controller
     /**
      * Add item to cart
      */
-    public function addItem(AddCartItemRequest $request)
+    public function addItem(AddCartItemRequest $request): \Illuminate\Http\JsonResponse
     {
         $validated = $request->validated();
 
@@ -61,7 +61,7 @@ class CartController extends Controller
             ]);
         }
 
-        return response()->json([
+        return $this->jsonWithSessionToken($request, [
             'data' => $item->load(['photo', 'printSize']),
         ], 201);
     }
@@ -93,7 +93,7 @@ class CartController extends Controller
     /**
      * Sync entire cart from localStorage
      */
-    public function sync(SyncCartRequest $request)
+    public function sync(SyncCartRequest $request): \Illuminate\Http\JsonResponse
     {
         $validated = $request->validated();
 
@@ -118,7 +118,7 @@ class CartController extends Controller
             ]);
         }
 
-        return response()->json([
+        return $this->jsonWithSessionToken($request, [
             'data' => $cart->load(['items.photo', 'items.printSize']),
         ]);
     }
@@ -126,12 +126,12 @@ class CartController extends Controller
     /**
      * Clear all items from cart
      */
-    public function clear(Request $request)
+    public function clear(Request $request): \Illuminate\Http\JsonResponse
     {
         $cart = $this->getOrCreateCart($request);
         $cart->items()->delete();
 
-        return response()->json(null, 204);
+        return $this->jsonWithSessionToken($request, null, 204);
     }
 
     /**
@@ -205,19 +205,23 @@ class CartController extends Controller
 
         $subtotal = 0;
 
+        $sizeIds = collect($validated['items'])
+            ->where('type', 'print')
+            ->pluck('sizeId')
+            ->filter()
+            ->unique();
+
+        $prices = Price::where('price_list_id', $priceList->id)
+            ->whereIn('print_size_id', $sizeIds)
+            ->pluck('price', 'print_size_id');
+
         foreach ($validated['items'] as $item) {
             if ($item['type'] === 'print' && isset($item['sizeId'])) {
-                $price = Price::where('price_list_id', $priceList->id)
-                    ->where('print_size_id', $item['sizeId'])
-                    ->first();
-
-                if ($price) {
-                    $subtotal += $price->price * $item['qty'];
-                }
+                $subtotal += ($prices[$item['sizeId']] ?? 0) * $item['qty'];
             }
         }
 
-        $shipping = $subtotal > 0 ? 1500 : 0; // Fixed shipping cost
+        $shipping = $subtotal > 0 ? config('shop.default_shipping_cost', 1500) : 0;
         $total = $subtotal + $shipping;
 
         return response()->json([
@@ -226,6 +230,21 @@ class CartController extends Controller
             'total' => $total,
             'currency' => 'HUF',
         ]);
+    }
+
+    /**
+     * Create JSON response with optional session token header.
+     */
+    private function jsonWithSessionToken(Request $request, mixed $data, int $status = 200): \Illuminate\Http\JsonResponse
+    {
+        $response = response()->json($data, $status);
+
+        $sessionToken = $request->attributes->get('session_token');
+        if ($sessionToken) {
+            $response->header('X-Session-Token', $sessionToken);
+        }
+
+        return $response;
     }
 
     /**
@@ -263,8 +282,8 @@ class CartController extends Controller
                 ]);
             }
 
-            // Return session token in response header for frontend to store
-            header('X-Session-Token: '.$sessionToken);
+            // Store token on request so callers can add it to the response
+            $request->attributes->set('session_token', $sessionToken);
         }
 
         return $cart;

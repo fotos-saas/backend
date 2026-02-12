@@ -62,7 +62,7 @@ class GuestAdminController extends Controller
                 'is_extra' => $guest->is_extra,
                 'last_activity_at' => $guest->last_activity_at?->toIso8601String(),
                 'created_at' => $guest->created_at->toIso8601String(),
-                'votes_count' => $guest->votes()->count(),
+                'votes_count' => $guest->votes_count,
             ]),
             'statistics' => $this->guestSessionService->getGuestStatistics($project),
             'current_guest_id' => $currentGuestId,

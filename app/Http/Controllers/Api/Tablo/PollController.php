@@ -188,8 +188,12 @@ class PollController extends BaseTabloController
             return $this->validationErrorResponse('A szavazás már nyitva van.');
         }
 
+        $request->validate([
+            'close_at' => 'nullable|date|after:now',
+        ]);
+
         $closeAt = $request->input('close_at')
-            ? new \DateTime($request->input('close_at'))
+            ? \Carbon\Carbon::parse($request->input('close_at'))
             : null;
 
         $this->pollService->reopen($poll, $closeAt);

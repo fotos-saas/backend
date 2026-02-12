@@ -199,7 +199,7 @@ class GuestSessionService
             $query->where('is_banned', false);
         }
 
-        return $query->orderByDesc('last_activity_at')->get();
+        return $query->withCount('votes')->orderByDesc('last_activity_at')->get();
     }
 
     /**
