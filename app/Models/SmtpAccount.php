@@ -207,28 +207,14 @@ class SmtpAccount extends Model
      */
     public function isWithinRateLimit(): bool
     {
-        $now = now();
+        $usage = $this->getRateLimitUsage();
 
-        // Check per-minute limit
-        if ($this->rate_limit_per_minute) {
-            $sentLastMinute = $this->emailLogs()
-                ->where('created_at', '>=', $now->copy()->subMinute())
-                ->count();
-
-            if ($sentLastMinute >= $this->rate_limit_per_minute) {
-                return false;
-            }
+        if ($this->rate_limit_per_minute && $usage['sent_last_minute'] >= $this->rate_limit_per_minute) {
+            return false;
         }
 
-        // Check per-hour limit
-        if ($this->rate_limit_per_hour) {
-            $sentLastHour = $this->emailLogs()
-                ->where('created_at', '>=', $now->copy()->subHour())
-                ->count();
-
-            if ($sentLastHour >= $this->rate_limit_per_hour) {
-                return false;
-            }
+        if ($this->rate_limit_per_hour && $usage['sent_last_hour'] >= $this->rate_limit_per_hour) {
+            return false;
         }
 
         return true;
@@ -243,30 +229,43 @@ class SmtpAccount extends Model
             return 0;
         }
 
-        $now = now();
+        $usage = $this->getRateLimitUsage();
         $maxPercentage = 0;
 
-        // Check per-minute usage
         if ($this->rate_limit_per_minute) {
-            $sentLastMinute = $this->emailLogs()
-                ->where('created_at', '>=', $now->copy()->subMinute())
-                ->count();
-
-            $minutePercentage = ($sentLastMinute / $this->rate_limit_per_minute) * 100;
+            $minutePercentage = ($usage['sent_last_minute'] / $this->rate_limit_per_minute) * 100;
             $maxPercentage = max($maxPercentage, $minutePercentage);
         }
 
-        // Check per-hour usage
         if ($this->rate_limit_per_hour) {
-            $sentLastHour = $this->emailLogs()
-                ->where('created_at', '>=', $now->copy()->subHour())
-                ->count();
-
-            $hourPercentage = ($sentLastHour / $this->rate_limit_per_hour) * 100;
+            $hourPercentage = ($usage['sent_last_hour'] / $this->rate_limit_per_hour) * 100;
             $maxPercentage = max($maxPercentage, $hourPercentage);
         }
 
         return (int) min(100, $maxPercentage);
+    }
+
+    /**
+     * Get current rate limit usage counts (shared query for isWithinRateLimit + getRateLimitUsagePercentage)
+     *
+     * @return array{sent_last_minute: int, sent_last_hour: int}
+     */
+    private function getRateLimitUsage(): array
+    {
+        $now = now();
+
+        $sentLastMinute = $this->rate_limit_per_minute
+            ? $this->emailLogs()->where('created_at', '>=', $now->copy()->subMinute())->count()
+            : 0;
+
+        $sentLastHour = $this->rate_limit_per_hour
+            ? $this->emailLogs()->where('created_at', '>=', $now->copy()->subHour())->count()
+            : 0;
+
+        return [
+            'sent_last_minute' => $sentLastMinute,
+            'sent_last_hour' => $sentLastHour,
+        ];
     }
 
     /**

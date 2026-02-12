@@ -69,7 +69,7 @@ class DiscussionPostController extends BaseTabloController
         );
 
         return $this->successResponse(
-            $this->formatPost($post, TabloDiscussionPost::AUTHOR_TYPE_GUEST, $guestSession->id),
+            $this->discussionService->formatPost($post, TabloDiscussionPost::AUTHOR_TYPE_GUEST, $guestSession->id),
             'Hozzászólás sikeresen létrehozva!',
             201
         );
@@ -236,55 +236,4 @@ class DiscussionPostController extends BaseTabloController
         ]);
     }
 
-    /**
-     * Format post for API response.
-     */
-    private function formatPost(TabloDiscussionPost $post, ?string $currentUserType, ?int $currentUserId): array
-    {
-        $isLiked = false;
-        $userReaction = null;
-        $canEdit = false;
-        $canDelete = false;
-
-        // Contact mindig szerkeszthet és törölhet
-        if ($currentUserType === TabloDiscussionPost::AUTHOR_TYPE_CONTACT) {
-            $canEdit = true;
-            $canDelete = true;
-        } elseif ($currentUserType && $currentUserId) {
-            // Guest: service ellenőrzi (15 perc, saját post)
-            $canEdit = $this->discussionService->canUserEditPost($post, $currentUserType, $currentUserId);
-            $canDelete = $this->discussionService->canUserDeletePost($post, $currentUserType, $currentUserId);
-        }
-
-        // Like/reaction ellenőrzés mindkét típusra
-        if ($currentUserType && $currentUserId) {
-            $isLiked = $post->isLikedBy($currentUserType, $currentUserId);
-            $userReaction = $post->getUserReaction($currentUserType, $currentUserId);
-        }
-
-        return [
-            'id' => $post->id,
-            'author_name' => $post->author_name,
-            'is_author_contact' => $post->isAuthorContact(),
-            'content' => $post->content,
-            'mentions' => $post->mentions ?? [],
-            'is_edited' => $post->is_edited,
-            'edited_at' => $post->edited_at?->toIso8601String(),
-            'likes_count' => $post->likes_count,
-            'is_liked' => $isLiked,
-            'user_reaction' => $userReaction,
-            'reactions' => $post->getReactionsSummary(),
-            'can_edit' => $canEdit,
-            'can_delete' => $canDelete,
-            'parent_id' => $post->parent_id,
-            'replies' => $post->replies->map(fn ($reply) => $this->formatPost($reply, $currentUserType, $currentUserId))->toArray(),
-            'media' => $post->media->map(fn ($media) => [
-                'id' => $media->id,
-                'url' => $media->url,
-                'file_name' => $media->file_name,
-                'is_image' => $media->isImage(),
-            ])->toArray(),
-            'created_at' => $post->created_at->toIso8601String(),
-        ];
-    }
 }
