@@ -10,6 +10,11 @@ use App\Actions\Tablo\SaveClaimingSelectionAction;
 use App\Actions\Tablo\SaveRetouchSelectionAction;
 use App\Actions\Tablo\SaveTabloPhotoAction;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Api\Tablo\Workflow\MoveToStepRequest;
+use App\Http\Requests\Api\Tablo\Workflow\SaveCartCommentRequest;
+use App\Http\Requests\Api\Tablo\Workflow\SavePhotoSelectionRequest;
+use App\Http\Requests\Api\Tablo\Workflow\SaveTabloPhotoRequest;
+use App\Http\Requests\Api\Tablo\Workflow\WorkSessionIdRequest;
 use App\Models\TabloGallery;
 use App\Services\TabloWorkflowService;
 use Illuminate\Http\Request;
@@ -33,19 +38,9 @@ class WorkflowController extends Controller
     /**
      * Save claiming selection (photos user claimed as their own)
      */
-    public function saveClaiming(Request $request, SaveClaimingSelectionAction $action)
+    public function saveClaiming(SavePhotoSelectionRequest $request, SaveClaimingSelectionAction $action)
     {
-        $validated = $request->validate([
-            'workSessionId' => 'required|exists:tablo_galleries,id',
-            'photoIds' => 'present|array',
-            'photoIds.*' => 'exists:media,id',
-        ], [
-            'workSessionId.required' => 'A galéria azonosító kötelező.',
-            'workSessionId.exists' => 'A megadott galéria nem található.',
-            'photoIds.present' => 'A képek listája kötelező.',
-            'photoIds.array' => 'A képek listája érvénytelen formátumú.',
-            'photoIds.*.exists' => 'A kiválasztott kép nem található.',
-        ]);
+        $validated = $request->validated();
 
         $gallery = TabloGallery::findOrFail($validated['workSessionId']);
         $user = $request->user();
@@ -62,19 +57,9 @@ class WorkflowController extends Controller
     /**
      * Save retouch selection
      */
-    public function saveRetouch(Request $request, SaveRetouchSelectionAction $action)
+    public function saveRetouch(SavePhotoSelectionRequest $request, SaveRetouchSelectionAction $action)
     {
-        $validated = $request->validate([
-            'workSessionId' => 'required|exists:tablo_galleries,id',
-            'photoIds' => 'present|array',
-            'photoIds.*' => 'exists:media,id',
-        ], [
-            'workSessionId.required' => 'A galéria azonosító kötelező.',
-            'workSessionId.exists' => 'A megadott galéria nem található.',
-            'photoIds.present' => 'A képek listája kötelező.',
-            'photoIds.array' => 'A képek listája érvénytelen formátumú.',
-            'photoIds.*.exists' => 'A kiválasztott kép nem található.',
-        ]);
+        $validated = $request->validated();
 
         $gallery = TabloGallery::findOrFail($validated['workSessionId']);
         $user = $request->user();
@@ -91,17 +76,9 @@ class WorkflowController extends Controller
     /**
      * Save tablo photo selection
      */
-    public function saveTabloPhoto(Request $request, SaveTabloPhotoAction $action)
+    public function saveTabloPhoto(SaveTabloPhotoRequest $request, SaveTabloPhotoAction $action)
     {
-        $validated = $request->validate([
-            'workSessionId' => 'required|exists:tablo_galleries,id',
-            'photoId' => 'required|exists:media,id',
-        ], [
-            'workSessionId.required' => 'A galéria azonosító kötelező.',
-            'workSessionId.exists' => 'A megadott galéria nem található.',
-            'photoId.required' => 'A tablókép azonosító kötelező.',
-            'photoId.exists' => 'A kiválasztott kép nem található.',
-        ]);
+        $validated = $request->validated();
 
         $gallery = TabloGallery::findOrFail($validated['workSessionId']);
         $user = $request->user();
@@ -118,11 +95,9 @@ class WorkflowController extends Controller
     /**
      * Clear tablo photo selection
      */
-    public function clearTabloPhoto(Request $request, SaveTabloPhotoAction $action)
+    public function clearTabloPhoto(WorkSessionIdRequest $request, SaveTabloPhotoAction $action)
     {
-        $validated = $request->validate([
-            'workSessionId' => 'required|exists:tablo_galleries,id',
-        ]);
+        $validated = $request->validated();
 
         $gallery = TabloGallery::findOrFail($validated['workSessionId']);
         $user = $request->user();
@@ -143,11 +118,9 @@ class WorkflowController extends Controller
     /**
      * Move to next step
      */
-    public function nextStep(Request $request, NavigateWorkflowAction $action)
+    public function nextStep(WorkSessionIdRequest $request, NavigateWorkflowAction $action)
     {
-        $validated = $request->validate([
-            'workSessionId' => 'required|exists:tablo_galleries,id',
-        ]);
+        $validated = $request->validated();
 
         $gallery = TabloGallery::findOrFail($validated['workSessionId']);
         $user = $request->user();
@@ -164,11 +137,9 @@ class WorkflowController extends Controller
     /**
      * Move to previous step
      */
-    public function previousStep(Request $request, NavigateWorkflowAction $action)
+    public function previousStep(WorkSessionIdRequest $request, NavigateWorkflowAction $action)
     {
-        $validated = $request->validate([
-            'workSessionId' => 'required|exists:tablo_galleries,id',
-        ]);
+        $validated = $request->validated();
 
         $gallery = TabloGallery::findOrFail($validated['workSessionId']);
         $user = $request->user();
@@ -185,12 +156,9 @@ class WorkflowController extends Controller
     /**
      * Move to specific step
      */
-    public function moveToStep(Request $request, NavigateWorkflowAction $action)
+    public function moveToStep(MoveToStepRequest $request, NavigateWorkflowAction $action)
     {
-        $validated = $request->validate([
-            'workSessionId' => 'required|exists:tablo_galleries,id',
-            'targetStep' => 'required|in:claiming,registration,retouch,tablo',
-        ]);
+        $validated = $request->validated();
 
         $gallery = TabloGallery::findOrFail($validated['workSessionId']);
         $user = $request->user();
@@ -211,11 +179,9 @@ class WorkflowController extends Controller
     /**
      * Get workflow status
      */
-    public function getStatus(Request $request, GetWorkflowStatusAction $action)
+    public function getStatus(WorkSessionIdRequest $request, GetWorkflowStatusAction $action)
     {
-        $validated = $request->validate([
-            'workSessionId' => 'required|exists:tablo_galleries,id',
-        ]);
+        $validated = $request->validated();
 
         $gallery = TabloGallery::findOrFail($validated['workSessionId']);
         $user = $request->user();
@@ -284,14 +250,9 @@ class WorkflowController extends Controller
     /**
      * Finalize workflow
      */
-    public function finalize(Request $request, FinalizeWorkflowAction $action)
+    public function finalize(WorkSessionIdRequest $request, FinalizeWorkflowAction $action)
     {
-        $validated = $request->validate([
-            'workSessionId' => 'required|exists:tablo_galleries,id',
-        ], [
-            'workSessionId.required' => 'A galéria azonosító kötelező.',
-            'workSessionId.exists' => 'A megadott galéria nem található.',
-        ]);
+        $validated = $request->validated();
 
         $gallery = TabloGallery::findOrFail($validated['workSessionId']);
         $user = $request->user();
@@ -308,14 +269,9 @@ class WorkflowController extends Controller
     /**
      * Request modification (un-finalize workflow)
      */
-    public function requestModification(Request $request, RequestModificationAction $action)
+    public function requestModification(WorkSessionIdRequest $request, RequestModificationAction $action)
     {
-        $validated = $request->validate([
-            'workSessionId' => 'required|exists:tablo_galleries,id',
-        ], [
-            'workSessionId.required' => 'A galéria azonosító kötelező.',
-            'workSessionId.exists' => 'A megadott galéria nem található.',
-        ]);
+        $validated = $request->validated();
 
         $gallery = TabloGallery::findOrFail($validated['workSessionId']);
         $user = $request->user();
@@ -336,12 +292,9 @@ class WorkflowController extends Controller
     /**
      * Save cart comment
      */
-    public function saveCartComment(Request $request)
+    public function saveCartComment(SaveCartCommentRequest $request)
     {
-        $validated = $request->validate([
-            'workSessionId' => 'required|exists:tablo_galleries,id',
-            'comment' => 'required|string',
-        ]);
+        $validated = $request->validated();
 
         $gallery = TabloGallery::findOrFail($validated['workSessionId']);
         $user = $request->user();
