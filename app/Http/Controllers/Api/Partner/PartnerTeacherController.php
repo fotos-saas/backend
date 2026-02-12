@@ -90,6 +90,7 @@ class PartnerTeacherController extends Controller
             'photoUrl' => $t->photo_url,
             'aliasesCount' => $t->aliases_count ?? 0,
             'photosCount' => $t->photos_count ?? 0,
+            'linkedGroup' => $t->linked_group,
         ]);
 
         return response()->json($teachers);

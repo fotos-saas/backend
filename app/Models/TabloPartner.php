@@ -160,6 +160,27 @@ class TabloPartner extends Model
     }
 
     /**
+     * Összekapcsolt tanárok ID-jainak lekérdezése.
+     * Ha a tanár egy linked_group-ban van, visszaadja a csoport összes tanárát.
+     * Ha nincs csoportban, csak az adott tanár ID-t adja vissza.
+     */
+    public function getLinkedTeacherIds(int $teacherId): array
+    {
+        $linkedGroup = TeacherArchive::where('partner_id', $this->id)
+            ->where('id', $teacherId)
+            ->value('linked_group');
+
+        if (!$linkedGroup) {
+            return [$teacherId];
+        }
+
+        return TeacherArchive::where('partner_id', $this->id)
+            ->where('linked_group', $linkedGroup)
+            ->pluck('id')
+            ->toArray();
+    }
+
+    /**
      * Get users (ügyintézők) for this partner
      */
     public function users(): HasMany

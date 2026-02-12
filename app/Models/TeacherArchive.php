@@ -25,6 +25,7 @@ class TeacherArchive extends Model implements HasMedia
         'notes',
         'is_active',
         'active_photo_id',
+        'linked_group',
     ];
 
     protected $casts = [
@@ -92,6 +93,29 @@ class TeacherArchive extends Model implements HasMedia
     public function scopeActive($query)
     {
         return $query->where('is_active', true);
+    }
+
+    public function scopeInLinkedGroup($query, string $linkedGroup)
+    {
+        return $query->where('linked_group', $linkedGroup);
+    }
+
+    // ============ Helpers ============
+
+    /**
+     * Ugyanabban a linked_group-ban lévő tanárok ID-i (saját maga nélkül).
+     */
+    public function getLinkedTeacherIds(): array
+    {
+        if (!$this->linked_group) {
+            return [];
+        }
+
+        return static::where('partner_id', $this->partner_id)
+            ->where('linked_group', $this->linked_group)
+            ->where('id', '!=', $this->id)
+            ->pluck('id')
+            ->toArray();
     }
 
     // ============ Accessors ============

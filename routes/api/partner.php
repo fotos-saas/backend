@@ -20,6 +20,7 @@ use App\Http\Controllers\Api\Partner\PartnerSamplePackageController;
 use App\Http\Controllers\Api\Partner\PartnerSchoolController;
 use App\Http\Controllers\Api\Partner\PartnerSchoolLinkingController;
 use App\Http\Controllers\Api\Partner\PartnerTeacherController;
+use App\Http\Controllers\Api\Partner\PartnerTeacherLinkingController;
 use App\Http\Controllers\Api\Partner\PartnerTeacherPhotoController;
 use App\Http\Controllers\Api\Partner\TeamController as PartnerTeamController;
 use App\Http\Controllers\Api\Partner\PartnerBrandingController;
@@ -209,6 +210,11 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::patch('/teachers/{id}/mark-no-photo', [PartnerTeacherController::class, 'markNoPhoto']);
         Route::patch('/teachers/{id}/undo-no-photo', [PartnerTeacherController::class, 'undoNoPhoto']);
         Route::post('/teachers/{id}/sync-cross-school', [PartnerTeacherController::class, 'syncCrossSchool']);
+
+        // Teacher linking (Tanár összekapcsolás)
+        Route::post('/teachers/link', [PartnerTeacherLinkingController::class, 'linkTeachers']);
+        Route::delete('/teachers/{id}/unlink', [PartnerTeacherLinkingController::class, 'unlinkTeacher']);
+        Route::get('/teachers/linked-groups', [PartnerTeacherLinkingController::class, 'getLinkedGroups']);
 
         // Teacher photo management
         Route::middleware('throttle:10,1')->group(function () {
