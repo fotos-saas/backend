@@ -11,8 +11,17 @@ return new class extends Migration
      */
     public function up(): void
     {
+        if (!Schema::hasColumn('tablo_projects', 'work_session_id')) {
+            return;
+        }
+
         Schema::table('tablo_projects', function (Blueprint $table) {
-            $table->dropForeign(['work_session_id']);
+            // Foreign key may not exist on fresh migrations
+            try {
+                $table->dropForeign(['work_session_id']);
+            } catch (\Exception $e) {
+                // Ignore if constraint doesn't exist
+            }
             $table->dropColumn('work_session_id');
         });
     }

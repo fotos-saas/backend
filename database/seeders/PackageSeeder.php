@@ -16,92 +16,85 @@ class PackageSeeder extends Seeder
     {
         $printSizes = PrintSize::all()->keyBy('name');
 
-        // Alapcsomag: 10x15 és 13x18 papírok elérhetők limittel
+        // Alapcsomag
         $alapcsomag = Package::create([
             'name' => 'Alapcsomag',
-            'album_id' => null, // Global
+            'album_id' => null,
+            'price' => 3000,
+            'selectable_photos_count' => 1,
         ]);
 
         PackageItem::create([
             'package_id' => $alapcsomag->id,
             'print_size_id' => $printSizes['10x15 cm']->id,
-            'min_qty' => 10,
-            'max_qty' => 50,
-            'discount_percent' => 5.00,
+            'quantity' => 10,
         ]);
 
         PackageItem::create([
             'package_id' => $alapcsomag->id,
             'print_size_id' => $printSizes['13x18 cm']->id,
-            'min_qty' => 5,
-            'max_qty' => 30,
+            'quantity' => 5,
         ]);
 
-        // Prémium csomag: több méret, nagyobb kedvezmény
+        // Prémium csomag
         $premiumCsomag = Package::create([
             'name' => 'Prémium csomag',
-            'album_id' => null, // Global
+            'album_id' => null,
+            'price' => 6000,
+            'selectable_photos_count' => 3,
         ]);
 
         PackageItem::create([
             'package_id' => $premiumCsomag->id,
             'print_size_id' => $printSizes['10x15 cm']->id,
-            'min_qty' => 20,
-            'max_qty' => 100,
-            'discount_percent' => 10.00,
+            'quantity' => 20,
         ]);
 
         PackageItem::create([
             'package_id' => $premiumCsomag->id,
             'print_size_id' => $printSizes['13x18 cm']->id,
-            'min_qty' => 10,
-            'max_qty' => 50,
-            'discount_percent' => 10.00,
+            'quantity' => 10,
         ]);
 
         PackageItem::create([
             'package_id' => $premiumCsomag->id,
             'print_size_id' => $printSizes['15x21 cm']->id,
-            'min_qty' => 5,
-            'max_qty' => 30,
-            'custom_price' => 600,
+            'quantity' => 5,
         ]);
 
-        // Teljes csomag: összes méret elérhető, egyedi árazással
+        // Teljes csomag
         $teljesCsomag = Package::create([
             'name' => 'Teljes csomag',
-            'album_id' => null, // Global
+            'album_id' => null,
+            'price' => 12000,
+            'selectable_photos_count' => 5,
         ]);
 
         PackageItem::create([
             'package_id' => $teljesCsomag->id,
             'print_size_id' => $printSizes['10x15 cm']->id,
-            'min_qty' => 50,
-            'discount_percent' => 15.00,
+            'quantity' => 50,
         ]);
 
         PackageItem::create([
             'package_id' => $teljesCsomag->id,
             'print_size_id' => $printSizes['13x18 cm']->id,
-            'min_qty' => 20,
-            'discount_percent' => 15.00,
+            'quantity' => 20,
         ]);
 
         PackageItem::create([
             'package_id' => $teljesCsomag->id,
             'print_size_id' => $printSizes['15x21 cm']->id,
-            'min_qty' => 10,
-            'custom_price' => 500,
+            'quantity' => 10,
         ]);
 
         PackageItem::create([
             'package_id' => $teljesCsomag->id,
             'print_size_id' => $printSizes['18x24 cm']->id,
-            'min_qty' => 5,
-            'custom_price' => 900,
+            'quantity' => 5,
         ]);
 
-        $this->command->info('✓ Created '.Package::count().' packages');
-        $this->command->info('✓ Created '.PackageItem::count().' package items');
+        $this->command->info('Created '.Package::count().' packages');
+        $this->command->info('Created '.PackageItem::count().' package items');
     }
 }

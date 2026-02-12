@@ -39,7 +39,7 @@ class DatabaseSeeder extends Seeder
             PackagePointSeeder::class,
             PackageSeeder::class,
             CouponSeeder::class,
-            DemoDataSeeder::class,
+            // DemoDataSeeder::class, // Elavult - make sync-db használandó valós adatokhoz
             TabloPokePresetSeeder::class,
         ]);
     }
