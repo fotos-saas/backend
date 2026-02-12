@@ -19,13 +19,19 @@ class SecurityHeaders
         $response = $next($request);
 
         // Content Security Policy - restrict script sources
+        $connectSrc = "'self' https://api.tablostudio.hu https://api.kepvalaszto.hu https://*.ingest.de.sentry.io wss://api.tablostudio.hu wss://api.kepvalaszto.hu";
+
+        if (app()->environment('local')) {
+            $connectSrc .= ' http://localhost:* ws://localhost:*';
+        }
+
         $csp = implode('; ', [
             "default-src 'self'",
             "script-src 'self'",
             "style-src 'self' 'unsafe-inline'",
             "img-src 'self' data: blob: https:",
             "font-src 'self' https://fonts.gstatic.com",
-            "connect-src 'self' https://api.tablostudio.hu https://api.kepvalaszto.hu https://*.ingest.de.sentry.io wss://api.tablostudio.hu wss://api.kepvalaszto.hu",
+            "connect-src {$connectSrc}",
             "frame-ancestors 'none'",
             "base-uri 'self'",
             "form-action 'self'",
