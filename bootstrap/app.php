@@ -34,10 +34,8 @@ return Application::configure(basePath: dirname(__DIR__))
             \App\Http\Middleware\ApplyRoleNavigationMiddleware::class,
         ]);
 
-        // DEV: Placeholder image ha a fajl nem talalhato
-        if (app()->environment('local')) {
-            $middleware->append(\App\Http\Middleware\DevPlaceholderImage::class);
-        }
+        // DEV: Placeholder image ha a fajl nem talalhato (prod-ban no-op)
+        $middleware->append(\App\Http\Middleware\DevPlaceholderImage::class);
 
         // Register middleware aliases for route-level usage
         $middleware->alias([

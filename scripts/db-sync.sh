@@ -16,6 +16,8 @@ set -euo pipefail
 # === Konfiguracio ===
 REMOTE_HOST="89.167.19.19"
 REMOTE_USER="root"
+REMOTE_DB="photostack"
+REMOTE_DB_USER="postgres"
 LOCAL_CONTAINER="photostack-postgres"
 LOCAL_DB="photo_stack"
 LOCAL_USER="photo_stack"
@@ -74,12 +76,13 @@ echo -e "${GREEN}  SSH OK${NC}"
 
 # === Coolify PostgreSQL container megkeresese ===
 echo -e "${YELLOW}[2/5] Coolify PostgreSQL container keresese...${NC}"
+# Keresses: postgres:17 image-et futtato container (NEM a coolify-db!)
 REMOTE_PG_CONTAINER=$(ssh "$REMOTE_USER@$REMOTE_HOST" \
-    "docker ps --format '{{.Names}}' | grep -i postgres | head -1")
+    "docker ps --format '{{.Names}} {{.Image}}' | grep 'postgres:17' | grep -v coolify-db | awk '{print \$1}' | head -1")
 
 if [ -z "$REMOTE_PG_CONTAINER" ]; then
-    echo -e "${RED}HIBA: Nem talalhato PostgreSQL container a szerveren!${NC}"
-    echo "Probald: ssh $REMOTE_USER@$REMOTE_HOST 'docker ps | grep postgres'"
+    echo -e "${RED}HIBA: Nem talalhato PostgreSQL 17 container a szerveren!${NC}"
+    echo "Probald: ssh $REMOTE_USER@$REMOTE_HOST 'docker ps --format \"{{.Names}} {{.Image}}\" | grep postgres'"
     exit 1
 fi
 echo -e "${GREEN}  Container: $REMOTE_PG_CONTAINER${NC}"
@@ -97,15 +100,16 @@ fi
 echo -e "${YELLOW}[4/5] Dump importalasa lokalis PostgreSQL-be...${NC}"
 echo "  Ez percekig tarthat az adatbazis merettol fuggoen..."
 
-# Drop + recreate DB
+# Terminate connections + Drop + recreate DB
 docker exec "$LOCAL_CONTAINER" bash -c "
+    psql -U $LOCAL_USER -d postgres -c \"SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = '$LOCAL_DB' AND pid <> pg_backend_pid();\" 2>/dev/null
     psql -U $LOCAL_USER -d postgres -c 'DROP DATABASE IF EXISTS $LOCAL_DB;'
     psql -U $LOCAL_USER -d postgres -c 'CREATE DATABASE $LOCAL_DB OWNER $LOCAL_USER;'
-" 2>/dev/null
+"
 
 # Stream dump kozvetlen a lokalis container-be (nincs temp fajl)
 ssh "$REMOTE_USER@$REMOTE_HOST" \
-    "docker exec $REMOTE_PG_CONTAINER pg_dump -U $LOCAL_USER -d $LOCAL_DB $PG_DUMP_OPTS" \
+    "docker exec $REMOTE_PG_CONTAINER pg_dump -U $REMOTE_DB_USER -d $REMOTE_DB $PG_DUMP_OPTS" \
     | docker exec -i "$LOCAL_CONTAINER" psql -U "$LOCAL_USER" -d "$LOCAL_DB" --quiet 2>/dev/null
 
 echo -e "${GREEN}  Import kesz!${NC}"

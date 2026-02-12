@@ -2,6 +2,19 @@
 set -e
 cd /var/www/html
 
+# === .env setup: .env.dev -> .env (ha nincs proper dev .env) ===
+if [ -f ".env.dev" ]; then
+    if [ ! -f ".env" ] || grep -q "APP_DEBUG=false" ".env" 2>/dev/null; then
+        echo "[DEV] .env.dev masolasa .env-be..."
+        cp .env.dev .env
+        # APP_KEY generalasa ha placeholder
+        if grep -q "GENERATE_ME" .env 2>/dev/null; then
+            echo "[DEV] APP_KEY generalasa..."
+            php artisan key:generate --force --no-interaction 2>/dev/null || true
+        fi
+    fi
+fi
+
 # === TIMEOUT CONFIGURATION ===
 MAX_RETRIES=30
 RETRY_COUNT=0

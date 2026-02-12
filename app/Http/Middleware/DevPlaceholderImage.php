@@ -18,7 +18,8 @@ class DevPlaceholderImage
     {
         $response = $next($request);
 
-        if ($response->getStatusCode() !== 404) {
+        // Csak local env-ben aktiv
+        if (! app()->environment('local') || $response->getStatusCode() !== 404) {
             return $response;
         }
 
