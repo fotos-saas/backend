@@ -5,11 +5,11 @@ namespace App\Http\Controllers\Api\Partner;
 use App\Enums\QrCodeType;
 use App\Http\Controllers\Api\Partner\Traits\PartnerAuthTrait;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Api\Partner\GenerateQrCodeRequest;
 use App\Services\QrRegistrationService;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Validation\Rules\Enum;
 
 class PartnerQrController extends Controller
 {
@@ -35,15 +35,9 @@ class PartnerQrController extends Controller
     /**
      * Generate new QR code for a project.
      */
-    public function generateQrCode(int $projectId, Request $request): JsonResponse
+    public function generateQrCode(int $projectId, GenerateQrCodeRequest $request): JsonResponse
     {
         $project = $this->getProjectForPartner($projectId);
-
-        $request->validate([
-            'type' => ['required', new Enum(QrCodeType::class)],
-            'expires_at' => ['nullable', 'date'],
-            'max_usages' => ['nullable', 'integer', 'min:1'],
-        ]);
 
         $type = QrCodeType::from($request->input('type'));
         $expiresAt = $request->input('expires_at')

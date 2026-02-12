@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\Partner;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Api\Partner\CreateInvitationRequest;
 use App\Models\PartnerInvitation;
 use App\Services\PartnerInvitationService;
 use Illuminate\Http\JsonResponse;
@@ -47,7 +48,7 @@ class InvitationController extends Controller
      *
      * POST /api/partner/invitations
      */
-    public function store(Request $request): JsonResponse
+    public function store(CreateInvitationRequest $request): JsonResponse
     {
         $user = $request->user();
         $partner = $user->tabloPartner;
@@ -58,15 +59,7 @@ class InvitationController extends Controller
             ], 403);
         }
 
-        $validated = $request->validate([
-            'email' => ['required', 'email', 'max:255'],
-            'role' => ['required', 'string', 'in:designer,marketer,printer,assistant'],
-        ], [
-            'email.required' => 'Az email cím megadása kötelező.',
-            'email.email' => 'Érvénytelen email cím.',
-            'role.required' => 'A szerepkör megadása kötelező.',
-            'role.in' => 'Érvénytelen szerepkör.',
-        ]);
+        $validated = $request->validated();
 
         // Ellenőrzés: a user nincs-e már a csapatban ezzel a role-lal
         $existingMember = $partner->teamMembers()

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\Partner;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Api\Partner\UpdateTeamMemberRoleRequest;
 use App\Models\PartnerInvitation;
 use App\Services\PartnerInvitationService;
 use Illuminate\Http\JsonResponse;
@@ -82,7 +83,7 @@ class TeamController extends Controller
      *
      * PUT /api/partner/team/{id}
      */
-    public function update(Request $request, int $id): JsonResponse
+    public function update(UpdateTeamMemberRoleRequest $request, int $id): JsonResponse
     {
         $user = $request->user();
         $partner = $user->tabloPartner;
@@ -93,12 +94,7 @@ class TeamController extends Controller
             ], 403);
         }
 
-        $validated = $request->validate([
-            'role' => ['required', 'string', 'in:designer,marketer,printer,assistant'],
-        ], [
-            'role.required' => 'A szerepkör megadása kötelező.',
-            'role.in' => 'Érvénytelen szerepkör.',
-        ]);
+        $validated = $request->validated();
 
         $member = $partner->teamMembers()->find($id);
 

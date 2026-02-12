@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers\Api\Tablo;
 
+use App\Http\Requests\Api\Tablo\PokeReactionRequest;
+use App\Http\Requests\Api\Tablo\SendPokeRequest;
 use App\Models\TabloPoke;
 use App\Services\Tablo\PokeService;
 use Illuminate\Http\JsonResponse;
@@ -39,7 +41,7 @@ class PokeController extends BaseTabloController
      *
      * POST /api/tablo-frontend/pokes
      */
-    public function store(Request $request): JsonResponse
+    public function store(SendPokeRequest $request): JsonResponse
     {
         // Guest session szükséges
         $result = $this->requireActiveGuestSession($request);
@@ -48,15 +50,7 @@ class PokeController extends BaseTabloController
         }
         $fromSession = $result;
 
-        $validated = $request->validate([
-            'target_id' => 'required|integer|exists:tablo_guest_sessions,id',
-            'category' => 'sometimes|in:voting,photoshoot,image_selection,general',
-            'preset_key' => 'nullable|string|max:50',
-            'custom_message' => 'nullable|string|max:500',
-        ], [
-            'target_id.required' => 'A célpont megadása kötelező.',
-            'target_id.exists' => 'A célpont nem található.',
-        ]);
+        $validated = $request->validated();
 
         // Célpont lekérése
         $project = $this->getProject($request);
@@ -131,7 +125,7 @@ class PokeController extends BaseTabloController
      *
      * POST /api/tablo-frontend/pokes/{id}/reaction
      */
-    public function reaction(Request $request, int $id): JsonResponse
+    public function reaction(PokeReactionRequest $request, int $id): JsonResponse
     {
         $result = $this->requireActiveGuestSession($request);
         if ($result instanceof JsonResponse) {
@@ -139,12 +133,7 @@ class PokeController extends BaseTabloController
         }
         $session = $result;
 
-        $validated = $request->validate([
-            'reaction' => 'required|string|in:' . implode(',', TabloPoke::REACTIONS),
-        ], [
-            'reaction.required' => 'Reakció megadása kötelező.',
-            'reaction.in' => 'Érvénytelen reakció.',
-        ]);
+        $validated = $request->validated();
 
         // Bökés keresése
         $poke = TabloPoke::receivedBy($session->id)->find($id);

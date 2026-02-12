@@ -3,6 +3,9 @@
 namespace App\Http\Controllers\Api\Tablo;
 
 use App\Http\Controllers\Api\Tablo\Traits\ResolvesTabloProject;
+use App\Http\Requests\Api\Tablo\CreateDiscussionPostRequest;
+use App\Http\Requests\Api\Tablo\ToggleDiscussionPostReactionRequest;
+use App\Http\Requests\Api\Tablo\UpdateDiscussionPostRequest;
 use App\Models\TabloDiscussion;
 use App\Models\TabloDiscussionPost;
 use App\Services\Tablo\DiscussionService;
@@ -27,19 +30,9 @@ class DiscussionPostController extends BaseTabloController
      * Create new post (reply).
      * POST /api/tablo-frontend/discussions/{id}/posts
      */
-    public function createPost(Request $request, int $id): JsonResponse
+    public function createPost(CreateDiscussionPostRequest $request, int $id): JsonResponse
     {
-        $validated = $request->validate([
-            'content' => 'required|string|max:10000|min:1',
-            'parent_id' => 'nullable|integer|exists:tablo_discussion_posts,id',
-            'media' => 'nullable|array|max:3',
-            'media.*' => 'file|image|max:5120',
-        ], [
-            'content.required' => 'A tartalom megadása kötelező.',
-            'media.max' => 'Maximum 3 kép csatolható.',
-            'media.*.max' => 'A fájl mérete maximum 5MB lehet.',
-            'media.*.image' => 'Csak képfájlok (jpg, png, gif, webp) engedélyezettek.',
-        ]);
+        $validated = $request->validated();
 
         $discussion = $this->findForProject(
             TabloDiscussion::class,
@@ -86,19 +79,9 @@ class DiscussionPostController extends BaseTabloController
      * Update post.
      * PUT /api/tablo-frontend/posts/{id}
      */
-    public function updatePost(Request $request, int $id): JsonResponse
+    public function updatePost(UpdateDiscussionPostRequest $request, int $id): JsonResponse
     {
-        $validated = $request->validate([
-            'content' => 'required|string|max:10000|min:1',
-            'media' => 'nullable|array|max:3',
-            'media.*' => 'file|image|max:5120',
-            'delete_media' => 'nullable|array',
-            'delete_media.*' => 'integer',
-        ], [
-            'media.max' => 'Maximum 3 kép csatolható.',
-            'media.*.max' => 'A fájl mérete maximum 5MB lehet.',
-            'media.*.image' => 'Csak képfájlok (jpg, png, gif, webp) engedélyezettek.',
-        ]);
+        $validated = $request->validated();
 
         $post = $this->findThroughRelation(
             TabloDiscussionPost::class,
@@ -212,11 +195,9 @@ class DiscussionPostController extends BaseTabloController
      * Body: { "reaction": "heart" } (optional, default: heart)
      * Supported reactions: skull, crying, salute, heart, eyes
      */
-    public function toggleLike(Request $request, int $id): JsonResponse
+    public function toggleLike(ToggleDiscussionPostReactionRequest $request, int $id): JsonResponse
     {
-        $validated = $request->validate([
-            'reaction' => 'nullable|string|in:💀,😭,🫡,❤️,👀',
-        ]);
+        $validated = $request->validated();
 
         $post = $this->findThroughRelation(
             TabloDiscussionPost::class,

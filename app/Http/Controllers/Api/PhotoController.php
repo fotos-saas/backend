@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Api\AddPhotoNoteRequest;
 use App\Models\Album;
 use App\Models\Photo;
 use App\Models\PhotoNote;
@@ -160,11 +161,9 @@ class PhotoController extends Controller
         });
     }
 
-    public function addNote(Request $request, Photo $photo)
+    public function addNote(AddPhotoNoteRequest $request, Photo $photo)
     {
-        $validated = $request->validate([
-            'text' => 'required|string|max:500',
-        ]);
+        $validated = $request->validated();
 
         $note = PhotoNote::create([
             'photo_id' => $photo->id,

@@ -4,6 +4,8 @@ namespace App\Http\Controllers\Api;
 
 use App\Constants\TokenNames;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Api\SaveShareSelectionRequest;
+use App\Http\Requests\Api\SendShareLinkRequest;
 use App\Models\Album;
 use App\Models\GuestSelection;
 use App\Models\GuestShareToken;
@@ -17,12 +19,9 @@ class ShareController extends Controller
     /**
      * Send share link (create token)
      */
-    public function sendLink(Request $request)
+    public function sendLink(SendShareLinkRequest $request)
     {
-        $validated = $request->validate([
-            'albumId' => ['required', 'exists:albums,id'],
-            'email' => ['required', 'email'],
-        ]);
+        $validated = $request->validated();
 
         $album = Album::findOrFail($validated['albumId']);
 
@@ -150,7 +149,7 @@ class ShareController extends Controller
     /**
      * Save guest selection
      */
-    public function saveSelection(Request $request, string $token)
+    public function saveSelection(SaveShareSelectionRequest $request, string $token)
     {
         $guestToken = GuestShareToken::where('token', $token)->firstOrFail();
 
@@ -160,13 +159,7 @@ class ShareController extends Controller
             ], 410);
         }
 
-        $validated = $request->validate([
-            'selections' => ['required', 'array'],
-            'selections.*.photoId' => ['required', 'exists:photos,id'],
-            'selections.*.selected' => ['required', 'boolean'],
-            'selections.*.quantity' => ['required', 'integer', 'min:0'],
-            'selections.*.notes' => ['nullable', 'string'],
-        ]);
+        $validated = $request->validated();
 
         // Save or update selections
         foreach ($validated['selections'] as $selection) {

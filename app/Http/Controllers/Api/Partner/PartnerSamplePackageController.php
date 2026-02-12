@@ -2,14 +2,14 @@
 
 namespace App\Http\Controllers\Api\Partner;
 
-use App\Http\Controllers\Controller;
 use App\Http\Controllers\Api\Partner\Traits\PartnerAuthTrait;
+use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\Partner\StoreSamplePackageRequest;
 use App\Http\Requests\Api\Partner\StoreSampleVersionRequest;
+use App\Http\Requests\Api\Partner\UpdateSampleVersionRequest;
 use App\Models\TabloSamplePackage;
 use App\Models\TabloSamplePackageVersion;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Http\Request;
 
 class PartnerSamplePackageController extends Controller
 {
@@ -161,7 +161,7 @@ class PartnerSamplePackageController extends Controller
     /**
      * Verzió módosítása
      */
-    public function updateVersion(Request $request, int $projectId, int $packageId, int $versionId): JsonResponse
+    public function updateVersion(UpdateSampleVersionRequest $request, int $projectId, int $packageId, int $versionId): JsonResponse
     {
         $project = $this->getProjectForPartner($projectId);
 
@@ -173,13 +173,7 @@ class PartnerSamplePackageController extends Controller
             ->where('package_id', $package->id)
             ->firstOrFail();
 
-        $validated = $request->validate([
-            'description' => ['sometimes', 'string', 'max:2000'],
-            'images' => ['sometimes', 'array'],
-            'images.*' => ['image', 'max:10240', 'mimetypes:image/jpeg,image/png,image/webp'],
-            'delete_image_ids' => ['sometimes', 'array'],
-            'delete_image_ids.*' => ['integer'],
-        ]);
+        $validated = $request->validated();
 
         if (isset($validated['description'])) {
             $version->update(['description' => $validated['description']]);

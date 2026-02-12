@@ -6,8 +6,10 @@ use App\Actions\Tablo\SaveDraftAction;
 use App\Actions\Tablo\SaveFinalizationAction;
 use App\Actions\Tablo\UploadFinalizationFileAction;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Api\Tablo\Finalization\DeleteFinalizationFileRequest;
 use App\Http\Requests\Api\Tablo\Finalization\SaveDraftRequest;
 use App\Http\Requests\Api\Tablo\Finalization\SaveFinalizationRequest;
+use App\Http\Requests\Api\Tablo\Finalization\UploadFinalizationFileRequest;
 use App\Models\TabloProject;
 use App\Services\Tablo\FinalizationSecurityService;
 use Barryvdh\DomPDF\Facade\Pdf;
@@ -101,13 +103,9 @@ class TabloFinalizationController extends Controller
     }
 
     public function uploadFinalizationFile(
-        Request $request,
+        UploadFinalizationFileRequest $request,
         UploadFinalizationFileAction $action,
     ): JsonResponse {
-        $request->validate([
-            'file' => 'required|file|max:65536|mimes:jpg,jpeg,png,gif,webp,pdf,zip',
-            'type' => 'required|string|in:background,attachment',
-        ]);
 
         $tabloProject = $this->getProject($request, withRelations: false);
 
@@ -128,11 +126,9 @@ class TabloFinalizationController extends Controller
         return response()->json($result, $status);
     }
 
-    public function deleteFinalizationFile(Request $request, FinalizationSecurityService $security): JsonResponse
+    public function deleteFinalizationFile(DeleteFinalizationFileRequest $request, FinalizationSecurityService $security): JsonResponse
     {
-        $validated = $request->validate([
-            'fileId' => 'required|string|max:500',
-        ]);
+        $validated = $request->validated();
 
         $tabloProject = $this->getProject($request, withRelations: false);
 

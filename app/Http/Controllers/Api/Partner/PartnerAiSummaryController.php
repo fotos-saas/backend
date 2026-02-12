@@ -3,17 +3,15 @@
 namespace App\Http\Controllers\Api\Partner;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Api\Partner\GenerateAiSummaryRequest;
 use App\Services\ClaudeService;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Http\Request;
 
 class PartnerAiSummaryController extends Controller
 {
-    public function generateSummary(Request $request, ClaudeService $claude): JsonResponse
+    public function generateSummary(GenerateAiSummaryRequest $request, ClaudeService $claude): JsonResponse
     {
-        $validated = $request->validate([
-            'text' => ['required', 'string', 'max:5000'],
-        ]);
+        $validated = $request->validated();
 
         try {
             $response = $claude->chat(

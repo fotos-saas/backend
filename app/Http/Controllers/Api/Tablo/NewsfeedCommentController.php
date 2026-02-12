@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\Tablo;
 
 use App\Http\Controllers\Api\Tablo\Traits\NewsfeedHelperTrait;
 use App\Http\Controllers\Api\Tablo\Traits\ResolvesTabloProject;
+use App\Http\Requests\Api\Tablo\CreateNewsfeedCommentRequest;
 use App\Models\TabloGuestSession;
 use App\Models\TabloNewsfeedComment;
 use App\Models\TabloNewsfeedPost;
@@ -58,16 +59,9 @@ class NewsfeedCommentController extends BaseTabloController
      * Create comment.
      * POST /api/tablo-frontend/newsfeed/{id}/comments
      */
-    public function createComment(Request $request, int $id): JsonResponse
+    public function createComment(CreateNewsfeedCommentRequest $request, int $id): JsonResponse
     {
-        $validated = $request->validate([
-            'content' => 'required|string|max:1000|min:1',
-            'parent_id' => 'nullable|integer|exists:tablo_newsfeed_comments,id',
-        ], [
-            'content.required' => 'A hozzászólás megadása kötelező.',
-            'content.max' => 'A hozzászólás maximum 1000 karakter lehet.',
-            'parent_id.exists' => 'A szülő hozzászólás nem található.',
-        ]);
+        $validated = $request->validated();
 
         $post = $this->findForProject(
             TabloNewsfeedPost::class,

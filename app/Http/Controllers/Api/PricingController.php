@@ -3,10 +3,10 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Api\CalculatePricingRequest;
 use App\Models\Price;
 use App\Models\PriceList;
 use App\Models\PrintSize;
-use Illuminate\Http\Request;
 
 class PricingController extends Controller
 {
@@ -46,14 +46,9 @@ class PricingController extends Controller
     /**
      * Calculate cart price
      */
-    public function calculate(Request $request)
+    public function calculate(CalculatePricingRequest $request)
     {
-        $validated = $request->validate([
-            'items' => ['required', 'array'],
-            'items.*.photoId' => ['required', 'exists:photos,id'],
-            'items.*.size' => ['required', 'string'],
-            'items.*.quantity' => ['required', 'integer', 'min:1'],
-        ]);
+        $validated = $request->validated();
 
         $subtotal = 0;
         $itemsWithPrices = [];

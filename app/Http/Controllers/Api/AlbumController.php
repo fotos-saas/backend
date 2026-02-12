@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Api\StoreAlbumRequest;
 use App\Http\Resources\AlbumResource;
 use App\Models\Album;
 use App\Services\CompreFaceService;
@@ -48,21 +49,9 @@ class AlbumController extends Controller
     /**
      * Create new album
      */
-    public function store(Request $request)
+    public function store(StoreAlbumRequest $request)
     {
-        $validated = $request->validate([
-            'name' => ['required', 'string', 'max:255'],
-            'title' => ['nullable', 'string', 'max:255'],
-            'date' => ['nullable', 'date'],
-            'status' => ['nullable', 'in:active,archived,draft'],
-            'flags' => ['nullable', 'array'],
-            'flags.workflow' => ['nullable', 'string'],
-            'flags.allowRetouch' => ['nullable', 'boolean'],
-            'flags.allowGuestShare' => ['nullable', 'boolean'],
-            'flags.enableCoupons' => ['nullable', 'boolean'],
-            'flags.maxSelectable' => ['nullable', 'integer'],
-            'flags.accessMode' => ['nullable', 'in:viewer,buyer,selector'],
-        ]);
+        $validated = $request->validated();
 
         $album = Album::create([
             'name' => $validated['name'],

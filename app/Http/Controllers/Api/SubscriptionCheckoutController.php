@@ -3,10 +3,11 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Api\CreateCheckoutSessionRequest;
+use App\Http\Requests\Api\VerifyCheckoutSessionRequest;
 use App\Services\Subscription\PartnerRegistrationService;
 use App\Services\Subscription\SubscriptionStripeService;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -27,23 +28,9 @@ class SubscriptionCheckoutController extends Controller
     /**
      * Create Stripe Checkout Session for partner registration
      */
-    public function createCheckoutSession(Request $request): JsonResponse
+    public function createCheckoutSession(CreateCheckoutSessionRequest $request): JsonResponse
     {
-        $validated = $request->validate([
-            'name' => ['required', 'string', 'min:2', 'max:255'],
-            'email' => ['required', 'email', 'unique:users,email'],
-            'password' => ['required', 'string', 'min:8'],
-            'billing.company_name' => ['required', 'string', 'max:255'],
-            'billing.tax_number' => ['nullable', 'string', 'max:50'],
-            'billing.country' => ['required', 'string', 'max:100'],
-            'billing.postal_code' => ['required', 'string', 'max:10'],
-            'billing.city' => ['required', 'string', 'max:100'],
-            'billing.address' => ['required', 'string', 'max:255'],
-            'billing.phone' => ['required', 'string', 'max:50'],
-            'plan' => ['required', 'string', 'in:alap,iskola,studio'],
-            'billing_cycle' => ['required', 'string', 'in:monthly,yearly'],
-            'is_desktop' => ['nullable', 'boolean'],
-        ]);
+        $validated = $request->validated();
 
         try {
             $registrationToken = $this->registrationService->prepareRegistration($validated);
@@ -83,9 +70,8 @@ class SubscriptionCheckoutController extends Controller
     /**
      * Complete registration after successful subscription payment
      */
-    public function completeRegistration(Request $request): JsonResponse
+    public function completeRegistration(VerifyCheckoutSessionRequest $request): JsonResponse
     {
-        $request->validate(['session_id' => ['required', 'string']]);
 
         try {
             $session = $this->stripeService->retrieveCheckoutSession($request->input('session_id'));
@@ -157,9 +143,8 @@ class SubscriptionCheckoutController extends Controller
     /**
      * Verify checkout session status
      */
-    public function verifySession(Request $request): JsonResponse
+    public function verifySession(VerifyCheckoutSessionRequest $request): JsonResponse
     {
-        $request->validate(['session_id' => ['required', 'string']]);
 
         try {
             return response()->json(

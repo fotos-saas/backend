@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Helpers\QueryHelper;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Api\SuperAdmin\UpdateSystemSettingsRequest;
 use App\Models\Partner;
 use App\Models\QrRegistrationCode;
 use App\Models\TabloPartner;
@@ -127,13 +128,9 @@ class SuperAdminController extends Controller
     /**
      * Update system settings.
      */
-    public function updateSettings(Request $request): JsonResponse
+    public function updateSettings(UpdateSystemSettingsRequest $request): JsonResponse
     {
-        $validated = $request->validate([
-            'registrationEnabled' => 'sometimes|boolean',
-            'trialDays' => 'sometimes|integer|min:0|max:90',
-            'defaultPlan' => 'sometimes|string|in:alap,iskola,studio',
-        ]);
+        $validated = $request->validated();
 
         return response()->json([
             'success' => true,

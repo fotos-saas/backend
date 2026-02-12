@@ -3,6 +3,8 @@
 namespace App\Http\Controllers\Api\Tablo;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Api\Tablo\Guest\ResolveConflictRequest;
+use App\Http\Requests\Api\Tablo\Guest\SetClassSizeRequest;
 use App\Models\TabloGuestSession;
 use App\Models\TabloProject;
 use App\Services\Tablo\GuestSessionService;
@@ -158,15 +160,9 @@ class GuestAdminController extends Controller
      * Set expected class size (contact only).
      * PUT /api/tablo-frontend/admin/class-size
      */
-    public function setClassSize(Request $request): JsonResponse
+    public function setClassSize(SetClassSizeRequest $request): JsonResponse
     {
-        $validated = $request->validate([
-            'expected_class_size' => 'required|integer|min:1|max:500',
-        ], [
-            'expected_class_size.required' => 'A létszám megadása kötelező.',
-            'expected_class_size.min' => 'A létszám legalább 1 legyen.',
-            'expected_class_size.max' => 'A létszám maximum 500 lehet.',
-        ]);
+        $validated = $request->validated();
 
         $token = $request->user()->currentAccessToken();
         $project = TabloProject::find($token->tablo_project_id);
@@ -240,13 +236,9 @@ class GuestAdminController extends Controller
      *
      * Pending státuszú session jóváhagyása vagy elutasítása.
      */
-    public function resolveConflict(Request $request, int $id): JsonResponse
+    public function resolveConflict(ResolveConflictRequest $request, int $id): JsonResponse
     {
-        $validated = $request->validate([
-            'approve' => 'required|boolean',
-        ], [
-            'approve.required' => 'A döntés megadása kötelező.',
-        ]);
+        $validated = $request->validated();
 
         $token = $request->user()->currentAccessToken();
         $projectId = $token->tablo_project_id;

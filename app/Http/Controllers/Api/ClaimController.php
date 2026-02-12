@@ -5,23 +5,17 @@ namespace App\Http\Controllers\Api;
 use App\Events\UserCreatedWithCredentials;
 use App\Events\UserRegistered;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Api\StoreClaimRequest;
 use App\Models\Photo;
 use App\Models\User;
-use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 
 class ClaimController extends Controller
 {
-    public function store(Request $request)
+    public function store(StoreClaimRequest $request)
     {
-        $validated = $request->validate([
-            'name' => 'required|string|max:255',
-            'email' => 'required|email|max:255',
-            'classCode' => 'nullable|string|max:50',
-            'photoIds' => 'required|array',
-            'photoIds.*' => 'integer|exists:photos,id',
-        ]);
+        $validated = $request->validated();
 
         // Find or create user
         $wasRecentlyCreated = false;

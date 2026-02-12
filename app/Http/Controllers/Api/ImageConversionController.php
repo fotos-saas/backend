@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Api\BatchUploadConversionRequest;
 use App\Http\Requests\ImageConversionUploadRequest;
 use App\Models\ConversionJob;
 use App\Services\ImageConversionJobService;
@@ -45,15 +46,8 @@ class ImageConversionController extends Controller
     /**
      * Batch feltöltés: több kép vagy ZIP fájl egyszerre.
      */
-    public function batchUpload(Request $request): JsonResponse
+    public function batchUpload(BatchUploadConversionRequest $request): JsonResponse
     {
-        $request->validate([
-            'files' => 'required|array',
-            'files.*' => 'file|max:204800|extensions:heic,heif,webp,avif,jxl,dng,cr2,nef,arw,orf,rw2,jpeg,jpg,png,bmp,zip',
-            'job_id' => 'nullable|exists:conversion_jobs,id',
-            'folder_paths' => 'nullable|array',
-            'skip_conversions' => 'nullable|boolean',
-        ]);
 
         try {
             $result = $this->jobService->handleBatchUpload(

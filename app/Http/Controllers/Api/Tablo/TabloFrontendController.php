@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\Tablo;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Api\Tablo\UpdateTabloContactRequest;
 use App\Models\TabloContact;
 use App\Models\TabloProject;
 use App\Models\TabloSampleTemplate;
@@ -140,7 +141,7 @@ class TabloFrontendController extends Controller
     /**
      * Update primary contact from home page.
      */
-    public function updateContact(Request $request, FinalizationSecurityService $security): JsonResponse
+    public function updateContact(UpdateTabloContactRequest $request, FinalizationSecurityService $security): JsonResponse
     {
         $request->merge([
             'name' => $security->sanitizeInput($request->input('name')),
@@ -148,17 +149,7 @@ class TabloFrontendController extends Controller
             'phone' => $security->sanitizePhone($request->input('phone')),
         ]);
 
-        $validated = $request->validate([
-            'name' => 'required|string|max:255',
-            'email' => 'required|email|max:255',
-            'phone' => ['required', 'string', 'max:50', 'regex:/^[\d\s\+\-\(\)]+$/'],
-        ], [
-            'name.required' => 'A név megadása kötelező.',
-            'email.required' => 'Az email cím megadása kötelező.',
-            'email.email' => 'Érvénytelen email cím.',
-            'phone.required' => 'A telefonszám megadása kötelező.',
-            'phone.regex' => 'Érvénytelen telefonszám formátum.',
-        ]);
+        $validated = $request->validated();
 
         $token = $request->user()->currentAccessToken();
         $projectId = $token->tablo_project_id;

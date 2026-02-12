@@ -3,24 +3,19 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Api\GetPricingContextRequest;
 use App\Models\Album;
 use App\Models\WorkSession;
 use App\Services\PricingContextService;
-use Illuminate\Http\Request;
 
 class PricingContextController extends Controller
 {
     /**
      * Get pricing context for work session and album
      */
-    public function index(Request $request, PricingContextService $pricingService)
+    public function index(GetPricingContextRequest $request, PricingContextService $pricingService)
     {
-        $validated = $request->validate([
-            'work_session_id' => 'required|integer|exists:work_sessions,id',
-            'album_id' => 'required|integer|exists:albums,id',
-            'current_step' => 'nullable|string|in:claiming,registration,retouch,tablo,completed',
-            'context' => 'nullable|string|in:photo_selection,cart,checkout',
-        ]);
+        $validated = $request->validated();
 
         $workSession = WorkSession::find($validated['work_session_id']);
         $album = Album::find($validated['album_id']);

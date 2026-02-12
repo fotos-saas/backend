@@ -4,6 +4,9 @@ namespace App\Http\Controllers\Api\Partner;
 
 use App\Http\Controllers\Api\Concerns\ResolvesPartner;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Api\Partner\UploadBrandFaviconRequest;
+use App\Http\Requests\Api\Partner\UploadBrandLogoRequest;
+use App\Http\Requests\Api\Partner\UploadBrandOgImageRequest;
 use App\Http\Requests\Partner\UpdateBrandingRequest;
 use App\Models\PartnerBranding;
 use Illuminate\Http\JsonResponse;
@@ -121,11 +124,8 @@ class PartnerBrandingController extends Controller
     /**
      * POST /api/partner/branding/logo
      */
-    public function uploadLogo(Request $request): JsonResponse
+    public function uploadLogo(UploadBrandLogoRequest $request): JsonResponse
     {
-        $request->validate([
-            'logo' => ['required', 'file', 'mimes:png,jpg,jpeg,svg,svgz', 'max:2048'],
-        ]);
 
         $this->validateSvgSafety($request, 'logo');
         $branding = $this->getOrCreateBranding($request);
@@ -142,11 +142,8 @@ class PartnerBrandingController extends Controller
     /**
      * POST /api/partner/branding/favicon
      */
-    public function uploadFavicon(Request $request): JsonResponse
+    public function uploadFavicon(UploadBrandFaviconRequest $request): JsonResponse
     {
-        $request->validate([
-            'favicon' => ['required', 'file', 'mimes:png,jpg,jpeg,svg,svgz', 'max:512'],
-        ]);
 
         $this->validateSvgSafety($request, 'favicon');
         $branding = $this->getOrCreateBranding($request);
@@ -163,11 +160,8 @@ class PartnerBrandingController extends Controller
     /**
      * POST /api/partner/branding/og-image
      */
-    public function uploadOgImage(Request $request): JsonResponse
+    public function uploadOgImage(UploadBrandOgImageRequest $request): JsonResponse
     {
-        $request->validate([
-            'og_image' => ['required', 'file', 'mimes:png,jpg,jpeg,svg,svgz', 'max:5120'],
-        ]);
 
         $this->validateSvgSafety($request, 'og_image');
         $branding = $this->getOrCreateBranding($request);

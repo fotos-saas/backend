@@ -4,6 +4,8 @@ namespace App\Http\Controllers\Api;
 
 use App\Constants\TokenNames;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Api\InviteRegisterRequest;
+use App\Http\Requests\Api\ValidateInviteCodeRequest;
 use App\Models\PartnerInvitation;
 use App\Models\User;
 use App\Services\PartnerInvitationService;
@@ -11,7 +13,6 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Validation\Rules\Password;
 
 /**
  * Invite Register Controller
@@ -29,11 +30,9 @@ class InviteRegisterController extends Controller
      *
      * POST /api/invite/validate
      */
-    public function validateCode(Request $request): JsonResponse
+    public function validateCode(ValidateInviteCodeRequest $request): JsonResponse
     {
-        $validated = $request->validate([
-            'code' => ['required', 'string', 'max:20'],
-        ]);
+        $validated = $request->validated();
 
         $invitation = $this->invitationService->validateCode($validated['code']);
 
@@ -61,23 +60,9 @@ class InviteRegisterController extends Controller
      *
      * POST /api/invite/register
      */
-    public function register(Request $request): JsonResponse
+    public function register(InviteRegisterRequest $request): JsonResponse
     {
-        $validated = $request->validate([
-            'code' => ['required', 'string', 'max:20'],
-            'name' => ['required', 'string', 'max:255'],
-            'email' => ['required', 'email', 'max:255'],
-            'password' => ['required', 'confirmed', Password::min(8)],
-            'phone' => ['nullable', 'string', 'max:20'],
-        ], [
-            'code.required' => 'A meghívó kód megadása kötelező.',
-            'name.required' => 'A név megadása kötelező.',
-            'email.required' => 'Az email cím megadása kötelező.',
-            'email.email' => 'Érvénytelen email cím.',
-            'password.required' => 'A jelszó megadása kötelező.',
-            'password.confirmed' => 'A jelszavak nem egyeznek.',
-            'password.min' => 'A jelszónak legalább 8 karakter hosszúnak kell lennie.',
-        ]);
+        $validated = $request->validated();
 
         // Meghívó validálása
         $invitation = $this->invitationService->validateCode($validated['code']);
@@ -154,11 +139,9 @@ class InviteRegisterController extends Controller
      *
      * POST /api/invite/accept
      */
-    public function accept(Request $request): JsonResponse
+    public function accept(ValidateInviteCodeRequest $request): JsonResponse
     {
-        $validated = $request->validate([
-            'code' => ['required', 'string', 'max:20'],
-        ]);
+        $validated = $request->validated();
 
         $user = $request->user();
 

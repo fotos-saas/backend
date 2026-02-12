@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Api\Concerns\ResolvesPartner;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Api\SetStorageAddonRequest;
 use App\Services\Storage\StorageAddonService;
 use App\Services\Storage\StorageUsageService;
 use Illuminate\Http\JsonResponse;
@@ -58,16 +59,9 @@ class StorageController extends Controller
      * Extra tárhely beállítása/módosítása.
      * Body: { "gb": 10 }
      */
-    public function setAddon(Request $request): JsonResponse
+    public function setAddon(SetStorageAddonRequest $request): JsonResponse
     {
-        $validated = $request->validate([
-            'gb' => 'required|integer|min:0|max:500',
-        ], [
-            'gb.required' => 'A GB érték megadása kötelező.',
-            'gb.integer' => 'A GB értéknek egész számnak kell lennie.',
-            'gb.min' => 'A GB érték nem lehet negatív.',
-            'gb.max' => 'Maximum 500 GB extra tárhely vásárolható.',
-        ]);
+        $validated = $request->validated();
 
         $partner = $this->resolvePartner($request->user()->id);
 

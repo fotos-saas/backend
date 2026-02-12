@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\Client\ChangeClientPasswordRequest;
 use App\Http\Requests\Api\Client\LoginClientRequest;
 use App\Http\Requests\Api\Client\RegisterClientRequest;
+use App\Http\Requests\Api\Client\UpdateClientNotificationsRequest;
 use App\Models\PartnerClient;
 use App\Models\TabloPartner;
 use Illuminate\Http\JsonResponse;
@@ -202,7 +203,7 @@ class ClientAuthController extends Controller
     /**
      * Update notification preferences
      */
-    public function updateNotifications(Request $request): JsonResponse
+    public function updateNotifications(UpdateClientNotificationsRequest $request): JsonResponse
     {
         $client = $request->attributes->get('client');
 
@@ -213,9 +214,7 @@ class ClientAuthController extends Controller
             ], 403);
         }
 
-        $validated = $request->validate([
-            'wants_notifications' => ['required', 'boolean'],
-        ]);
+        $validated = $request->validated();
 
         $client->update([
             'wants_notifications' => $validated['wants_notifications'],

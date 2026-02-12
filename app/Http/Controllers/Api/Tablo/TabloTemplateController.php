@@ -4,6 +4,8 @@ namespace App\Http\Controllers\Api\Tablo;
 
 use App\Helpers\QueryHelper;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Api\Tablo\SelectTemplateRequest;
+use App\Http\Requests\Api\Tablo\UpdateTemplatePriorityRequest;
 use App\Models\TabloProject;
 use App\Models\TabloSampleTemplate;
 use App\Models\TabloSampleTemplateCategory;
@@ -160,11 +162,8 @@ class TabloTemplateController extends Controller
     /**
      * Select a template (add to project selections).
      */
-    public function selectTemplate(Request $request, int $templateId): JsonResponse
+    public function selectTemplate(SelectTemplateRequest $request, int $templateId): JsonResponse
     {
-        $request->validate([
-            'priority' => 'nullable|integer|min:1|max:10',
-        ]);
 
         $token = $request->user()->currentAccessToken();
         $projectId = $token->tablo_project_id;
@@ -267,11 +266,8 @@ class TabloTemplateController extends Controller
     /**
      * Update selection priority.
      */
-    public function updatePriority(Request $request, int $templateId): JsonResponse
+    public function updatePriority(UpdateTemplatePriorityRequest $request, int $templateId): JsonResponse
     {
-        $request->validate([
-            'priority' => 'required|integer|min:1|max:10',
-        ]);
 
         $token = $request->user()->currentAccessToken();
         $projectId = $token->tablo_project_id;
