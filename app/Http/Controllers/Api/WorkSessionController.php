@@ -3,6 +3,9 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Api\WorkSession\DownloadManagerZipAsyncRequest;
+use App\Http\Requests\Api\WorkSession\DownloadManagerZipRequest;
+use App\Http\Requests\Api\WorkSession\SendManualEmailRequest;
 use App\Jobs\GenerateManagerZipJob;
 use App\Models\EmailTemplate;
 use App\Models\WorkSession;
@@ -70,16 +73,9 @@ class WorkSessionController extends Controller
     /**
      * Download manager ZIP (SYNC - csak kis fájlokhoz)
      */
-    public function downloadManagerZip(Request $request, WorkSession $workSession)
+    public function downloadManagerZip(DownloadManagerZipRequest $request, WorkSession $workSession)
     {
-        // Validation
-        $validated = $request->validate([
-            'user_ids' => 'required|array|min:1',
-            'user_ids.*' => 'exists:users,id',
-            'photo_type' => 'required|in:claimed,retus,tablo',
-            'filename_mode' => 'required|in:original,user_name,original_exif',
-            'download_id' => 'nullable|string',
-        ]);
+        $validated = $request->validated();
 
         try {
             // Generate ZIP via service with optional download_id for progress tracking
@@ -111,15 +107,9 @@ class WorkSessionController extends Controller
     /**
      * Download manager ZIP ASYNC (háttérben készül, értesítés emailben)
      */
-    public function downloadManagerZipAsync(Request $request, WorkSession $workSession)
+    public function downloadManagerZipAsync(DownloadManagerZipAsyncRequest $request, WorkSession $workSession)
     {
-        // Validation
-        $validated = $request->validate([
-            'user_ids' => 'required|array|min:1',
-            'user_ids.*' => 'exists:users,id',
-            'photo_type' => 'required|in:claimed,retus,tablo',
-            'filename_mode' => 'required|in:original,user_name,original_exif',
-        ]);
+        $validated = $request->validated();
 
         // Generate unique download ID for progress tracking
         $downloadId = Str::uuid()->toString();
@@ -204,14 +194,9 @@ class WorkSessionController extends Controller
     /**
      * Send manual email from work session
      */
-    public function sendManualEmail(Request $request, WorkSession $workSession)
+    public function sendManualEmail(SendManualEmailRequest $request, WorkSession $workSession)
     {
-        $validated = $request->validate([
-            'template_id' => 'required|exists:email_templates,id',
-            'recipients' => 'required|array|min:1',
-            'recipients.*' => 'required|email',
-            'access_mode' => 'required|in:code,link,credentials,all',
-        ]);
+        $validated = $request->validated();
 
         $template = EmailTemplate::findOrFail($validated['template_id']);
 

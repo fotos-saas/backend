@@ -3,6 +3,11 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Api\Cart\AddCartItemRequest;
+use App\Http\Requests\Api\Cart\CalculateCartPriceRequest;
+use App\Http\Requests\Api\Cart\MergeGuestCartRequest;
+use App\Http\Requests\Api\Cart\SyncCartRequest;
+use App\Http\Requests\Api\Cart\UpdateCartItemRequest;
 use App\Models\Cart;
 use App\Models\CartItem;
 use App\Models\Price;
@@ -27,14 +32,9 @@ class CartController extends Controller
     /**
      * Add item to cart
      */
-    public function addItem(Request $request)
+    public function addItem(AddCartItemRequest $request)
     {
-        $validated = $request->validate([
-            'photoId' => 'required|integer|exists:photos,id',
-            'printSizeId' => 'nullable|integer|exists:print_sizes,id',
-            'qty' => 'required|integer|min:1',
-            'workSessionId' => 'required|integer|exists:work_sessions,id',
-        ]);
+        $validated = $request->validated();
 
         $cart = $this->getOrCreateCart($request);
 
@@ -69,11 +69,9 @@ class CartController extends Controller
     /**
      * Update cart item quantity
      */
-    public function updateItem(Request $request, CartItem $cartItem)
+    public function updateItem(UpdateCartItemRequest $request, CartItem $cartItem)
     {
-        $validated = $request->validate([
-            'qty' => 'required|integer|min:1',
-        ]);
+        $validated = $request->validated();
 
         $cartItem->update(['qty' => $validated['qty']]);
 
@@ -95,16 +93,9 @@ class CartController extends Controller
     /**
      * Sync entire cart from localStorage
      */
-    public function sync(Request $request)
+    public function sync(SyncCartRequest $request)
     {
-        $validated = $request->validate([
-            'items' => 'required|array',
-            'items.*.photoId' => 'required|integer|exists:photos,id',
-            'items.*.printSizeId' => 'nullable|integer|exists:print_sizes,id',
-            'items.*.qty' => 'required|integer|min:1',
-            'workSessionId' => 'required|integer|exists:work_sessions,id',
-            'packageId' => 'nullable|integer|exists:packages,id',
-        ]);
+        $validated = $request->validated();
 
         $cart = $this->getOrCreateCart($request);
 
@@ -146,11 +137,9 @@ class CartController extends Controller
     /**
      * Merge guest cart with user cart after login
      */
-    public function mergeGuestCart(Request $request)
+    public function mergeGuestCart(MergeGuestCartRequest $request)
     {
-        $validated = $request->validate([
-            'sessionToken' => 'required|string',
-        ]);
+        $validated = $request->validated();
 
         $user = $request->user();
         $guestCart = Cart::forSession($validated['sessionToken'])->first();
@@ -204,15 +193,9 @@ class CartController extends Controller
     /**
      * Calculate cart price (legacy endpoint)
      */
-    public function calculatePrice(Request $request)
+    public function calculatePrice(CalculateCartPriceRequest $request)
     {
-        $validated = $request->validate([
-            'items' => 'required|array',
-            'items.*.photoId' => 'required|integer',
-            'items.*.type' => 'required|in:print',
-            'items.*.sizeId' => 'required|integer',
-            'items.*.qty' => 'required|integer|min:1',
-        ]);
+        $validated = $request->validated();
 
         $priceList = PriceList::latest()->first();
 
