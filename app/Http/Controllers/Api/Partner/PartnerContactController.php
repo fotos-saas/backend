@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\Partner;
 use App\Actions\Partner\ExportContactsExcelAction;
 use App\Actions\Partner\ExportContactsVcardAction;
 use App\Actions\Partner\ImportContactsFromExcelAction;
+use App\Actions\Partner\ListContactsAction;
 use App\Http\Controllers\Api\Partner\Traits\PartnerAuthTrait;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\Partner\CreateStandaloneContactRequest;
@@ -13,7 +14,6 @@ use App\Http\Requests\Api\Partner\StoreContactRequest;
 use App\Http\Requests\Api\Partner\UpdateStandaloneContactRequest;
 use App\Models\TabloContact;
 use App\Models\TabloProject;
-use App\Services\Search\SearchService;
 use Illuminate\Http\JsonResponse;
 use App\Helpers\QueryHelper;
 use Illuminate\Http\Request;
@@ -31,41 +31,14 @@ class PartnerContactController extends Controller
     /**
      * Get contacts list with project info for partner.
      */
-    public function contacts(Request $request): JsonResponse
+    public function contacts(Request $request, ListContactsAction $action): JsonResponse
     {
         $partnerId = $this->getPartnerIdOrFail();
-
         $perPage = min((int) $request->input('per_page', 18), 50);
-        $search = $request->input('search');
 
-        $query = TabloContact::where('partner_id', $partnerId)
-            ->with(['projects.school']);
-
-        if ($search) {
-            $query = app(SearchService::class)->apply($query, $search, [
-                'columns' => ['name', 'email', 'phone'],
-            ]);
-        }
-
-        $contacts = $query->orderBy('name')->paginate($perPage);
-
-        $contacts->getCollection()->transform(function ($contact) {
-            return $this->formatContactResponse($contact);
-        });
-
-        $partner = auth()->user()->getEffectivePartner();
-        $maxContacts = $partner?->getMaxContacts();
-        $currentCount = TabloContact::where('partner_id', $partnerId)->count();
-
-        $response = $contacts->toArray();
-        $response['limits'] = [
-            'current' => $currentCount,
-            'max' => $maxContacts,
-            'can_create' => $maxContacts === null || $currentCount < $maxContacts,
-            'plan_id' => $partner?->plan ?? 'alap',
-        ];
-
-        return response()->json($response);
+        return response()->json(
+            $action->execute($partnerId, $request->input('search'), $perPage)
+        );
     }
 
     /**
@@ -124,8 +97,10 @@ class PartnerContactController extends Controller
     /**
      * Create standalone contact (optionally linked to projects).
      */
-    public function createStandaloneContact(CreateStandaloneContactRequest $request): JsonResponse
-    {
+    public function createStandaloneContact(
+        CreateStandaloneContactRequest $request,
+        ListContactsAction $listAction
+    ): JsonResponse {
         $partnerId = $this->getPartnerIdOrFail();
 
         $contact = TabloContact::create([
@@ -143,15 +118,18 @@ class PartnerContactController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Kapcsolattartó sikeresen létrehozva',
-            'data' => $this->formatContactResponse($contact),
+            'data' => $listAction->formatContact($contact),
         ], 201);
     }
 
     /**
      * Update standalone contact (can change projects).
      */
-    public function updateStandaloneContact(UpdateStandaloneContactRequest $request, int $contactId): JsonResponse
-    {
+    public function updateStandaloneContact(
+        UpdateStandaloneContactRequest $request,
+        int $contactId,
+        ListContactsAction $listAction
+    ): JsonResponse {
         $partnerId = $this->getPartnerIdOrFail();
 
         $contact = TabloContact::where('partner_id', $partnerId)
@@ -173,7 +151,7 @@ class PartnerContactController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Kapcsolattartó sikeresen frissítve',
-            'data' => $this->formatContactResponse($contact),
+            'data' => $listAction->formatContact($contact),
         ]);
     }
 
@@ -193,32 +171,6 @@ class PartnerContactController extends Controller
             'success' => true,
             'message' => 'Kapcsolattartó sikeresen törölve',
         ]);
-    }
-
-    private function formatContactResponse(TabloContact $contact): array
-    {
-        $projects = $contact->projects;
-        $projectIds = $projects->pluck('id')->toArray();
-        $projectNames = $projects->map(fn ($p) => $p->display_name)->toArray();
-        $schoolNames = $projects->map(fn ($p) => $p->school?->name)->filter()->unique()->values()->toArray();
-        $isPrimary = $projects->contains(fn ($p) => $p->pivot->is_primary);
-
-        return [
-            'id' => $contact->id,
-            'name' => $contact->name,
-            'email' => $contact->email,
-            'phone' => $contact->phone,
-            'note' => $contact->note,
-            'isPrimary' => $isPrimary,
-            'projectIds' => $projectIds,
-            'projectNames' => $projectNames,
-            'schoolNames' => $schoolNames,
-            'projectId' => $projectIds[0] ?? null,
-            'projectName' => $projectNames[0] ?? null,
-            'schoolName' => $schoolNames[0] ?? null,
-            'callCount' => $contact->call_count ?? 0,
-            'smsCount' => $contact->sms_count ?? 0,
-        ];
     }
 
     private function syncProjects(TabloContact $contact, Request $request, int $partnerId): void

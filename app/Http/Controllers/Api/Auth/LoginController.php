@@ -2,21 +2,18 @@
 
 namespace App\Http\Controllers\Api\Auth;
 
+use App\Actions\Auth\HandleTabloGuestLoginAction;
+use App\Actions\Auth\LoginWithCodeAction;
 use App\Constants\TokenNames;
 use App\Http\Controllers\Api\Concerns\ResolvesPartner;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\LoginCodeRequest;
 use App\Http\Requests\Api\LoginRequest;
 use App\Models\LoginAudit;
-use App\Models\TabloGuestSession;
-use App\Models\TabloPartner;
-use App\Models\TabloProject;
 use App\Models\User;
-use App\Models\WorkSession;
 use App\Services\AuthenticationService;
 use App\Services\MagicLinkService;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Str;
 
 /**
  * Login Controller
@@ -134,7 +131,7 @@ class LoginController extends Controller
         ];
 
         // Handle tablo-guest login (user with internal tablo email)
-        $response = $this->handleTabloGuestLogin($user, $response);
+        $response = app(HandleTabloGuestLoginAction::class)->execute($user, $response);
 
         return response()->json($response);
     }
@@ -142,64 +139,15 @@ class LoginController extends Controller
     /**
      * Login with 6-digit access code (WorkSession based)
      */
-    public function loginCode(LoginCodeRequest $request)
+    public function loginCode(LoginCodeRequest $request, LoginWithCodeAction $action)
     {
-        $code = $request->input('code');
-        $workSession = WorkSession::where('digit_code', $code)->first();
+        $result = $action->execute($request->input('code'));
 
-        if (! $workSession) {
-            return response()->json([
-                'message' => 'Ez a munkamenet már megszűnt vagy lejárt',
-            ], 401);
+        if (! $result['success']) {
+            return response()->json(['message' => $result['message']], $result['status']);
         }
 
-        if (! $workSession->digit_code_enabled) {
-            return response()->json([
-                'message' => 'A belépési kód le van tiltva',
-            ], 401);
-        }
-
-        if ($workSession->digit_code_expires_at && $workSession->digit_code_expires_at->isPast()) {
-            return response()->json([
-                'message' => 'A belépési kód lejárt',
-            ], 401);
-        }
-
-        if ($workSession->status !== 'active') {
-            return response()->json([
-                'message' => 'Ez a munkamenet már nem elérhető',
-            ], 401);
-        }
-
-        $guestUser = User::create([
-            'name' => 'Guest-'.$workSession->id.'-'.Str::random(6),
-            'email' => null,
-            'password' => null,
-        ]);
-
-        $guestUser->assignRole(User::ROLE_GUEST);
-        $guestUser->refresh();
-
-        $workSession->users()->attach($guestUser->id);
-
-        $tokenResult = $guestUser->createToken(TokenNames::AUTH);
-        $tokenResult->accessToken->work_session_id = $workSession->id;
-        $tokenResult->accessToken->save();
-        $token = $tokenResult->plainTextToken;
-
-        return response()->json([
-            'user' => [
-                'id' => $guestUser->id,
-                'name' => $guestUser->name,
-                'email' => $guestUser->email,
-                'phone' => $guestUser->phone,
-                'address' => $guestUser->address,
-                'type' => 'guest',
-                'workSessionId' => $workSession->id,
-                'workSessionName' => $workSession->name,
-            ],
-            'token' => $token,
-        ]);
+        return response()->json($result['data']);
     }
 
     /**
@@ -248,64 +196,6 @@ class LoginController extends Controller
         }
 
         return response()->json($response);
-    }
-
-    /**
-     * Handle tablo-guest user login (user with internal tablo email)
-     */
-    private function handleTabloGuestLogin(User $user, array $response): array
-    {
-        if (!preg_match('/^tablo-guest-(\d+)-[a-zA-Z0-9]+@internal\.local$/', $user->email ?? '', $matches)) {
-            return $response;
-        }
-
-        $projectId = (int) $matches[1];
-        $project = TabloProject::find($projectId);
-
-        if (!$project) {
-            return $response;
-        }
-
-        // Keresés: először user_id alapján, fallback guest_name-re
-        $guestSession = TabloGuestSession::where('user_id', $user->id)
-            ->where('tablo_project_id', $projectId)
-            ->first()
-            ?? TabloGuestSession::where('guest_name', $user->name)
-                ->where('tablo_project_id', $projectId)
-                ->latest('last_activity_at')
-                ->first();
-
-        // user_id beállítása ha még nincs
-        if ($guestSession && !$guestSession->user_id) {
-            $guestSession->update(['user_id' => $user->id]);
-        }
-
-        $response['user']['type'] = 'tablo-guest';
-        $projectData = [
-            'id' => $project->id,
-            'name' => $project->display_name,
-            'schoolName' => $project->school?->name,
-            'className' => $project->class_name,
-            'classYear' => $project->class_year,
-            'samplesCount' => $project->getMedia('samples')->count(),
-            'activePollsCount' => $project->polls()->active()->count(),
-            'contacts' => [],
-        ];
-
-        TabloPartner::appendBranding($projectData, $project->partner);
-
-        $response['project'] = $projectData;
-        $response['tokenType'] = 'code';
-        $response['canFinalize'] = true;
-
-        if ($guestSession) {
-            $response['guestSession'] = [
-                'sessionToken' => $guestSession->session_token,
-                'guestName' => $guestSession->guest_name,
-            ];
-        }
-
-        return $response;
     }
 
     /**

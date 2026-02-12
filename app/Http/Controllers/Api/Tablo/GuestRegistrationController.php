@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\Tablo;
 
+use App\Actions\Tablo\RegisterGuestWithIdentificationAction;
 use App\Actions\Tablo\RequestRestoreLinkAction;
 use App\Actions\Tablo\SearchParticipantsAction;
 use App\Actions\Tablo\SendGuestDeviceLinkAction;
@@ -63,53 +64,33 @@ class GuestRegistrationController extends Controller
     }
 
     /** POST /api/tablo-frontend/guest/register-with-identification */
-    public function registerWithIdentification(RegisterWithIdentificationRequest $request): JsonResponse
-    {
-        $validated = $request->validated();
+    public function registerWithIdentification(
+        RegisterWithIdentificationRequest $request,
+        RegisterGuestWithIdentificationAction $action
+    ): JsonResponse {
         $project = $this->resolveProject($request);
         if (! $project) {
             return $this->projectNotFound();
         }
 
-        // Person validáció: a projekt persons listájában van-e
-        if ($validated['person_id'] ?? null) {
-            if (! $project->persons()->where('id', $validated['person_id'])->exists()) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'A kiválasztott személy nem tartozik ehhez a projekthez.',
-                ], 422);
-            }
-        }
-
-        $result = $this->guestSessionService->registerWithIdentification(
+        $result = $action->execute(
             $project,
-            $validated['nickname'],
-            $validated['person_id'] ?? null,
-            $validated['email'] ?? null,
-            $validated['device_identifier'] ?? null,
-            $request->ip()
+            $request->validated(),
+            $request->ip(),
+            $request->user()
         );
 
-        $session = $result['session'];
-
-        // user_id beállítása a session-ben (auth user → guest session kötés)
-        if ($request->user() && !$session->user_id) {
-            $session->update(['user_id' => $request->user()->id]);
+        if (! $result['success']) {
+            return response()->json([
+                'success' => false,
+                'message' => $result['message'],
+            ], $result['status']);
         }
 
         return response()->json([
             'success' => true,
             'message' => $result['has_conflict'] ? $result['conflict_message'] : 'Sikeres regisztráció!',
-            'data' => [
-                'id' => $session->id,
-                'session_token' => $session->session_token,
-                'guest_name' => $session->guest_name,
-                'guest_email' => $session->guest_email,
-                'verification_status' => $session->verification_status,
-                'is_pending' => $session->isPending(),
-                'person_id' => $session->tablo_person_id,
-                'person_name' => $session->person?->name,
-            ],
+            'data' => $result['data'],
             'has_conflict' => $result['has_conflict'],
         ]);
     }
