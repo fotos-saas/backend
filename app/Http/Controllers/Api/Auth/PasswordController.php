@@ -3,6 +3,8 @@
 namespace App\Http\Controllers\Api\Auth;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Api\Auth\ForgotPasswordRequest;
+use App\Http\Requests\Api\Auth\SetPasswordRequest;
 use App\Http\Requests\Api\ChangePasswordRequest;
 use App\Http\Requests\Api\ResetPasswordRequest;
 use App\Models\EmailEvent;
@@ -10,7 +12,6 @@ use App\Models\User;
 use App\Services\AuthenticationService;
 use App\Services\EmailService;
 use App\Services\EmailVariableService;
-use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
@@ -25,13 +26,9 @@ class PasswordController extends Controller
     /**
      * Forgot password (send reset email)
      */
-    public function forgotPassword(Request $request)
+    public function forgotPassword(ForgotPasswordRequest $request)
     {
-        $request->validate([
-            'email' => ['required', 'email'],
-        ]);
-
-        $email = $request->input('email');
+        $email = $request->validated()['email'];
         $user = User::where('email', $email)->first();
 
         if (!$user) {
@@ -126,23 +123,9 @@ class PasswordController extends Controller
     /**
      * Set password (for first-time login or password change)
      */
-    public function setPassword(Request $request)
+    public function setPassword(SetPasswordRequest $request)
     {
-        $validated = $request->validate([
-            'password' => [
-                'required',
-                'string',
-                'min:12',
-                'regex:/[A-Z]/',
-                'regex:/[a-z]/',
-                'regex:/[0-9]/',
-                'regex:/[@$!%*#?&]/',
-                'confirmed',
-            ],
-        ], [
-            'password.min' => 'A jelszónak legalább 12 karakter hosszúnak kell lennie.',
-            'password.regex' => 'A jelszónak tartalmaznia kell nagybetűt, kisbetűt, számot és speciális karaktert (@$!%*#?&).',
-        ]);
+        $validated = $request->validated();
 
         $user = $request->user();
 

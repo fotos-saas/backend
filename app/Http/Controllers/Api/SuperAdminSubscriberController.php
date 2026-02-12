@@ -8,6 +8,9 @@ use App\Actions\SuperAdmin\ChargeSubscriberAction;
 use App\Actions\SuperAdmin\RemoveDiscountAction;
 use App\Actions\SuperAdmin\SetDiscountAction;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Api\SuperAdmin\CancelSubscriptionRequest;
+use App\Http\Requests\Api\SuperAdmin\ChangePlanRequest;
+use App\Http\Requests\Api\SuperAdmin\ChargeSubscriberRequest;
 use App\Http\Requests\Api\SuperAdmin\SetDiscountRequest;
 use App\Models\AdminAuditLog;
 use App\Models\Partner;
@@ -74,12 +77,9 @@ class SuperAdminSubscriberController extends Controller
     /**
      * Előfizető terhelése Stripe számlával.
      */
-    public function chargeSubscriber(Request $request, int $id, ChargeSubscriberAction $action): JsonResponse
+    public function chargeSubscriber(ChargeSubscriberRequest $request, int $id, ChargeSubscriberAction $action): JsonResponse
     {
-        $validated = $request->validate([
-            'amount' => 'required|integer|min:1',
-            'description' => 'required|string|max:255',
-        ]);
+        $validated = $request->validated();
 
         $partner = Partner::find($id);
 
@@ -96,12 +96,9 @@ class SuperAdminSubscriberController extends Controller
     /**
      * Előfizető csomagjának módosítása.
      */
-    public function changePlan(Request $request, int $id, ChangePlanAction $action): JsonResponse
+    public function changePlan(ChangePlanRequest $request, int $id, ChangePlanAction $action): JsonResponse
     {
-        $validated = $request->validate([
-            'plan' => 'required|string|in:alap,iskola,studio',
-            'billing_cycle' => 'sometimes|string|in:monthly,yearly',
-        ]);
+        $validated = $request->validated();
 
         $partner = Partner::find($id);
 
@@ -118,11 +115,9 @@ class SuperAdminSubscriberController extends Controller
     /**
      * Előfizetés lemondása.
      */
-    public function cancelSubscription(Request $request, int $id, CancelSubscriptionAction $action): JsonResponse
+    public function cancelSubscription(CancelSubscriptionRequest $request, int $id, CancelSubscriptionAction $action): JsonResponse
     {
-        $validated = $request->validate([
-            'immediate' => 'required|boolean',
-        ]);
+        $validated = $request->validated();
 
         $partner = Partner::find($id);
 

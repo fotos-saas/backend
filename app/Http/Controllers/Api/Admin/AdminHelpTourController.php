@@ -3,10 +3,11 @@
 namespace App\Http\Controllers\Api\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Api\Admin\StoreHelpTourRequest;
+use App\Http\Requests\Api\Admin\UpdateHelpTourRequest;
 use App\Models\HelpTour;
 use App\Models\HelpTourStep;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 
 class AdminHelpTourController extends Controller
@@ -20,26 +21,9 @@ class AdminHelpTourController extends Controller
         return $this->successResponse($tours);
     }
 
-    public function store(Request $request): JsonResponse
+    public function store(StoreHelpTourRequest $request): JsonResponse
     {
-        $validated = $request->validate([
-            'key' => 'required|string|max:100|unique:help_tours,key',
-            'title' => 'required|string|max:255',
-            'trigger_route' => 'required|string|max:255',
-            'target_roles' => 'array',
-            'target_roles.*' => 'string',
-            'target_plans' => 'array',
-            'target_plans.*' => 'string',
-            'trigger_type' => 'string|in:first_visit,manual,always',
-            'is_active' => 'boolean',
-            'steps' => 'array',
-            'steps.*.title' => 'required|string|max:255',
-            'steps.*.content' => 'required|string',
-            'steps.*.target_selector' => 'nullable|string|max:255',
-            'steps.*.placement' => 'string|in:top,bottom,left,right',
-            'steps.*.highlight_type' => 'string|in:spotlight,border,none',
-            'steps.*.allow_skip' => 'boolean',
-        ]);
+        $validated = $request->validated();
 
         $steps = $validated['steps'] ?? [];
         unset($validated['steps']);
@@ -64,23 +48,9 @@ class AdminHelpTourController extends Controller
         return $this->successResponse($tour);
     }
 
-    public function update(Request $request, HelpTour $tour): JsonResponse
+    public function update(UpdateHelpTourRequest $request, HelpTour $tour): JsonResponse
     {
-        $validated = $request->validate([
-            'title' => 'string|max:255',
-            'trigger_route' => 'string|max:255',
-            'target_roles' => 'array',
-            'target_plans' => 'array',
-            'trigger_type' => 'string|in:first_visit,manual,always',
-            'is_active' => 'boolean',
-            'steps' => 'array',
-            'steps.*.title' => 'required|string|max:255',
-            'steps.*.content' => 'required|string',
-            'steps.*.target_selector' => 'nullable|string|max:255',
-            'steps.*.placement' => 'string|in:top,bottom,left,right',
-            'steps.*.highlight_type' => 'string|in:spotlight,border,none',
-            'steps.*.allow_skip' => 'boolean',
-        ]);
+        $validated = $request->validated();
 
         $steps = $validated['steps'] ?? null;
         unset($validated['steps']);

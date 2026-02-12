@@ -3,13 +3,14 @@
 namespace App\Http\Controllers\Api\Auth;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Api\Auth\BulkWorkSessionInviteRequest;
+use App\Http\Requests\Api\Auth\RequestMagicLinkRequest;
 use App\Models\EmailEvent;
 use App\Models\User;
 use App\Models\WorkSession;
 use App\Services\EmailService;
 use App\Services\EmailVariableService;
 use App\Services\MagicLinkService;
-use Illuminate\Http\Request;
 
 class MagicLinkController extends Controller
 {
@@ -20,17 +21,13 @@ class MagicLinkController extends Controller
     /**
      * Request magic link via email
      */
-    public function requestMagicLink(Request $request)
+    public function requestMagicLink(RequestMagicLinkRequest $request)
     {
-        $request->validate([
-            'email' => ['required', 'email'],
-            'work_session_code' => ['nullable', 'string', 'size:6'],
-            'include_code' => ['nullable', 'boolean'],
-        ]);
+        $validated = $request->validated();
 
-        $email = $request->input('email');
-        $workSessionCode = $request->input('work_session_code');
-        $includeCode = $request->input('include_code', false);
+        $email = $validated['email'];
+        $workSessionCode = $validated['work_session_code'] ?? null;
+        $includeCode = $validated['include_code'] ?? false;
 
         $user = User::where('email', $email)->first();
 
@@ -149,14 +146,9 @@ class MagicLinkController extends Controller
     /**
      * Send bulk work session invites to multiple email addresses
      */
-    public function bulkWorkSessionInvite(Request $request)
+    public function bulkWorkSessionInvite(BulkWorkSessionInviteRequest $request)
     {
-        $validated = $request->validate([
-            'emails' => ['required', 'array', 'max:30'],
-            'emails.*' => ['required', 'email'],
-        ]);
-
-        $emails = $validated['emails'];
+        $emails = $request->validated()['emails'];
         $sent = [];
         $failed = [];
 

@@ -6,8 +6,9 @@ use App\Actions\Auth\LoginTabloCodeAction;
 use App\Actions\Auth\LoginTabloPreviewAction;
 use App\Actions\Auth\LoginTabloShareAction;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Api\Auth\LoginTabloPreviewRequest;
+use App\Http\Requests\Api\Auth\LoginTabloShareRequest;
 use App\Http\Requests\Api\LoginTabloCodeRequest;
-use Illuminate\Http\Request;
 
 class TabloLoginController extends Controller
 {
@@ -25,25 +26,16 @@ class TabloLoginController extends Controller
     /**
      * Login with share token (TabloProject based)
      */
-    public function loginTabloShare(Request $request)
+    public function loginTabloShare(LoginTabloShareRequest $request)
     {
-        $request->validate([
-            'token' => ['required', 'string', 'size:64'],
-            'restore' => ['nullable', 'string', 'size:64'],
-        ]);
-
         return app(LoginTabloShareAction::class)->execute($request);
     }
 
     /**
      * Login with admin preview token (one-time use)
      */
-    public function loginTabloPreview(Request $request)
+    public function loginTabloPreview(LoginTabloPreviewRequest $request)
     {
-        $request->validate([
-            'token' => ['required', 'string', 'size:64'],
-        ]);
-
         return app(LoginTabloPreviewAction::class)->execute($request);
     }
 }

@@ -3,6 +3,8 @@
 namespace App\Http\Controllers\Api\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Api\Admin\StoreHelpArticleRequest;
+use App\Http\Requests\Api\Admin\UpdateHelpArticleRequest;
 use App\Models\HelpArticle;
 use App\Services\Help\HelpKnowledgeBaseService;
 use Illuminate\Http\JsonResponse;
@@ -31,25 +33,9 @@ class AdminHelpArticleController extends Controller
         return $this->paginatedResponse($articles);
     }
 
-    public function store(Request $request): JsonResponse
+    public function store(StoreHelpArticleRequest $request): JsonResponse
     {
-        $validated = $request->validate([
-            'title' => 'required|string|max:255',
-            'content' => 'required|string',
-            'category' => 'required|string|max:50',
-            'target_roles' => 'array',
-            'target_roles.*' => 'string',
-            'target_plans' => 'array',
-            'target_plans.*' => 'string',
-            'related_routes' => 'array',
-            'related_routes.*' => 'string',
-            'keywords' => 'array',
-            'keywords.*' => 'string',
-            'feature_key' => 'nullable|string|max:100',
-            'is_published' => 'boolean',
-            'is_faq' => 'boolean',
-            'sort_order' => 'integer|min:0',
-        ]);
+        $validated = $request->validated();
 
         $article = HelpArticle::create($validated);
         $this->kbService->invalidateCache();
@@ -62,25 +48,9 @@ class AdminHelpArticleController extends Controller
         return $this->successResponse($article);
     }
 
-    public function update(Request $request, HelpArticle $article): JsonResponse
+    public function update(UpdateHelpArticleRequest $request, HelpArticle $article): JsonResponse
     {
-        $validated = $request->validate([
-            'title' => 'string|max:255',
-            'content' => 'string',
-            'category' => 'string|max:50',
-            'target_roles' => 'array',
-            'target_roles.*' => 'string',
-            'target_plans' => 'array',
-            'target_plans.*' => 'string',
-            'related_routes' => 'array',
-            'related_routes.*' => 'string',
-            'keywords' => 'array',
-            'keywords.*' => 'string',
-            'feature_key' => 'nullable|string|max:100',
-            'is_published' => 'boolean',
-            'is_faq' => 'boolean',
-            'sort_order' => 'integer|min:0',
-        ]);
+        $validated = $request->validated();
 
         $article->update($validated);
         $this->kbService->invalidateCache();

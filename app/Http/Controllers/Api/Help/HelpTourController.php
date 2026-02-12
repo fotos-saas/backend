@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\Help;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Api\Help\UpdateTourProgressRequest;
 use App\Models\HelpTour;
 use App\Services\Help\HelpTourService;
 use Illuminate\Http\JsonResponse;
@@ -41,12 +42,9 @@ class HelpTourController extends Controller
     /**
      * Túra haladás frissítése.
      */
-    public function updateProgress(Request $request, HelpTour $tour): JsonResponse
+    public function updateProgress(UpdateTourProgressRequest $request, HelpTour $tour): JsonResponse
     {
-        $validated = $request->validate([
-            'status' => 'required|in:started,completed,skipped',
-            'step_number' => 'required|integer|min:0',
-        ]);
+        $validated = $request->validated();
 
         $progress = $this->tourService->updateProgress(
             $request->user()->id,
