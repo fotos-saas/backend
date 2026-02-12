@@ -2,6 +2,7 @@
 
 namespace App\Services\Tablo;
 
+use App\Helpers\QueryHelper;
 use App\Models\TabloGuestSession;
 use App\Models\TabloPerson;
 use App\Models\TabloPoke;
@@ -144,7 +145,7 @@ class MissingUserService
             ->regularMembers()
             ->verified()
             ->where(function ($query) use ($person) {
-                $query->where('guest_name', 'ILIKE', $person->name);
+                $query->where('guest_name', 'ILIKE', QueryHelper::safeLikePattern($person->name, false, false));
                 if ($person->email) {
                     $query->orWhere('guest_email', $person->email);
                 }
@@ -321,7 +322,7 @@ class MissingUserService
             $hasMissingPhoto = $project->persons()
                 ->whereNull('media_id')
                 ->where(function ($query) use ($session) {
-                    $query->where('name', 'ILIKE', $session->guest_name);
+                    $query->where('name', 'ILIKE', QueryHelper::safeLikePattern($session->guest_name, false, false));
                     if ($session->guest_email) {
                         $query->orWhere('email', $session->guest_email);
                     }

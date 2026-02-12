@@ -49,8 +49,12 @@ Route::middleware('auth')->group(function () {
     Route::get('/api/download-progress/{downloadId}', [WorkSessionController::class, 'downloadProgressCheck'])
         ->name('api.download-progress.check');
 
-    // Manual photo matching for missing persons
+    // Manual photo matching for missing persons (super admin only)
     Route::post('/admin/api/missing-person-match', function (\Illuminate\Http\Request $request) {
+        if (! $request->user()?->hasRole('super_admin')) {
+            abort(403, 'Nincs jogosultságod.');
+        }
+
         $validated = $request->validate([
             'person_id' => 'required|integer|exists:tablo_persons,id',
             'media_id' => 'required|integer|exists:media,id',

@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\TabloProjectResource\RelationManagers;
 
 use App\Enums\NoteStatus;
+use App\Helpers\QueryHelper;
 use App\Filament\Resources\TabloProjectResource;
 use App\Models\ProjectEmail;
 use App\Models\SmtpAccount;
@@ -411,8 +412,8 @@ class EmailsRelationManager extends RelationManager
                             foreach ($names as $name) {
                                 $linkedCount += ProjectEmail::whereNull('tablo_project_id')
                                     ->where(function ($query) use ($name) {
-                                        $query->where('from_name', 'ILIKE', "%{$name}%")
-                                            ->orWhere('to_name', 'ILIKE', "%{$name}%");
+                                        $query->where('from_name', 'ILIKE', QueryHelper::safeLikePattern($name))
+                                            ->orWhere('to_name', 'ILIKE', QueryHelper::safeLikePattern($name));
                                     })
                                     ->update(['tablo_project_id' => $project->id]);
                             }

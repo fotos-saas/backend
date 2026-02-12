@@ -94,8 +94,8 @@ class PhotoController extends Controller
             // Order by original filename (ascending)
             $query->orderBy('original_filename', 'asc');
 
-            // Allow custom per_page parameter (default 50, no max limit)
-            $perPage = $request->integer('per_page', 50);
+            // Allow custom per_page parameter (default 50, max 200)
+            $perPage = min($request->integer('per_page', 50), 200);
             $photos = $query->paginate($perPage);
 
             return $photos->through(function ($photo) use ($request) {

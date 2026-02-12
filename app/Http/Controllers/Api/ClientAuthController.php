@@ -114,6 +114,11 @@ class ClientAuthController extends Controller
 
         $client->recordLogin();
 
+        // Régi tokenek törlése (egy client = egy aktív token)
+        DB::table('personal_access_tokens')
+            ->where('partner_client_id', $client->id)
+            ->delete();
+
         $plainTextToken = Str::random(64);
         $hashedToken = hash('sha256', $plainTextToken);
 

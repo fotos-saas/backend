@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\ProjectEmailResource\Pages;
 
 use App\Filament\Resources\ProjectEmailResource;
+use App\Helpers\QueryHelper;
 use App\Models\ProjectEmail;
 use App\Models\TabloContact;
 use Filament\Actions\Action;
@@ -104,8 +105,8 @@ class ListProjectEmails extends ListRecords
 
                         $count = ProjectEmail::whereNull('tablo_project_id')
                             ->where(function ($query) use ($name) {
-                                $query->where('from_name', 'ILIKE', "%{$name}%")
-                                    ->orWhere('to_name', 'ILIKE', "%{$name}%");
+                                $query->where('from_name', 'ILIKE', QueryHelper::safeLikePattern($name))
+                                    ->orWhere('to_name', 'ILIKE', QueryHelper::safeLikePattern($name));
                             })
                             ->update(['tablo_project_id' => $contact->tablo_project_id]);
 

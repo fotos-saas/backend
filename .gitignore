@@ -22,3 +22,9 @@ yarn-error.log
 /.nova
 /.vscode
 /.zed
+
+# Debug/test fájlok - soha ne kerüljenek repóba
+check-*.php
+test-*.php
+test_*.php
+EXAMPLE_*.php

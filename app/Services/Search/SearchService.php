@@ -2,6 +2,7 @@
 
 namespace App\Services\Search;
 
+use App\Helpers\QueryHelper;
 use Illuminate\Database\Eloquent\Builder;
 
 /**
@@ -141,6 +142,6 @@ class SearchService
         }
 
         $method = $boolean === 'or' ? 'orWhereRaw' : 'whereRaw';
-        $query->$method("unaccent({$column}) ILIKE unaccent(?)", ["%{$value}%"]);
+        $query->$method("unaccent({$column}) ILIKE unaccent(?)", [QueryHelper::safeLikePattern($value)]);
     }
 }

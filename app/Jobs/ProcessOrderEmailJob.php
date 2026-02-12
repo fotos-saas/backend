@@ -2,6 +2,7 @@
 
 namespace App\Jobs;
 
+use App\Helpers\QueryHelper;
 use App\Models\ProjectEmail;
 use App\Models\TabloContact;
 use App\Models\TabloOrderAnalysis;
@@ -338,9 +339,9 @@ PROMPT;
         // Keresés iskola + osztály alapján
         if (!$projectId && !empty($data['school']['name']) && !empty($data['class']['name'])) {
             $project = TabloProject::whereHas('school', function ($q) use ($data) {
-                $q->where('name', 'ILIKE', '%' . $data['school']['name'] . '%');
+                $q->where('name', 'ILIKE', QueryHelper::safeLikePattern($data['school']['name']));
             })
-                ->where('class_name', 'ILIKE', '%' . $data['class']['name'] . '%')
+                ->where('class_name', 'ILIKE', QueryHelper::safeLikePattern($data['class']['name']))
                 ->first();
 
             if ($project) {

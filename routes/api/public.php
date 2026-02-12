@@ -105,8 +105,8 @@ Route::prefix('cart')->middleware('throttle:60,1')->group(function () {
     Route::delete('/clear', [CartController::class, 'clear']);
 });
 
-// User photos endpoint for admin lightbox navigation
-Route::get('/users/{user}/photos', [PhotoController::class, 'userPhotos']);
+// User photos endpoint for admin lightbox navigation (requires auth)
+Route::get('/users/{user}/photos', [PhotoController::class, 'userPhotos'])->middleware('auth:sanctum');
 
 // Claim endpoint
 Route::post('/claim', [ClaimController::class, 'store']);
@@ -188,16 +188,17 @@ Route::middleware('auth:sanctum')->group(function () {
     });
 
     Route::put('/profile', function (Request $request) {
+        $user = $request->user();
         $validated = $request->validate([
             'name' => 'required|string|max:255',
-            'email' => 'required|email|max:255',
+            'email' => ['required', 'email', 'max:255', 'unique:users,email,' . $user->id],
             'phone' => 'nullable|string|max:20',
             'address' => 'nullable|array',
         ]);
 
-        $request->user()->update($validated);
+        $user->update($validated);
 
-        return $request->user();
+        return $user;
     });
 
     // Tablo Workflow (all endpoints require auth:sanctum)

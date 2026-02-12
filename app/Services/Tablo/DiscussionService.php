@@ -3,6 +3,7 @@
 namespace App\Services\Tablo;
 
 use App\Events\NewPostCreated;
+use App\Helpers\QueryHelper;
 use App\Events\PostDeleted;
 use App\Events\PostLiked;
 use App\Events\PostUpdated;
@@ -417,7 +418,7 @@ class DiscussionService
 
         // Keresés cím és első post tartalmában
         if (! empty($filters['search'])) {
-            $searchTerm = '%' . $filters['search'] . '%';
+            $searchTerm = QueryHelper::safeLikePattern($filters['search']);
             $query->where(function ($q) use ($searchTerm) {
                 $q->where('title', 'ilike', $searchTerm)
                   ->orWhereHas('posts', function ($postQuery) use ($searchTerm) {

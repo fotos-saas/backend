@@ -2,6 +2,7 @@
 
 namespace App\Services\Help;
 
+use App\Helpers\QueryHelper;
 use App\Models\HelpArticle;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
@@ -37,7 +38,7 @@ class HelpKnowledgeBaseService
         }
 
         if ($query) {
-            $searchTerm = '%'.mb_strtolower($query).'%';
+            $searchTerm = QueryHelper::safeLikePattern(mb_strtolower($query));
             $builder->where(function ($q) use ($searchTerm) {
                 $q->whereRaw('LOWER(title) LIKE ?', [$searchTerm])
                     ->orWhereRaw('LOWER(content_plain) LIKE ?', [$searchTerm])

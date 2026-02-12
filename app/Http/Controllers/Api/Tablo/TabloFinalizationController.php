@@ -105,7 +105,7 @@ class TabloFinalizationController extends Controller
         UploadFinalizationFileAction $action,
     ): JsonResponse {
         $request->validate([
-            'file' => 'required|file|max:65536',
+            'file' => 'required|file|max:65536|mimes:jpg,jpeg,png,gif,webp,pdf,zip',
             'type' => 'required|string|in:background,attachment',
         ]);
 

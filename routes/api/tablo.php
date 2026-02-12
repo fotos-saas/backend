@@ -36,7 +36,7 @@ use Illuminate\Support\Facades\Route;
 // External system integration for managing Tabló projects
 // Requires X-Tablo-Api-Key header
 
-Route::prefix('tablo-management')->middleware([TabloApiKeyAuth::class, SyncFotocmsId::class])->group(function () {
+Route::prefix('tablo-management')->middleware([TabloApiKeyAuth::class, SyncFotocmsId::class, 'throttle:60,1'])->group(function () {
 
     // Partners
     Route::get('/partners', [TabloPartnerController::class, 'index']);

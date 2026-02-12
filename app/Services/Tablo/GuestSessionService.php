@@ -2,6 +2,7 @@
 
 namespace App\Services\Tablo;
 
+use App\Helpers\QueryHelper;
 use App\Models\TabloGuestSession;
 use App\Models\TabloPerson;
 use App\Models\TabloProject;
@@ -293,7 +294,7 @@ class GuestSessionService
 
         // Keresés név alapján, ILIKE-kal (case-insensitive)
         return $project->persons()
-            ->where('name', 'ILIKE', '%'.trim($query).'%')
+            ->where('name', 'ILIKE', QueryHelper::safeLikePattern(trim($query)))
             ->orderBy('type') // student first, then teacher
             ->orderBy('name')
             ->limit($limit)

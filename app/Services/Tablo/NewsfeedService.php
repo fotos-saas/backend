@@ -2,6 +2,7 @@
 
 namespace App\Services\Tablo;
 
+use App\Helpers\QueryHelper;
 use App\Models\TabloContact;
 use App\Models\TabloGuestSession;
 use App\Models\TabloNewsfeedComment;
@@ -60,7 +61,7 @@ class NewsfeedService
 
         // Keresés címben és tartalomban
         if (! empty($filters['search'])) {
-            $searchTerm = '%' . $filters['search'] . '%';
+            $searchTerm = QueryHelper::safeLikePattern($filters['search']);
             $query->where(function ($q) use ($searchTerm) {
                 $q->where('title', 'ilike', $searchTerm)
                     ->orWhere('content', 'ilike', $searchTerm);
