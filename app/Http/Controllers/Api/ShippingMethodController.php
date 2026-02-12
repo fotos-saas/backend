@@ -3,12 +3,12 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Api\CalculateShippingRequest;
 use App\Models\PaymentMethod;
 use App\Models\ShippingMethod;
 use App\Services\ShippingCalculatorService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Validator;
 
 class ShippingMethodController extends Controller
 {
@@ -37,24 +37,11 @@ class ShippingMethodController extends Controller
     /**
      * Calculate available shipping methods with prices
      */
-    public function calculate(Request $request): JsonResponse
+    public function calculate(CalculateShippingRequest $request): JsonResponse
     {
-        $validator = Validator::make($request->all(), [
-            'items' => 'required|array',
-            'items.*.size' => 'required|string',
-            'items.*.quantity' => 'required|integer|min:1',
-            'payment_method_id' => 'nullable|exists:payment_methods,id',
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json([
-                'message' => 'Validation failed',
-                'errors' => $validator->errors(),
-            ], 422);
-        }
-
-        $items = $request->input('items');
-        $paymentMethodId = $request->input('payment_method_id');
+        $validated = $request->validated();
+        $items = $validated['items'];
+        $paymentMethodId = $validated['payment_method_id'] ?? null;
 
         $paymentMethod = $paymentMethodId ? PaymentMethod::find($paymentMethodId) : null;
 

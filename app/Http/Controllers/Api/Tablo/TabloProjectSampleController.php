@@ -3,10 +3,12 @@
 namespace App\Http\Controllers\Api\Tablo;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Api\Tablo\Sample\SyncSamplesRequest;
+use App\Http\Requests\Api\Tablo\Sample\UpdateSampleRequest;
+use App\Http\Requests\Api\Tablo\Sample\UploadSamplesRequest;
 use App\Models\TabloProject;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Validator;
 
 class TabloProjectSampleController extends Controller
 {
@@ -15,7 +17,7 @@ class TabloProjectSampleController extends Controller
      * POST /api/tablo-management/projects/{id}/samples
      * Body: multipart form-data with 'samples[]' files
      */
-    public function uploadSamples(Request $request, int $id): JsonResponse
+    public function uploadSamples(UploadSamplesRequest $request, int $id): JsonResponse
     {
         $project = TabloProject::find($id);
 
@@ -24,19 +26,6 @@ class TabloProjectSampleController extends Controller
                 'success' => false,
                 'message' => 'Projekt nem található',
             ], 404);
-        }
-
-        $validator = Validator::make($request->all(), [
-            'samples' => 'required|array|min:1',
-            'samples.*' => 'required|image|max:10240', // 10MB max
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Validációs hiba',
-                'errors' => $validator->errors(),
-            ], 422);
         }
 
         $uploaded = [];
@@ -69,24 +58,8 @@ class TabloProjectSampleController extends Controller
      * POST /api/tablo-management/projects/sync-samples
      * Body: { "fotocms_id": 728, "samples": [...] } OR { "project_id": 94, "samples": [...] }
      */
-    public function syncSamples(Request $request): JsonResponse
+    public function syncSamples(SyncSamplesRequest $request): JsonResponse
     {
-        $validator = Validator::make($request->all(), [
-            'fotocms_id' => 'nullable|integer',
-            'project_id' => 'nullable|integer',
-            'samples' => 'required|array',
-            'samples.*.url' => 'required|url',
-            'samples.*.name' => 'nullable|string|max:255',
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Validációs hiba',
-                'errors' => $validator->errors(),
-            ], 422);
-        }
-
         // Prefer fotocms_id, fallback to project_id (external_id)
         $fotocmsId = $request->input('fotocms_id');
         $externalId = $request->input('project_id');
@@ -199,7 +172,7 @@ class TabloProjectSampleController extends Controller
      * PATCH /api/tablo-management/projects/{projectId}/samples/{mediaId}
      * Body: { "is_active": true/false }
      */
-    public function updateSample(Request $request, int $projectId, int $mediaId): JsonResponse
+    public function updateSample(UpdateSampleRequest $request, int $projectId, int $mediaId): JsonResponse
     {
         $project = TabloProject::find($projectId);
 
@@ -219,19 +192,7 @@ class TabloProjectSampleController extends Controller
             ], 404);
         }
 
-        $validator = Validator::make($request->all(), [
-            'is_active' => 'required|boolean',
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Validációs hiba',
-                'errors' => $validator->errors(),
-            ], 422);
-        }
-
-        $media->setCustomProperty('is_active', $request->input('is_active'));
+        $media->setCustomProperty('is_active', $request->validated('is_active'));
         $media->save();
 
         return response()->json([

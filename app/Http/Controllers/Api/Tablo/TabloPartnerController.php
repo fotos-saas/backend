@@ -3,10 +3,10 @@
 namespace App\Http\Controllers\Api\Tablo;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Api\Tablo\Partner\StoreTabloPartnerRequest;
+use App\Http\Requests\Api\Tablo\Partner\UpdateTabloPartnerRequest;
 use App\Models\TabloPartner;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Validator;
 
 class TabloPartnerController extends Controller
 {
@@ -63,26 +63,14 @@ class TabloPartnerController extends Controller
     /**
      * Create new partner
      */
-    public function store(Request $request): JsonResponse
+    public function store(StoreTabloPartnerRequest $request): JsonResponse
     {
-        $validator = Validator::make($request->all(), [
-            'name' => 'required|string|max:255',
-            'slug' => 'nullable|string|max:255|unique:tablo_partners,slug',
-            'local_id' => 'nullable|string|max:255|unique:tablo_partners,local_id',
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Validációs hiba',
-                'errors' => $validator->errors(),
-            ], 422);
-        }
+        $validated = $request->validated();
 
         $partner = TabloPartner::create([
-            'name' => $request->input('name'),
-            'slug' => $request->input('slug'),
-            'local_id' => $request->input('local_id'),
+            'name' => $validated['name'],
+            'slug' => $validated['slug'] ?? null,
+            'local_id' => $validated['local_id'] ?? null,
         ]);
 
         return response()->json([
@@ -100,7 +88,7 @@ class TabloPartnerController extends Controller
     /**
      * Update partner
      */
-    public function update(Request $request, int $id): JsonResponse
+    public function update(UpdateTabloPartnerRequest $request, int $id): JsonResponse
     {
         $partner = TabloPartner::find($id);
 
@@ -111,21 +99,7 @@ class TabloPartnerController extends Controller
             ], 404);
         }
 
-        $validator = Validator::make($request->all(), [
-            'name' => 'sometimes|string|max:255',
-            'slug' => 'nullable|string|max:255|unique:tablo_partners,slug,'.$id,
-            'local_id' => 'nullable|string|max:255|unique:tablo_partners,local_id,'.$id,
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Validációs hiba',
-                'errors' => $validator->errors(),
-            ], 422);
-        }
-
-        $partner->update($request->only(['name', 'slug', 'local_id']));
+        $partner->update($request->validated());
 
         return response()->json([
             'success' => true,

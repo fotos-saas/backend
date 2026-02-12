@@ -4,10 +4,10 @@ namespace App\Http\Controllers\Api\Partner;
 
 use App\Http\Controllers\Api\Partner\Traits\PartnerAuthTrait;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Api\Partner\AddContactRequest;
+use App\Http\Requests\Api\Partner\UpdateContactRequest;
 use App\Models\TabloContact;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Validator;
 
 /**
  * Partner Project Contact Controller - Project-specific contact management.
@@ -21,25 +21,10 @@ class PartnerProjectContactController extends Controller
     /**
      * Add contact to project.
      */
-    public function addContact(Request $request, int $projectId): JsonResponse
+    public function addContact(AddContactRequest $request, int $projectId): JsonResponse
     {
         $partnerId = $this->getPartnerIdOrFail();
         $project = $this->getProjectForPartner($projectId);
-
-        $validator = Validator::make($request->all(), [
-            'name' => 'required|string|max:255',
-            'email' => 'nullable|email|max:255',
-            'phone' => 'nullable|string|max:50',
-            'isPrimary' => 'nullable|boolean',
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Validációs hiba',
-                'errors' => $validator->errors(),
-            ], 422);
-        }
 
         $isPrimary = $request->boolean('isPrimary', false);
 
@@ -78,7 +63,7 @@ class PartnerProjectContactController extends Controller
     /**
      * Update contact.
      */
-    public function updateContact(Request $request, int $projectId, int $contactId): JsonResponse
+    public function updateContact(UpdateContactRequest $request, int $projectId, int $contactId): JsonResponse
     {
         $partnerId = $this->getPartnerIdOrFail();
         $project = $this->getProjectForPartner($projectId);
@@ -88,21 +73,6 @@ class PartnerProjectContactController extends Controller
             ->where('tablo_contacts.id', $contactId)
             ->where('tablo_contacts.partner_id', $partnerId)
             ->firstOrFail();
-
-        $validator = Validator::make($request->all(), [
-            'name' => 'sometimes|string|max:255',
-            'email' => 'nullable|email|max:255',
-            'phone' => 'nullable|string|max:50',
-            'isPrimary' => 'nullable|boolean',
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Validációs hiba',
-                'errors' => $validator->errors(),
-            ], 422);
-        }
 
         // Ha ez lesz az elsődleges, többi elsődleges flag törlése a pivot-ban
         if ($request->boolean('isPrimary')) {
