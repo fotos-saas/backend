@@ -40,11 +40,7 @@ PROMPT,
                 'summary' => trim($response['content']),
             ]);
         } catch (\Exception $e) {
-            \Log::error('AI Summary hiba', [
-                'error' => $e->getMessage(),
-                'class' => get_class($e),
-                'text_length' => strlen($validated['text']),
-            ]);
+            report($e);
 
             return response()->json([
                 'success' => false,

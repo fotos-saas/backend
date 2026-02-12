@@ -239,6 +239,7 @@ class PollController extends BaseTabloController
                 'can_vote_more' => $poll->canGuestVote($guestSession->id),
             ], 'Sikeres szavazat!');
         } catch (\InvalidArgumentException $e) {
+            // Business logic validation - safe to expose
             return $this->validationErrorResponse($e->getMessage());
         }
     }
@@ -266,6 +267,7 @@ class PollController extends BaseTabloController
                 'my_votes' => $this->pollService->getGuestVotes($poll, $guestSession),
             ], 'Szavazat visszavonva!');
         } catch (\InvalidArgumentException $e) {
+            // Business logic validation - safe to expose
             return $this->validationErrorResponse($e->getMessage());
         }
     }

@@ -98,7 +98,7 @@ class StorageController extends Controller
         } catch (\Stripe\Exception\ApiErrorException $e) {
             Log::error('Stripe error during storage addon update', [
                 'partner_id' => $partner->id,
-                'error' => $e->getMessage(),
+                'error' => 'Hiba történt a művelet során.',
             ]);
 
             return response()->json([
@@ -160,7 +160,7 @@ class StorageController extends Controller
         } catch (\Stripe\Exception\ApiErrorException $e) {
             Log::error('Stripe error during storage addon removal', [
                 'partner_id' => $partner->id,
-                'error' => $e->getMessage(),
+                'error' => 'Hiba történt a művelet során.',
             ]);
 
             return response()->json([

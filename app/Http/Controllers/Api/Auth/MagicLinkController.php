@@ -99,9 +99,7 @@ class MagicLinkController extends Controller
             ]);
 
         } catch (\Exception $e) {
-            \Log::error('Magic link request failed: ' . $e->getMessage(), [
-                'trace' => $e->getTraceAsString(),
-            ]);
+            report($e);
 
             return response()->json([
                 'message' => 'Hiba történt az email küldése során.',
@@ -200,10 +198,7 @@ class MagicLinkController extends Controller
 
                     $user->assignRole('user');
                 } catch (\Exception $e) {
-                    logger()->error('Failed to create user for work session invite', [
-                        'email' => $email,
-                        'error' => $e->getMessage(),
-                    ]);
+                    report($e);
                     $failed[] = $email;
                     continue;
                 }
@@ -230,12 +225,7 @@ class MagicLinkController extends Controller
                 $sent[] = $email;
                 $delay += 30;
             } catch (\Exception $e) {
-                logger()->error('Failed to dispatch work session invite job', [
-                    'email' => $email,
-                    'work_session_id' => $workSession->id,
-                    'error' => $e->getMessage(),
-                    'trace' => $e->getTraceAsString(),
-                ]);
+                report($e);
                 $failed[] = $email;
             }
         }

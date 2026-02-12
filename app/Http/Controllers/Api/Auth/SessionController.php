@@ -76,10 +76,7 @@ class SessionController extends Controller
                     ]);
                 }
             } catch (\Exception $e) {
-                \Log::error('[Auth] Failed to clear cache on logout', [
-                    'user_id' => $userId,
-                    'error' => $e->getMessage(),
-                ]);
+                report($e);
             }
         }
 

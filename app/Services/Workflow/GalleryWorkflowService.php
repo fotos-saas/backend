@@ -26,7 +26,10 @@ class GalleryWorkflowService
             ->where('tablo_gallery_id', $gallery->id)
             ->first();
 
-        $visiblePhotos = $this->getVisiblePhotosFromGallery($gallery, $step, $progress);
+        // Cache media collection to avoid duplicate getMedia() calls
+        $allMedia = $gallery->getMedia('photos');
+
+        $visiblePhotos = $this->getVisiblePhotosFromGallery($allMedia, $step, $progress);
         $selectedPhotos = $this->getSelectedPhotosFromGallery($step, $progress);
 
         $maxRetouchPhotos = $this->resolveMaxRetouchPhotos($gallery);
@@ -46,7 +49,7 @@ class GalleryWorkflowService
         ];
 
         if ($step === 'completed' && $progress) {
-            $result['review_groups'] = $this->buildReviewGroups($gallery, $progress);
+            $result['review_groups'] = $this->buildReviewGroups($allMedia, $progress);
 
             $project = $gallery->projects()->first();
             $partner = $project?->partner;
@@ -77,11 +80,11 @@ class GalleryWorkflowService
 
     /**
      * Get visible photos from gallery media for a specific step
+     *
+     * @param Collection $allMedia Pre-fetched media collection from gallery
      */
-    private function getVisiblePhotosFromGallery(TabloGallery $gallery, string $step, ?TabloUserProgress $progress): Collection
+    private function getVisiblePhotosFromGallery(Collection $allMedia, string $step, ?TabloUserProgress $progress): Collection
     {
-        $allMedia = $gallery->getMedia('photos');
-
         if (in_array($step, ['claiming', 'registration'])) {
             return $allMedia->map([WorkflowStepHelper::class, 'formatMedia']);
         }
@@ -146,11 +149,12 @@ class GalleryWorkflowService
 
     /**
      * Build review groups for completed step (all 3 steps' photos grouped)
+     *
+     * @param Collection $allMedia Pre-fetched media collection from gallery
      */
-    private function buildReviewGroups(TabloGallery $gallery, TabloUserProgress $progress): array
+    private function buildReviewGroups(Collection $allMedia, TabloUserProgress $progress): array
     {
         $stepsData = $progress->steps_data ?? [];
-        $allMedia = $gallery->getMedia('photos');
 
         $claimedIds = $stepsData['claimed_media_ids'] ?? [];
         $retouchIds = $stepsData['retouch_media_ids'] ?? [];

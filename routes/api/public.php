@@ -13,12 +13,12 @@ use App\Http\Controllers\Api\PhotoController;
 use App\Http\Controllers\Api\PlansController;
 use App\Http\Controllers\Api\PricingContextController;
 use App\Http\Controllers\Api\PricingController;
+use App\Http\Controllers\Api\ProfileController;
 use App\Http\Controllers\Api\ShareController;
 use App\Http\Controllers\Api\ShippingMethodController;
 use App\Http\Controllers\Api\StripeWebhookController;
 use App\Http\Controllers\Api\Tablo\WorkflowController as TabloWorkflowControllerNew;
 use App\Http\Controllers\Api\WorkSessionController;
-use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -183,23 +183,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/orders', [OrderController::class, 'index']);
 
     // Profile
-    Route::get('/profile', function (Request $request) {
-        return $request->user();
-    });
-
-    Route::put('/profile', function (Request $request) {
-        $user = $request->user();
-        $validated = $request->validate([
-            'name' => 'required|string|max:255',
-            'email' => ['required', 'email', 'max:255', 'unique:users,email,' . $user->id],
-            'phone' => 'nullable|string|max:20',
-            'address' => 'nullable|array',
-        ]);
-
-        $user->update($validated);
-
-        return $user;
-    });
+    Route::get('/profile', [ProfileController::class, 'show']);
+    Route::put('/profile', [ProfileController::class, 'update']);
 
     // Tablo Workflow (all endpoints require auth:sanctum)
     Route::prefix('tablo')->group(function () {

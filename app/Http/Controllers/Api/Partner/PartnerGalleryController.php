@@ -71,32 +71,19 @@ class PartnerGalleryController extends Controller
      */
     public function uploadPhotos(UploadGalleryPhotosRequest $request, int $projectId): JsonResponse
     {
-        error_log("[GALLERY_UPLOAD] START projectId={$projectId}");
+        $project = $this->getProjectForPartner($projectId);
 
-        try {
-            $project = $this->getProjectForPartner($projectId);
-
-            if (!$project->tablo_gallery_id) {
-                error_log("[GALLERY_UPLOAD] No gallery for project {$projectId}");
-                return response()->json([
-                    'success' => false,
-                    'message' => 'A projektnek nincs galéria hozzárendelve.',
-                ], 422);
-            }
-
-            $files = $request->file('photos');
-            $result = $this->uploadPhotosAction->execute($project->gallery, $files);
-
-            return response()->json($result);
-        } catch (\Throwable $e) {
-            error_log("[GALLERY_UPLOAD] ERROR: {$e->getMessage()} in {$e->getFile()}:{$e->getLine()}");
-            error_log("[GALLERY_UPLOAD] TRACE: {$e->getTraceAsString()}");
-
+        if (!$project->tablo_gallery_id) {
             return response()->json([
                 'success' => false,
-                'message' => 'Feltöltési hiba: ' . $e->getMessage(),
-            ], 500);
+                'message' => 'A projektnek nincs galéria hozzárendelve.',
+            ], 422);
         }
+
+        $files = $request->file('photos');
+        $result = $this->uploadPhotosAction->execute($project->gallery, $files);
+
+        return response()->json($result);
     }
 
     /**

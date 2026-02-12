@@ -112,7 +112,7 @@ class AddonController extends Controller
             Log::error('Stripe error during addon subscription', [
                 'partner_id' => $partner->id,
                 'addon_key' => $key,
-                'error' => $e->getMessage(),
+                'error' => 'Hiba történt a művelet során.',
             ]);
 
             return response()->json([
@@ -156,7 +156,7 @@ class AddonController extends Controller
             Log::error('Stripe error during addon cancellation', [
                 'partner_id' => $partner->id,
                 'addon_key' => $key,
-                'error' => $e->getMessage(),
+                'error' => 'Hiba történt a művelet során.',
             ]);
 
             return response()->json([

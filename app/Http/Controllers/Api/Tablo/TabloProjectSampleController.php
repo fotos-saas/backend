@@ -108,7 +108,7 @@ class TabloProjectSampleController extends Controller
             } catch (\Exception $e) {
                 $errors[] = [
                     'url' => $sample['url'],
-                    'error' => $e->getMessage(),
+                    'error' => 'Hiba történt a művelet során.',
                 ];
             }
         }

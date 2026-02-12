@@ -131,6 +131,7 @@ class NewsfeedPostController extends BaseTabloController
                 201
             );
         } catch (\InvalidArgumentException $e) {
+            // Business logic validation - safe to expose
             return $this->validationErrorResponse($e->getMessage());
         }
     }
@@ -173,6 +174,7 @@ class NewsfeedPostController extends BaseTabloController
                 'Bejegyzés sikeresen frissítve!'
             );
         } catch (\InvalidArgumentException $e) {
+            // Business logic validation - safe to expose
             return $this->validationErrorResponse($e->getMessage());
         }
     }

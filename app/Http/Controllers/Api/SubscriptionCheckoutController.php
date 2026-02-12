@@ -53,16 +53,13 @@ class SubscriptionCheckoutController extends Controller
                 'session_id' => $session->id,
             ]);
         } catch (\InvalidArgumentException $e) {
+            // Business logic validation error - safe to expose
             return response()->json(['message' => $e->getMessage()], 400);
         } catch (\Exception $e) {
-            Log::error('Failed to create Stripe Checkout Session', [
-                'error' => $e->getMessage(),
-                'email' => $validated['email'],
-            ]);
+            report($e);
 
             return response()->json([
                 'message' => 'Hiba történt a fizetési munkamenet létrehozásakor.',
-                'error' => config('app.debug') ? $e->getMessage() : null,
             ], 500);
         }
     }
@@ -128,14 +125,10 @@ class SubscriptionCheckoutController extends Controller
                 ],
             ]);
         } catch (\Exception $e) {
-            Log::error('Failed to complete registration', [
-                'session_id' => $request->input('session_id'),
-                'error' => $e->getMessage(),
-            ]);
+            report($e);
 
             return response()->json([
                 'message' => 'Hiba történt a regisztráció véglegesítésekor.',
-                'error' => config('app.debug') ? $e->getMessage() : null,
             ], 500);
         }
     }

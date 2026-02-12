@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\PhotoController;
+use App\Http\Controllers\Api\SuperAdminController;
 use App\Http\Controllers\Api\WorkSessionController;
 use App\Http\Controllers\EmailTrackingController;
 use Illuminate\Support\Facades\Route;
@@ -50,21 +51,8 @@ Route::middleware('auth')->group(function () {
         ->name('api.download-progress.check');
 
     // Manual photo matching for missing persons (super admin only)
-    Route::post('/admin/api/missing-person-match', function (\Illuminate\Http\Request $request) {
-        if (! $request->user()?->hasRole('super_admin')) {
-            abort(403, 'Nincs jogosultságod.');
-        }
-
-        $validated = $request->validate([
-            'person_id' => 'required|integer|exists:tablo_persons,id',
-            'media_id' => 'required|integer|exists:media,id',
-        ]);
-
-        $person = \App\Models\TabloPerson::find($validated['person_id']);
-        $person->update(['media_id' => $validated['media_id']]);
-
-        return response()->json(['success' => true]);
-    })->name('admin.missing-person-match');
+    Route::post('/admin/api/missing-person-match', [SuperAdminController::class, 'matchMissingPerson'])
+        ->name('admin.missing-person-match');
 
     // Quote PDF preview (inline - opens in browser)
     Route::get('/admin/quotes/{quote}/pdf', function (\App\Models\Quote $quote) {

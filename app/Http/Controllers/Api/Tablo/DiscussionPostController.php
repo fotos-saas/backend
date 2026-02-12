@@ -146,6 +146,7 @@ class DiscussionPostController extends BaseTabloController
                 ])->toArray(),
             ], 'Hozzászólás sikeresen frissítve!');
         } catch (\InvalidArgumentException $e) {
+            // Business logic validation - safe to expose
             return $this->validationErrorResponse($e->getMessage());
         }
     }

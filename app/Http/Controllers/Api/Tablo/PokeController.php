@@ -74,6 +74,7 @@ class PokeController extends BaseTabloController
                 'daily_limit' => $this->pokeService->getDailyLimitInfo($fromSession),
             ], 'Bökés sikeresen elküldve!', 201);
         } catch (\InvalidArgumentException $e) {
+            // Business logic validation - safe to expose
             return $this->errorResponse($e->getMessage(), 400);
         }
     }
@@ -149,6 +150,7 @@ class PokeController extends BaseTabloController
                 'poke' => $poke->toApiResponse(),
             ], 'Reakció hozzáadva!');
         } catch (\InvalidArgumentException $e) {
+            // Business logic validation - safe to expose
             return $this->errorResponse($e->getMessage(), 400);
         }
     }

@@ -4,10 +4,12 @@ namespace App\Http\Controllers\Api;
 
 use App\Helpers\QueryHelper;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Api\SuperAdmin\MatchMissingPersonRequest;
 use App\Http\Requests\Api\SuperAdmin\UpdateSystemSettingsRequest;
 use App\Models\Partner;
 use App\Models\QrRegistrationCode;
 use App\Models\TabloPartner;
+use App\Models\TabloPerson;
 use App\Models\TabloProject;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -136,5 +138,18 @@ class SuperAdminController extends Controller
             'success' => true,
             'message' => 'Beállítások mentve.',
         ]);
+    }
+
+    /**
+     * Manual photo matching for missing persons (super admin only).
+     */
+    public function matchMissingPerson(MatchMissingPersonRequest $request): JsonResponse
+    {
+        $validated = $request->validated();
+
+        $person = TabloPerson::findOrFail($validated['person_id']);
+        $person->update(['media_id' => $validated['media_id']]);
+
+        return response()->json(['success' => true]);
     }
 }

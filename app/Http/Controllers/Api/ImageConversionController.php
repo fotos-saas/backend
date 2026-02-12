@@ -38,7 +38,7 @@ class ImageConversionController extends Controller
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Hiba történt a feltöltés során: ' . $e->getMessage(),
+                'message' => 'Hiba történt a feltöltés során: ',
             ], 500);
         }
     }
@@ -61,7 +61,7 @@ class ImageConversionController extends Controller
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Hiba történt a feltöltés során: ' . $e->getMessage(),
+                'message' => 'Hiba történt a feltöltés során: ',
             ], 500);
         }
     }
@@ -82,7 +82,7 @@ class ImageConversionController extends Controller
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Hiba történt a konverzió indításakor: ' . $e->getMessage(),
+                'message' => 'Hiba történt a konverzió indításakor: ',
             ], 500);
         }
     }
@@ -114,7 +114,7 @@ class ImageConversionController extends Controller
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Hiba történt a letöltés során: ' . $e->getMessage(),
+                'message' => 'Hiba történt a letöltés során: ',
             ], 500);
         }
     }
@@ -152,7 +152,7 @@ class ImageConversionController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Hiba történt a törlés indításakor: ' . $e->getMessage(),
+                'message' => 'Hiba történt a törlés indításakor: ',
             ], 500);
         }
     }

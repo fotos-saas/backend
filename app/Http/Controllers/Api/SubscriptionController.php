@@ -40,10 +40,7 @@ class SubscriptionController extends Controller
                 $response = array_merge($response, $stripeData);
             } catch (\Exception $e) {
                 $this->stripeService->clearSubscriptionCache($partner->stripe_subscription_id);
-                Log::warning('Failed to retrieve Stripe subscription', [
-                    'subscription_id' => $partner->stripe_subscription_id,
-                    'error' => $e->getMessage(),
-                ]);
+                report($e);
             }
         }
 
@@ -69,10 +66,7 @@ class SubscriptionController extends Controller
 
             return response()->json(['portal_url' => $portalSession->url]);
         } catch (\Exception $e) {
-            Log::error('Failed to create Stripe Portal session', [
-                'partner_id' => $partner->id,
-                'error' => $e->getMessage(),
-            ]);
+            report($e);
 
             return response()->json(['message' => 'Hiba történt a fiókkezelő megnyitásakor.'], 500);
         }
@@ -103,7 +97,7 @@ class SubscriptionController extends Controller
                 'cancel_at' => date('Y-m-d H:i:s', $subscription->current_period_end),
             ]);
         } catch (\Exception $e) {
-            Log::error('Failed to cancel subscription', ['partner_id' => $partner->id, 'error' => $e->getMessage()]);
+            report($e);
 
             return response()->json(['message' => 'Hiba történt az előfizetés lemondásakor.'], 500);
         }
@@ -128,7 +122,7 @@ class SubscriptionController extends Controller
 
             return response()->json(['message' => 'Az előfizetésed újra aktív!']);
         } catch (\Exception $e) {
-            Log::error('Failed to resume subscription', ['partner_id' => $partner->id, 'error' => $e->getMessage()]);
+            report($e);
 
             return response()->json(['message' => 'Hiba történt az előfizetés újraaktiválásakor.'], 500);
         }
@@ -162,9 +156,10 @@ class SubscriptionController extends Controller
                 'paused_price' => $pausedPrice,
             ]);
         } catch (\InvalidArgumentException $e) {
+            // Business logic validation - safe to expose
             return response()->json(['message' => $e->getMessage()], 400);
         } catch (\Exception $e) {
-            Log::error('Failed to pause subscription', ['partner_id' => $partner->id, 'error' => $e->getMessage()]);
+            report($e);
 
             return response()->json(['message' => 'Hiba történt az előfizetés szüneteltetésekor.'], 500);
         }
@@ -193,9 +188,10 @@ class SubscriptionController extends Controller
 
             return response()->json(['message' => 'Az előfizetésed újra aktív!']);
         } catch (\InvalidArgumentException $e) {
+            // Business logic validation - safe to expose
             return response()->json(['message' => $e->getMessage()], 400);
         } catch (\Exception $e) {
-            Log::error('Failed to unpause subscription', ['partner_id' => $partner->id, 'error' => $e->getMessage()]);
+            report($e);
 
             return response()->json(['message' => 'Hiba történt az előfizetés újraaktiválásakor.'], 500);
         }
@@ -238,11 +234,10 @@ class SubscriptionController extends Controller
 
             return response()->json(['invoices' => $invoices, 'has_more' => $stripeInvoices->has_more]);
         } catch (\Exception $e) {
-            Log::error('Failed to retrieve Stripe invoices', ['partner_id' => $partner->id, 'error' => $e->getMessage()]);
+            report($e);
 
             return response()->json([
                 'message' => 'Hiba történt a számlák lekérésekor.',
-                'error' => config('app.debug') ? $e->getMessage() : null,
             ], 500);
         }
     }

@@ -236,7 +236,7 @@ class TabloFinalizationController extends Controller
         } catch (\Exception $e) {
             Log::error('PDF generation failed', [
                 'project_id' => $tabloProject->id,
-                'error' => $e->getMessage(),
+                'error' => 'Hiba történt a művelet során.',
                 'trace' => $e->getTraceAsString(),
             ]);
 

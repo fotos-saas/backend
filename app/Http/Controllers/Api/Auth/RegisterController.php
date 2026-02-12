@@ -121,14 +121,12 @@ class RegisterController extends Controller
             ]);
 
         } catch (\InvalidArgumentException $e) {
+            // Business logic validation error - safe to expose
             return response()->json([
                 'message' => $e->getMessage(),
             ], 400);
         } catch (\Exception $e) {
-            \Log::error('[Auth] QR registration failed', [
-                'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString(),
-            ]);
+            report($e);
 
             return response()->json([
                 'message' => 'Hiba történt a regisztráció során.',

@@ -35,16 +35,10 @@ class WebshopWebhookController extends Controller
         try {
             $event = $this->stripeService->constructWebhookEvent($payload, $signature, $partner);
         } catch (SignatureVerificationException $e) {
-            Log::warning('Webshop webhook signature mismatch', [
-                'partner_id' => $partnerId,
-                'error' => $e->getMessage(),
-            ]);
+            report($e);
             return response()->json(['error' => 'Invalid signature'], 400);
         } catch (\Exception $e) {
-            Log::error('Webshop webhook error', [
-                'partner_id' => $partnerId,
-                'error' => $e->getMessage(),
-            ]);
+            report($e);
             return response()->json(['error' => 'Webhook error'], 400);
         }
 

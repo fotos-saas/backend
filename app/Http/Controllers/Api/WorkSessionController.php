@@ -60,12 +60,12 @@ class WorkSessionController extends Controller
         } catch (\Exception $e) {
             Log::error('Failed to generate work session albums ZIP', [
                 'work_session_id' => $workSession->id,
-                'error' => $e->getMessage(),
+                'error' => 'Hiba történt a művelet során.',
             ]);
 
             return response()->json([
                 'message' => 'Failed to generate ZIP file',
-                'error' => $e->getMessage(),
+                'error' => 'Hiba történt a művelet során.',
             ], 500);
         }
     }
@@ -95,7 +95,7 @@ class WorkSessionController extends Controller
         } catch (\Exception $e) {
             Log::error('Failed to generate manager ZIP', [
                 'work_session_id' => $workSession->id,
-                'error' => $e->getMessage(),
+                'error' => 'Hiba történt a művelet során.',
             ]);
 
             return response()->json([
@@ -165,7 +165,7 @@ class WorkSessionController extends Controller
 
         } catch (\Exception $e) {
             Log::error('Failed to download ready ZIP', [
-                'error' => $e->getMessage(),
+                'error' => 'Hiba történt a művelet során.',
             ]);
 
             return response()->json([
@@ -242,7 +242,7 @@ class WorkSessionController extends Controller
                 Log::error('Failed to send manual email', [
                     'recipient' => $recipientEmail,
                     'work_session_id' => $workSession->id,
-                    'error' => $e->getMessage(),
+                    'error' => 'Hiba történt a művelet során.',
                 ]);
             }
         }

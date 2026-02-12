@@ -112,6 +112,7 @@ class GuestBillingController extends Controller
                 'checkout_url' => $result['checkout_url'],
             ]);
         } catch (\RuntimeException $e) {
+            // Business logic error - safe to expose
             return $this->errorResponse($e->getMessage(), 422);
         }
     }

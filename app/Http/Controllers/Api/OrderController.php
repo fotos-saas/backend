@@ -85,12 +85,12 @@ class OrderController extends Controller
         } catch (\Exception $e) {
             Log::error('Stripe Checkout creation failed', [
                 'order_id' => $order->id,
-                'error' => $e->getMessage(),
+                'error' => 'Hiba történt a művelet során.',
             ]);
 
             return response()->json([
                 'message' => 'Checkout creation failed',
-                ...(config('app.debug') ? ['error' => $e->getMessage()] : []),
+                ...(config('app.debug') ? ['error' => 'Hiba történt a művelet során.'] : []),
             ], 500);
         }
     }
@@ -133,7 +133,7 @@ class OrderController extends Controller
         } catch (\Exception $e) {
             Log::error('Invoice PDF download failed', [
                 'order_id' => $order->id,
-                'error' => $e->getMessage(),
+                'error' => 'Hiba történt a művelet során.',
             ]);
 
             abort(500, 'Számla letöltése sikertelen');

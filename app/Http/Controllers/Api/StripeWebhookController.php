@@ -54,15 +54,11 @@ class StripeWebhookController extends Controller
 
             return response()->json(['status' => 'success']);
         } catch (SignatureVerificationException $e) {
-            Log::error('Stripe webhook signature verification failed', [
-                'error' => $e->getMessage(),
-            ]);
+            report($e);
 
             return response()->json(['error' => 'Invalid signature'], 400);
         } catch (\Exception $e) {
-            Log::error('Stripe webhook handling failed', [
-                'error' => $e->getMessage(),
-            ]);
+            report($e);
 
             return response()->json(['error' => 'Webhook handling failed'], 500);
         }

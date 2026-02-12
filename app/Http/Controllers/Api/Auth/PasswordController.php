@@ -62,7 +62,7 @@ class PasswordController extends Controller
                 'message' => 'Ha az email cím létezik, küldtünk egy jelszó-visszaállítási linket.',
             ]);
         } catch (\Exception $e) {
-            \Log::error('Password reset email failed: ' . $e->getMessage());
+            report($e);
 
             return response()->json([
                 'message' => 'Ha az email cím létezik, küldtünk egy jelszó-visszaállítási linket.',

@@ -79,9 +79,11 @@ class AlbumController extends Controller
                 'message' => 'Arcklaszterezés sikeres',
             ]);
         } catch (\Exception $e) {
+            report($e);
+
             return response()->json([
                 'success' => false,
-                'message' => 'Hiba történt: '.$e->getMessage(),
+                'message' => 'Hiba történt az arcklaszterezés során.',
             ], 500);
         }
     }

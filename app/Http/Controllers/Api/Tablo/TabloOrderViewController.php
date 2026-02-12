@@ -152,7 +152,7 @@ class TabloOrderViewController extends Controller
         } catch (\Exception $e) {
             Log::error('Order PDF view generation failed', [
                 'project_id' => $projectId,
-                'error' => $e->getMessage(),
+                'error' => 'Hiba történt a művelet során.',
                 'trace' => $e->getTraceAsString(),
             ]);
 

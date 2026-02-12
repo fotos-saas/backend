@@ -127,9 +127,10 @@ class InviteRegisterController extends Controller
             ], 201);
 
         } catch (\Exception $e) {
+            report($e);
+
             return response()->json([
                 'message' => 'Hiba történt a regisztráció során.',
-                'error' => config('app.debug') ? $e->getMessage() : null,
             ], 500);
         }
     }
@@ -181,9 +182,10 @@ class InviteRegisterController extends Controller
             ]);
 
         } catch (\Exception $e) {
+            report($e);
+
             return response()->json([
                 'message' => 'Hiba történt a meghívó elfogadása során.',
-                'error' => config('app.debug') ? $e->getMessage() : null,
             ], 500);
         }
     }

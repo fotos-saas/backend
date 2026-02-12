@@ -82,10 +82,7 @@ class VerificationController extends Controller
 
             \Log::info('[Auth] Verification email sent', ['user_id' => $user->id]);
         } catch (\Exception $e) {
-            \Log::error('[Auth] Failed to send verification email', [
-                'user_id' => $user->id,
-                'error' => $e->getMessage(),
-            ]);
+            report($e);
         }
     }
 }

@@ -56,7 +56,7 @@ class AccountController extends Controller
                         Log::warning('Failed to cancel Stripe subscription during account deletion', [
                             'partner_id' => $partner->id,
                             'subscription_id' => $partner->stripe_subscription_id,
-                            'error' => $e->getMessage(),
+                            'error' => 'Hiba történt a művelet során.',
                         ]);
                     }
                 }
@@ -89,7 +89,7 @@ class AccountController extends Controller
         } catch (\Exception $e) {
             Log::error('Failed to delete account', [
                 'user_id' => $user->id,
-                'error' => $e->getMessage(),
+                'error' => 'Hiba történt a művelet során.',
             ]);
 
             return response()->json([
@@ -153,7 +153,7 @@ class AccountController extends Controller
         } catch (\Exception $e) {
             Log::error('Failed to cancel account deletion', [
                 'user_id' => $user->id,
-                'error' => $e->getMessage(),
+                'error' => 'Hiba történt a művelet során.',
             ]);
 
             return response()->json([
