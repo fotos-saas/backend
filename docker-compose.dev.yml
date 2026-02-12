@@ -1,0 +1,124 @@
+# PhotoStack SaaS - Lokalis Fejlesztoi Kornyezet
+#
+# Hasznalat:
+#   Inditas:    docker compose -f docker-compose.dev.yml up -d
+#   Leallitas:  docker compose -f docker-compose.dev.yml down
+#   Logok:      docker compose -f docker-compose.dev.yml logs -f app
+#   DB shell:   docker compose -f docker-compose.dev.yml exec postgres psql -U photo_stack
+#   Tinker:     docker compose -f docker-compose.dev.yml exec app php artisan tinker
+#
+# Frontend: NEM itt fut! → cd ../frontend && npm run start:local (localhost:4205)
+
+services:
+  # === PostgreSQL 17 ===
+  postgres:
+    image: postgres:17-alpine
+    container_name: photostack-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: photo_stack
+      POSTGRES_USER: photo_stack
+      POSTGRES_PASSWORD: secret
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U photo_stack -d photo_stack"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # === Redis 7.2 ===
+  redis:
+    image: redis:7.2-alpine
+    container_name: photostack-redis
+    restart: unless-stopped
+    ports:
+      - "6380:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # === PHP-FPM App ===
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: photostack-app
+    restart: unless-stopped
+    environment:
+      CONTAINER_ROLE: app
+      XDEBUG_MODE: "${XDEBUG_MODE:-off}"
+    env_file:
+      - .env.dev
+    volumes:
+      - .:/var/www/html
+      - vendor_data:/var/www/html/vendor
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  # === Nginx ===
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: photostack-nginx
+    restart: unless-stopped
+    ports:
+      - "8000:80"
+    volumes:
+      - .:/var/www/html:ro
+      - ./docker/nginx/nginx.dev.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - app
+
+  # === Queue Worker ===
+  queue:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: photostack-queue
+    restart: unless-stopped
+    environment:
+      CONTAINER_ROLE: queue
+      XDEBUG_MODE: "off"
+    env_file:
+      - .env.dev
+    volumes:
+      - .:/var/www/html
+      - vendor_data:/var/www/html/vendor
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # === Mailpit (Email Testing) ===
+  mailpit:
+    image: axllent/mailpit:latest
+    container_name: photostack-mailpit
+    restart: unless-stopped
+    ports:
+      - "8025:8025"
+      - "1025:1025"
+    environment:
+      MP_MAX_MESSAGES: 500
+      MP_SMTP_AUTH_ACCEPT_ANY: 1
+      MP_SMTP_AUTH_ALLOW_INSECURE: 1
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  vendor_data:
+    driver: local

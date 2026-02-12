@@ -1,0 +1,63 @@
+# ============================================
+# PHP-FPM Development Image (Hot-reload, Xdebug)
+# ============================================
+FROM php:8.3-fpm-alpine
+
+# Install system dependencies (azonos a production-nel + nginx)
+RUN apk add --no-cache \
+    postgresql-dev \
+    libpng-dev \
+    libjpeg-turbo-dev \
+    freetype-dev \
+    libzip-dev \
+    icu-dev \
+    oniguruma-dev \
+    bash \
+    git \
+    curl \
+    unzip \
+    libwebp-dev \
+    vips-dev \
+    vips-tools \
+    libffi-dev \
+    linux-headers
+
+# Install PHP extensions (azonos a production-nel)
+RUN docker-php-ext-configure gd --with-freetype --with-jpeg --with-webp \
+    && docker-php-ext-install -j$(nproc) \
+        pdo_pgsql \
+        pgsql \
+        gd \
+        zip \
+        intl \
+        opcache \
+        mbstring \
+        exif \
+        pcntl \
+        bcmath \
+        ffi
+
+# Install Redis + Imagick extensions (azonos a production-nel)
+RUN apk add --no-cache --virtual .build-deps $PHPIZE_DEPS imagemagick-dev \
+    && pecl install redis imagick xdebug \
+    && docker-php-ext-enable redis imagick xdebug \
+    && apk del .build-deps \
+    && apk add --no-cache imagemagick
+
+# Install Composer
+COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
+
+WORKDIR /var/www/html
+
+# Dev PHP config
+COPY docker/php-dev.ini /usr/local/etc/php/php.ini
+COPY docker/php/php-ffi.ini /usr/local/etc/php/conf.d/99-ffi.ini
+COPY docker/xdebug.ini /usr/local/etc/php/conf.d/99-xdebug.ini
+
+# Dev entrypoint
+COPY docker/entrypoint.dev.sh /usr/local/bin/entrypoint.sh
+RUN chmod +x /usr/local/bin/entrypoint.sh
+
+EXPOSE 9000
+
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
