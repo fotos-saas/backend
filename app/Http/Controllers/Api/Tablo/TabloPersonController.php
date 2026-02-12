@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers\Api\Tablo;
 
+use App\Actions\Tablo\BatchStorePersonsAction;
+use App\Actions\Tablo\SyncPersonsAction;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\Tablo\BatchDestroyPersonRequest;
 use App\Http\Requests\Api\Tablo\BatchStorePersonRequest;
@@ -13,7 +15,6 @@ use App\Models\TabloPerson;
 use App\Models\TabloProject;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 
 class TabloPersonController extends Controller
 {
@@ -83,7 +84,7 @@ class TabloPersonController extends Controller
     /**
      * Batch add persons
      */
-    public function batchStore(BatchStorePersonRequest $request, int $projectId): JsonResponse
+    public function batchStore(BatchStorePersonRequest $request, int $projectId, BatchStorePersonsAction $action): JsonResponse
     {
         $project = TabloProject::find($projectId);
 
@@ -94,24 +95,7 @@ class TabloPersonController extends Controller
             ], 404);
         }
 
-        $created = [];
-
-        DB::transaction(function () use ($project, $request, &$created) {
-            foreach ($request->input('persons') as $personData) {
-                $person = $project->persons()->create([
-                    'name' => $personData['name'],
-                    'local_id' => $personData['local_id'] ?? null,
-                    'note' => $personData['note'] ?? null,
-                ]);
-
-                $created[] = [
-                    'id' => $person->id,
-                    'name' => $person->name,
-                    'local_id' => $person->local_id,
-                    'note' => $person->note,
-                ];
-            }
-        });
+        $created = $action->execute($project, $request->input('persons'));
 
         return response()->json([
             'success' => true,
@@ -175,7 +159,7 @@ class TabloPersonController extends Controller
      * POST /api/tablo-management/projects/sync-persons
      * Body: { "project_id": 94, "persons": [{"name": "Kiss Péter"}, {"name": "Nagy Anna", "local_id": "123"}] }
      */
-    public function syncPersons(SyncPersonsRequest $request): JsonResponse
+    public function syncPersons(SyncPersonsRequest $request, SyncPersonsAction $action): JsonResponse
     {
         $externalId = (string) $request->input('project_id');
         $project = TabloProject::where('external_id', $externalId)->first();
@@ -187,85 +171,12 @@ class TabloPersonController extends Controller
             ], 404);
         }
 
-        $incomingPersons = collect($request->input('persons'));
-        $added = 0;
-        $removed = 0;
-        $updated = 0;
-
-        DB::transaction(function () use ($project, $incomingPersons, &$added, &$removed, &$updated) {
-            // Get current persons indexed by local_id
-            $currentPersons = $project->persons()->get()->keyBy('local_id');
-
-            // Get incoming local_ids
-            $incomingLocalIds = $incomingPersons->pluck('local_id')->toArray();
-
-            // Remove persons not in incoming list
-            foreach ($currentPersons as $localId => $current) {
-                if (! in_array($localId, $incomingLocalIds)) {
-                    $current->delete();
-                    $removed++;
-                }
-            }
-
-            // Add or update persons
-            foreach ($incomingPersons as $index => $person) {
-                $localId = $person['local_id'];
-                $position = $person['position'] ?? $index;
-                $type = $person['type'] ?? 'student';
-                $existing = $currentPersons->get($localId);
-
-                if ($existing) {
-                    // Update if data changed
-                    $needsUpdate = $existing->name !== $person['name']
-                        || $existing->note !== ($person['note'] ?? null)
-                        || $existing->position !== $position
-                        || $existing->type !== $type;
-
-                    if ($needsUpdate) {
-                        $existing->update([
-                            'name' => $person['name'],
-                            'note' => $person['note'] ?? null,
-                            'position' => $position,
-                            'type' => $type,
-                        ]);
-                        $updated++;
-                    }
-                } else {
-                    // Add new
-                    $project->persons()->create([
-                        'name' => $person['name'],
-                        'local_id' => $localId,
-                        'note' => $person['note'] ?? null,
-                        'position' => $position,
-                        'type' => $type,
-                    ]);
-                    $added++;
-                }
-            }
-        });
-
-        // Get updated list ordered by position
-        $updatedPersons = $project->persons()->orderBy('position')->get();
+        $result = $action->execute($project, collect($request->input('persons')));
 
         return response()->json([
             'success' => true,
-            'message' => "Szinkronizálás kész: +{$added} hozzáadva, ~{$updated} frissítve, -{$removed} törölve",
-            'data' => [
-                'project_id' => $project->id,
-                'external_id' => $project->external_id,
-                'added' => $added,
-                'updated' => $updated,
-                'removed' => $removed,
-                'total' => $updatedPersons->count(),
-                'persons' => $updatedPersons->map(fn ($m) => [
-                    'id' => $m->id,
-                    'name' => $m->name,
-                    'type' => $m->type,
-                    'local_id' => $m->local_id,
-                    'note' => $m->note,
-                    'position' => $m->position,
-                ])->toArray(),
-            ],
+            'message' => "Szinkronizálás kész: +{$result['added']} hozzáadva, ~{$result['updated']} frissítve, -{$result['removed']} törölve",
+            'data' => $result,
         ]);
     }
 

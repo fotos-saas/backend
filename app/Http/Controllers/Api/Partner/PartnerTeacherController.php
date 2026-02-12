@@ -2,10 +2,13 @@
 
 namespace App\Http\Controllers\Api\Partner;
 
+use App\Actions\Partner\ListTeacherArchiveAction;
+use App\Actions\Partner\SearchAllTeachersAction;
 use App\Actions\Teacher\BulkImportTeacherExecuteAction;
 use App\Actions\Teacher\BulkImportTeacherPreviewAction;
 use App\Actions\Teacher\CreateTeacherAction;
 use App\Actions\Teacher\ExportTeacherArchiveCsvAction;
+use App\Actions\Teacher\GetTeacherChangelogAction;
 use App\Actions\Teacher\GetTeachersByProjectAction;
 use App\Actions\Teacher\MarkNoPhotoAction;
 use App\Actions\Teacher\PreviewTeacherSyncAction;
@@ -19,9 +22,7 @@ use App\Http\Requests\Api\Partner\BulkImportTeacherPreviewRequest;
 use App\Http\Requests\Api\Partner\StoreTeacherRequest;
 use App\Http\Requests\Api\Partner\SyncTeacherPhotosRequest;
 use App\Http\Requests\Api\Partner\UpdateTeacherRequest;
-use App\Helpers\QueryHelper;
 use App\Models\TeacherArchive;
-use App\Services\Search\SearchService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -31,67 +32,16 @@ class PartnerTeacherController extends Controller
 {
     use PartnerAuthTrait;
 
-    public function index(Request $request): JsonResponse
+    public function index(Request $request, ListTeacherArchiveAction $action): JsonResponse
     {
         $partnerId = $this->getPartnerIdOrFail();
-
-        $perPage = min((int) $request->input('per_page', 18), 50);
-        $search = $request->input('search');
-        $schoolId = $request->input('school_id');
-        $classYear = $request->input('class_year');
-
-        $query = TeacherArchive::forPartner($partnerId)
-            ->with('school', 'activePhoto')
-            ->withCount('aliases', 'photos');
-
-        if ($schoolId) {
-            $query->forSchool((int) $schoolId);
-        }
-
-        // Évfolyam szűrő: tablo_persons + tablo_projects.class_year alapján
-        if ($classYear) {
-            $query->whereIn('id', function ($sub) use ($partnerId, $classYear) {
-                $sub->select('ta.id')
-                    ->from('teacher_archive as ta')
-                    ->join('tablo_persons as tp', function ($join) {
-                        $join->on('tp.name', '=', 'ta.canonical_name')
-                            ->where('tp.type', 'teacher');
-                    })
-                    ->join('tablo_projects as tpr', function ($join) use ($partnerId) {
-                        $join->on('tpr.id', '=', 'tp.tablo_project_id')
-                            ->where('tpr.partner_id', $partnerId);
-                    })
-                    ->where('tpr.class_year', 'ILIKE', QueryHelper::safeLikePattern($classYear));
-            });
-        }
-
-        if ($search) {
-            $query = app(SearchService::class)->apply($query, $search, [
-                'columns' => ['canonical_name', 'title_prefix', 'position'],
-                'relations' => [
-                    'aliases' => ['alias_name'],
-                    'school' => ['name'],
-                ],
-            ]);
-        }
-
-        $teachers = $query->orderBy('canonical_name')->paginate($perPage);
-
-        $teachers->getCollection()->transform(fn (TeacherArchive $t) => [
-            'id' => $t->id,
-            'canonicalName' => $t->canonical_name,
-            'titlePrefix' => $t->title_prefix,
-            'position' => $t->position,
-            'fullDisplayName' => $t->full_display_name,
-            'schoolId' => $t->school_id,
-            'schoolName' => $t->school?->name,
-            'isActive' => $t->is_active,
-            'photoThumbUrl' => $t->photo_thumb_url,
-            'photoUrl' => $t->photo_url,
-            'aliasesCount' => $t->aliases_count ?? 0,
-            'photosCount' => $t->photos_count ?? 0,
-            'linkedGroup' => $t->linked_group,
-        ]);
+        $teachers = $action->execute(
+            $partnerId,
+            $request->input('search'),
+            $request->input('school_id') ? (int) $request->input('school_id') : null,
+            $request->input('class_year'),
+            min((int) $request->input('per_page', 18), 50),
+        );
 
         return response()->json($teachers);
     }
@@ -110,38 +60,16 @@ class PartnerTeacherController extends Controller
         return response()->json($result);
     }
 
-    public function allTeachers(Request $request): JsonResponse
+    public function allTeachers(Request $request, SearchAllTeachersAction $action): JsonResponse
     {
         $partnerId = $this->getPartnerIdOrFail();
-
-        $search = $request->input('search');
-        $schoolId = $request->input('school_id');
-
-        $query = TeacherArchive::forPartner($partnerId)->active()->with('activePhoto');
-
-        if ($schoolId) {
-            $query->forSchool((int) $schoolId);
-        }
-
-        if ($search) {
-            $query = app(SearchService::class)->apply($query, $search, [
-                'columns' => ['canonical_name'],
-                'relations' => ['aliases' => ['alias_name']],
-            ]);
-        }
-
-        $teachers = $query->orderBy('canonical_name')->limit(50)->get();
-
-        return response()->json(
-            $teachers->map(fn (TeacherArchive $t) => [
-                'id' => $t->id,
-                'canonicalName' => $t->canonical_name,
-                'titlePrefix' => $t->title_prefix,
-                'fullDisplayName' => $t->full_display_name,
-                'schoolId' => $t->school_id,
-                'photoThumbUrl' => $t->photo_thumb_url,
-            ])
+        $teachers = $action->execute(
+            $partnerId,
+            $request->input('search'),
+            $request->input('school_id') ? (int) $request->input('school_id') : null,
         );
+
+        return response()->json($teachers);
     }
 
     public function classYears(): JsonResponse
@@ -250,28 +178,12 @@ class PartnerTeacherController extends Controller
         return $this->successResponse($result, $result['message']);
     }
 
-    public function getChangelog(int $id, Request $request): JsonResponse
+    public function getChangelog(int $id, Request $request, GetTeacherChangelogAction $action): JsonResponse
     {
         $partnerId = $this->getPartnerIdOrFail();
-
         $teacher = TeacherArchive::forPartner($partnerId)->findOrFail($id);
 
-        $perPage = min((int) $request->input('per_page', 20), 50);
-
-        $logs = $teacher->changeLogs()
-            ->with('user:id,name')
-            ->orderByDesc('created_at')
-            ->paginate($perPage);
-
-        $logs->getCollection()->transform(fn ($log) => [
-            'id' => $log->id,
-            'changeType' => $log->change_type,
-            'oldValue' => $log->old_value,
-            'newValue' => $log->new_value,
-            'metadata' => $log->metadata,
-            'userName' => $log->user?->name,
-            'createdAt' => $log->created_at->toIso8601String(),
-        ]);
+        $logs = $action->execute($teacher, min((int) $request->input('per_page', 20), 50));
 
         return response()->json($logs);
     }
