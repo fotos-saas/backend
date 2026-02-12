@@ -8,6 +8,7 @@ PREFIX = photostack
 .PHONY: help up down restart build logs status \
         artisan tinker migrate fresh seed test lint \
         sync-db sync-schema \
+        export import \
         composer-install composer-update \
         shell shell-db shell-redis \
         xdebug-on xdebug-off \
@@ -84,6 +85,13 @@ sync-db: ## Prod DB szinkronizalas (anonimizalva)
 
 sync-schema: ## Csak DB schema (adat nelkul)
 	bash scripts/db-sync.sh --schema
+
+# === Export / Import ===
+export: ## Dev kornyezet exportalasa (DB + storage + .env.dev)
+	bash scripts/dev-export.sh
+
+import: ## Dev kornyezet importalasa archivbol
+	bash scripts/dev-import.sh $(file)
 
 # === Composer ===
 composer-install: ## Composer install

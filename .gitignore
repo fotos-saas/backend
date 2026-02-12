@@ -23,6 +23,9 @@ yarn-error.log
 /.vscode
 /.zed
 
+# Export archívok
+exports/
+
 # Debug/test fájlok - soha ne kerüljenek repóba
 check-*.php
 test-*.php
