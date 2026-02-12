@@ -3,9 +3,11 @@
 namespace App\Http\Controllers\Api\Tablo;
 
 use App\Actions\Tablo\FinalizeWorkflowAction;
+use App\Actions\Tablo\GetStepDataAction;
 use App\Actions\Tablo\GetWorkflowStatusAction;
 use App\Actions\Tablo\NavigateWorkflowAction;
 use App\Actions\Tablo\RequestModificationAction;
+use App\Actions\Tablo\SaveCartCommentAction;
 use App\Actions\Tablo\SaveClaimingSelectionAction;
 use App\Actions\Tablo\SaveRetouchSelectionAction;
 use App\Actions\Tablo\SaveTabloPhotoAction;
@@ -16,7 +18,6 @@ use App\Http\Requests\Api\Tablo\Workflow\SavePhotoSelectionRequest;
 use App\Http\Requests\Api\Tablo\Workflow\SaveTabloPhotoRequest;
 use App\Http\Requests\Api\Tablo\Workflow\WorkSessionIdRequest;
 use App\Models\TabloGallery;
-use App\Services\TabloWorkflowService;
 use Illuminate\Http\Request;
 
 /**
@@ -27,9 +28,6 @@ use Illuminate\Http\Request;
  */
 class WorkflowController extends Controller
 {
-    public function __construct(
-        private TabloWorkflowService $workflowService
-    ) {}
 
     // ==========================================
     // SELECTION ENDPOINTS
@@ -196,7 +194,7 @@ class WorkflowController extends Controller
     /**
      * Get step data
      */
-    public function getStepData(Request $request, TabloGallery $gallery)
+    public function getStepData(Request $request, TabloGallery $gallery, GetStepDataAction $action)
     {
         $user = $request->user();
 
@@ -204,22 +202,13 @@ class WorkflowController extends Controller
             return response()->json(['message' => 'Nincs bejelentkezett felhasználó'], 401);
         }
 
-        $step = $request->query('step');
+        $result = $action->execute($user, $gallery, $request->query('step'));
 
-        if (!$step) {
-            $progress = \App\Models\TabloUserProgress::where('user_id', $user->id)
-                ->where('tablo_gallery_id', $gallery->id)
-                ->first();
-
-            $step = $progress?->current_step ?? 'claiming';
+        if (!$result['success']) {
+            return response()->json(['message' => $result['error']], $result['status']);
         }
 
-        $validSteps = ['claiming', 'registration', 'retouch', 'tablo', 'completed'];
-        if (!in_array($step, $validSteps)) {
-            return response()->json(['message' => 'Érvénytelen lépés'], 400);
-        }
-
-        return response()->json($this->workflowService->getStepData($user, $gallery, $step));
+        return response()->json($result['data']);
     }
 
     /**
@@ -227,9 +216,7 @@ class WorkflowController extends Controller
      */
     public function getProgress(Request $request, TabloGallery $gallery)
     {
-        $user = $request->user();
-
-        $progress = \App\Models\TabloUserProgress::where('user_id', $user->id)
+        $progress = \App\Models\TabloUserProgress::where('user_id', $request->user()->id)
             ->where('tablo_gallery_id', $gallery->id)
             ->first();
 
@@ -292,25 +279,13 @@ class WorkflowController extends Controller
     /**
      * Save cart comment
      */
-    public function saveCartComment(SaveCartCommentRequest $request)
+    public function saveCartComment(SaveCartCommentRequest $request, SaveCartCommentAction $action)
     {
         $validated = $request->validated();
 
         $gallery = TabloGallery::findOrFail($validated['workSessionId']);
-        $user = $request->user();
 
-        $progress = \App\Models\TabloUserProgress::firstOrCreate(
-            [
-                'user_id' => $user->id,
-                'tablo_gallery_id' => $gallery->id,
-            ],
-            [
-                'current_step' => 'claiming',
-                'steps_data' => [],
-            ]
-        );
-
-        $progress->update(['cart_comment' => $validated['comment']]);
+        $action->execute($request->user(), $gallery, $validated['comment']);
 
         return response()->json(['message' => 'Megjegyzés mentve']);
     }

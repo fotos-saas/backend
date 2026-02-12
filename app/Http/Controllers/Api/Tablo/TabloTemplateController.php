@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\Tablo;
 
+use App\Actions\Tablo\SelectTemplateAction;
 use App\Helpers\QueryHelper;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\Tablo\SelectTemplateRequest;
@@ -162,13 +163,10 @@ class TabloTemplateController extends Controller
     /**
      * Select a template (add to project selections).
      */
-    public function selectTemplate(SelectTemplateRequest $request, int $templateId): JsonResponse
+    public function selectTemplate(SelectTemplateRequest $request, int $templateId, SelectTemplateAction $action): JsonResponse
     {
-
         $token = $request->user()->currentAccessToken();
-        $projectId = $token->tablo_project_id;
-
-        $tabloProject = TabloProject::find($projectId);
+        $tabloProject = TabloProject::find($token->tablo_project_id);
 
         if (! $tabloProject) {
             return response()->json([
@@ -177,47 +175,26 @@ class TabloTemplateController extends Controller
             ], 404);
         }
 
-        // Check if template exists
-        $template = TabloSampleTemplate::active()->find($templateId);
-        if (! $template) {
+        $result = $action->execute(
+            $tabloProject,
+            $templateId,
+            $request->input('priority')
+        );
+
+        if (! $result['success']) {
             return response()->json([
                 'success' => false,
-                'message' => 'Minta nem található',
-            ], 404);
+                'message' => $result['error'],
+            ], $result['status']);
         }
-
-        // Check if already selected
-        if ($tabloProject->hasSelectedTemplate($templateId)) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Ez a minta már ki van választva',
-            ], 422);
-        }
-
-        // Check max selections
-        if (! $tabloProject->canSelectMoreTemplates()) {
-            $max = $tabloProject->max_template_selections ?? 3;
-
-            return response()->json([
-                'success' => false,
-                'message' => "Maximum {$max} minta választható",
-            ], 422);
-        }
-
-        // Add selection with priority
-        $priority = $request->input('priority', $tabloProject->getNextTemplatePriority());
-
-        $tabloProject->selectedTemplates()->attach($templateId, [
-            'priority' => $priority,
-        ]);
 
         return response()->json([
             'success' => true,
             'message' => 'Minta kiválasztva',
             'data' => [
-                'templateId' => $templateId,
-                'priority' => $priority,
-                'canSelectMore' => $tabloProject->canSelectMoreTemplates(),
+                'templateId' => $result['templateId'],
+                'priority' => $result['priority'],
+                'canSelectMore' => $result['canSelectMore'],
             ],
         ]);
     }

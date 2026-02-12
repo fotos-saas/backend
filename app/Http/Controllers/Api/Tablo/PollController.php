@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers\Api\Tablo;
 
+use App\Actions\Tablo\CreatePollAction;
+use App\Actions\Tablo\UpdatePollAction;
 use App\Http\Controllers\Api\Tablo\Traits\ResolvesTabloProject;
 use App\Http\Requests\Api\Tablo\StorePollRequest;
 use App\Http\Requests\Api\Tablo\UpdatePollRequest;
@@ -14,10 +16,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 /**
- * Poll Controller
- *
- * Szavazás kezelés API végpontok.
- * Token-ból azonosítja a projektet.
+ * Szavazás kezelés API végpontok. Token-ból azonosítja a projektet.
  */
 class PollController extends BaseTabloController
 {
@@ -27,10 +26,7 @@ class PollController extends BaseTabloController
         protected PollService $pollService
     ) {}
 
-    /**
-     * Get polls list.
-     * GET /api/tablo-frontend/polls
-     */
+    /** GET /api/tablo-frontend/polls */
     public function index(Request $request): JsonResponse
     {
         $project = $this->getProjectOrFail($request);
@@ -56,10 +52,7 @@ class PollController extends BaseTabloController
         );
     }
 
-    /**
-     * Get poll details with options.
-     * GET /api/tablo-frontend/polls/{id}
-     */
+    /** GET /api/tablo-frontend/polls/{id} */
     public function show(Request $request, int $id): JsonResponse
     {
         $poll = $this->findForProject(TabloPoll::class, $id, $request, 'tablo_project_id', 'Szavazás nem található');
@@ -91,42 +84,29 @@ class PollController extends BaseTabloController
         return $this->successResponse($resource);
     }
 
-    /**
-     * Create new poll (contact only).
-     * POST /api/tablo-frontend/polls
-     */
-    public function store(StorePollRequest $request): JsonResponse
+    /** POST /api/tablo-frontend/polls (contact only) */
+    public function store(StorePollRequest $request, CreatePollAction $action): JsonResponse
     {
         $project = $this->getProjectOrFail($request);
         if ($project instanceof JsonResponse) {
             return $project;
         }
 
-        // Check if class size is set for first poll
-        if (! $this->pollService->canCreatePoll($project)) {
-            return $this->validationErrorResponse(
-                'Először állítsd be az osztálylétszámot!',
-                ['requires_class_size' => true]
-            );
-        }
-
-        $coverImage = $request->file('cover_image');
-
-        $poll = $this->pollService->create(
+        $result = $action->execute(
             $project,
             $request->validated(),
             $this->getContactId($request),
-            $coverImage
+            $request->file('cover_image'),
+            $request->file('media', [])
         );
 
-        // Upload media files (max 5)
-        $mediaFiles = $request->file('media', []);
-        if (! empty($mediaFiles)) {
-            $this->pollService->uploadMediaFiles($poll, $mediaFiles);
+        if (! $result['success']) {
+            return $this->validationErrorResponse($result['error'], [
+                'requires_class_size' => $result['requires_class_size'] ?? false,
+            ]);
         }
 
-        // Reload poll with media
-        $poll->load('media');
+        $poll = $result['poll'];
 
         return $this->successResponse([
             'id' => $poll->id,
@@ -141,33 +121,20 @@ class PollController extends BaseTabloController
         ], 'Szavazás sikeresen létrehozva!', 201);
     }
 
-    /**
-     * Update poll (contact only).
-     * PUT /api/tablo-frontend/polls/{id}
-     */
-    public function update(UpdatePollRequest $request, int $id): JsonResponse
+    /** PUT /api/tablo-frontend/polls/{id} (contact only) */
+    public function update(UpdatePollRequest $request, int $id, UpdatePollAction $action): JsonResponse
     {
         $poll = $this->findForProject(TabloPoll::class, $id, $request, 'tablo_project_id', 'Szavazás nem található');
         if ($poll instanceof JsonResponse) {
             return $poll;
         }
 
-        $this->pollService->update($poll, $request->validated());
-
-        // Delete specified media files
-        $deleteMediaIds = $request->input('delete_media_ids', []);
-        if (! empty($deleteMediaIds)) {
-            $this->pollService->deleteMediaByIds($poll, $deleteMediaIds);
-        }
-
-        // Upload new media files
-        $mediaFiles = $request->file('media', []);
-        if (! empty($mediaFiles)) {
-            $this->pollService->uploadMediaFiles($poll, $mediaFiles);
-        }
-
-        // Reload poll with media
-        $poll->load('media');
+        $poll = $action->execute(
+            $poll,
+            $request->validated(),
+            $request->input('delete_media_ids', []),
+            $request->file('media', [])
+        );
 
         return $this->successResponse([
             'media' => $poll->media->map(fn ($m) => [
@@ -179,10 +146,7 @@ class PollController extends BaseTabloController
         ], 'Szavazás sikeresen frissítve!');
     }
 
-    /**
-     * Delete poll (contact only).
-     * DELETE /api/tablo-frontend/polls/{id}
-     */
+    /** DELETE /api/tablo-frontend/polls/{id} (contact only) */
     public function destroy(Request $request, int $id): JsonResponse
     {
         $poll = $this->findForProject(TabloPoll::class, $id, $request, 'tablo_project_id', 'Szavazás nem található');
@@ -195,10 +159,7 @@ class PollController extends BaseTabloController
         return $this->successResponse(null, 'Szavazás sikeresen törölve!');
     }
 
-    /**
-     * Close poll (contact only).
-     * POST /api/tablo-frontend/polls/{id}/close
-     */
+    /** POST /api/tablo-frontend/polls/{id}/close (contact only) */
     public function close(Request $request, int $id): JsonResponse
     {
         $poll = $this->findForProject(TabloPoll::class, $id, $request, 'tablo_project_id', 'Szavazás nem található');
@@ -215,10 +176,7 @@ class PollController extends BaseTabloController
         return $this->successResponse(null, 'Szavazás sikeresen lezárva!');
     }
 
-    /**
-     * Reopen poll (contact only).
-     * POST /api/tablo-frontend/polls/{id}/reopen
-     */
+    /** POST /api/tablo-frontend/polls/{id}/reopen (contact only) */
     public function reopen(Request $request, int $id): JsonResponse
     {
         $poll = $this->findForProject(TabloPoll::class, $id, $request, 'tablo_project_id', 'Szavazás nem található');
@@ -239,10 +197,7 @@ class PollController extends BaseTabloController
         return $this->successResponse(null, 'Szavazás sikeresen újranyitva!');
     }
 
-    /**
-     * Get poll results.
-     * GET /api/tablo-frontend/polls/{id}/results
-     */
+    /** GET /api/tablo-frontend/polls/{id}/results */
     public function results(Request $request, int $id): JsonResponse
     {
         $poll = $this->findForProject(TabloPoll::class, $id, $request, 'tablo_project_id', 'Szavazás nem található');
@@ -261,10 +216,7 @@ class PollController extends BaseTabloController
         return $this->successResponse($results);
     }
 
-    /**
-     * Cast vote.
-     * POST /api/tablo-frontend/polls/{id}/vote
-     */
+    /** POST /api/tablo-frontend/polls/{id}/vote */
     public function vote(VotePollRequest $request, int $id): JsonResponse
     {
         $poll = $this->findForProject(TabloPoll::class, $id, $request, 'tablo_project_id', 'Szavazás nem található');
@@ -291,10 +243,7 @@ class PollController extends BaseTabloController
         }
     }
 
-    /**
-     * Remove vote.
-     * DELETE /api/tablo-frontend/polls/{id}/vote
-     */
+    /** DELETE /api/tablo-frontend/polls/{id}/vote */
     public function removeVote(Request $request, int $id): JsonResponse
     {
         $poll = $this->findForProject(TabloPoll::class, $id, $request, 'tablo_project_id', 'Szavazás nem található');
