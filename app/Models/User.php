@@ -3,6 +3,8 @@
 namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
+use App\Traits\HasAccountLockout;
+use App\Traits\HasTeamMembership;
 use Filament\Models\Contracts\FilamentUser;
 use Filament\Panel;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -36,7 +38,7 @@ class User extends Authenticatable implements FilamentUser
     public const ROLE_ASSISTANT = 'assistant';
 
     /** @use HasFactory<\Database\Factories\UserFactory> */
-    use HasApiTokens, HasFactory, Notifiable, HasRoles;
+    use HasAccountLockout, HasApiTokens, HasFactory, HasTeamMembership, Notifiable, HasRoles;
 
     /**
      * The guard name for Spatie Permission.
@@ -211,36 +213,6 @@ class User extends Authenticatable implements FilamentUser
     }
 
     /**
-     * Get the effective partner for this user (own or via team membership).
-     * Csapattagok esetén a tablo_partner_id alapján keresi meg a Partner-t (a tulajdonos userén keresztül).
-     */
-    public function getEffectivePartner(): ?Partner
-    {
-        // Ha saját partner van (tulajdonos)
-        if ($this->partner) {
-            return $this->partner;
-        }
-
-        // Ha csapattag, keressük meg a Partner-t
-        if ($this->tablo_partner_id) {
-            $tabloPartner = TabloPartner::find($this->tablo_partner_id);
-            if ($tabloPartner) {
-                // 1. Direct FK (partner_id → Partner)
-                if ($tabloPartner->subscriptionPartner) {
-                    return $tabloPartner->subscriptionPartner;
-                }
-                // 2. Fallback: email match (legacy)
-                if ($tabloPartner->email) {
-                    $ownerUser = User::where('email', $tabloPartner->email)->first();
-                    return $ownerUser?->partner;
-                }
-            }
-        }
-
-        return null;
-    }
-
-    /**
      * Determine if the user has a super admin role.
      */
     public function isSuperAdmin(): bool
@@ -323,72 +295,6 @@ class User extends Authenticatable implements FilamentUser
     }
 
     // ==========================================
-    // ACCOUNT LOCKOUT (BRUTE FORCE PROTECTION)
-    // ==========================================
-
-    /**
-     * Check if the account is currently locked.
-     */
-    public function isLocked(): bool
-    {
-        return $this->locked_until && $this->locked_until->isFuture();
-    }
-
-    /**
-     * Get remaining lockout time in seconds.
-     */
-    public function getLockoutRemainingSeconds(): int
-    {
-        if (! $this->isLocked()) {
-            return 0;
-        }
-
-        return (int) now()->diffInSeconds($this->locked_until, false);
-    }
-
-    /**
-     * Increment failed login attempts.
-     */
-    public function incrementFailedAttempts(): int
-    {
-        $this->increment('failed_login_attempts');
-
-        return $this->failed_login_attempts;
-    }
-
-    /**
-     * Lock the account for the specified duration.
-     */
-    public function lockAccount(int $minutes): void
-    {
-        $this->update(['locked_until' => now()->addMinutes($minutes)]);
-    }
-
-    /**
-     * Clear failed login attempts and unlock the account.
-     */
-    public function clearFailedAttempts(): void
-    {
-        $this->update([
-            'failed_login_attempts' => 0,
-            'locked_until' => null,
-        ]);
-    }
-
-    /**
-     * Record a successful login.
-     */
-    public function recordLogin(string $ipAddress): void
-    {
-        $this->update([
-            'last_login_at' => now(),
-            'last_login_ip' => $ipAddress,
-            'failed_login_attempts' => 0,
-            'locked_until' => null,
-        ]);
-    }
-
-    // ==========================================
     // 2FA (PREPARATION - NOT YET IMPLEMENTED)
     // ==========================================
 
@@ -410,79 +316,5 @@ class User extends Authenticatable implements FilamentUser
     public function loginAudits(): \Illuminate\Database\Eloquent\Relations\HasMany
     {
         return $this->hasMany(LoginAudit::class);
-    }
-
-    // ==========================================
-    // TEAM MEMBERSHIPS (Csapattagság)
-    // ==========================================
-
-    /**
-     * Partnerek ahol csapattag (szabadúszó modell)
-     */
-    public function partnerMemberships(): \Illuminate\Database\Eloquent\Relations\HasMany
-    {
-        return $this->hasMany(PartnerTeamMember::class);
-    }
-
-    /**
-     * Aktív partner tagságok
-     */
-    public function activePartnerMemberships(): \Illuminate\Database\Eloquent\Relations\HasMany
-    {
-        return $this->partnerMemberships()->where('is_active', true);
-    }
-
-    /**
-     * Partnerek (BelongsToMany)
-     */
-    public function memberOfPartners(): BelongsToMany
-    {
-        return $this->belongsToMany(TabloPartner::class, 'partner_team_members', 'user_id', 'partner_id')
-            ->withPivot('role', 'is_active')
-            ->withTimestamps();
-    }
-
-    /**
-     * Adott szerepkörrel dolgozik-e a partnernél?
-     */
-    public function hasRoleAtPartner(int $partnerId, string $role): bool
-    {
-        return $this->partnerMemberships()
-            ->where('partner_id', $partnerId)
-            ->where('role', $role)
-            ->where('is_active', true)
-            ->exists();
-    }
-
-    /**
-     * Aktív csapattag-e bármelyik partnernél?
-     */
-    public function isTeamMember(): bool
-    {
-        return $this->activePartnerMemberships()->exists();
-    }
-
-    /**
-     * Grafikus-e?
-     */
-    public function isDesigner(): bool
-    {
-        return $this->hasRole(self::ROLE_DESIGNER) || $this->activePartnerMemberships()->where('role', self::ROLE_DESIGNER)->exists();
-    }
-
-    /**
-     * Nyomdász-e?
-     */
-    public function isPrinter(): bool
-    {
-        return $this->hasRole(self::ROLE_PRINTER) || $this->activePartnerMemberships()->where('role', self::ROLE_PRINTER)->exists();
-    }
-
-    /**
-     * Ügyintéző-e?
-     */
-    public function isAssistant(): bool
-    {
-        return $this->hasRole(self::ROLE_ASSISTANT) || $this->activePartnerMemberships()->where('role', self::ROLE_ASSISTANT)->exists();
     }
 }

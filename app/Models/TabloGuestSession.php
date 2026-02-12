@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Support\GamificationRankConfig;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -270,57 +271,27 @@ class TabloGuestSession extends Model
     }
 
     /**
-     * Rang név lekérése
+     * Rang nev lekerese
      */
     public function getRankNameAttribute(): string
     {
-        return match ($this->rank_level) {
-            1 => 'Újonc',
-            2 => 'Tag',
-            3 => 'Aktív tag',
-            4 => 'Veterán',
-            5 => 'Mester',
-            6 => 'Legenda',
-            default => 'Ismeretlen',
-        };
+        return GamificationRankConfig::getRankName($this->rank_level);
     }
 
     /**
-     * Következő rang szükséges pontja
+     * Kovetkezo rang szukseges pontja
      */
     public function getNextRankPointsAttribute(): ?int
     {
-        $ranks = [
-            1 => 0,
-            2 => 25,
-            3 => 100,
-            4 => 250,
-            5 => 500,
-            6 => 1000,
-        ];
-
-        $nextLevel = $this->rank_level + 1;
-
-        return $ranks[$nextLevel] ?? null;
+        return GamificationRankConfig::getNextRankPoints($this->rank_level);
     }
 
     /**
-     * Haladás a következő rangig (0-100%)
+     * Haladas a kovetkezo rangig (0-100%)
      */
     public function getProgressToNextRankAttribute(): ?float
     {
-        if (! $this->next_rank_points) {
-            return null; // Már a legmagasabb rang
-        }
-
-        $currentRankPoints = [
-            1 => 0, 2 => 25, 3 => 100, 4 => 250, 5 => 500, 6 => 1000,
-        ][$this->rank_level];
-
-        $pointsInCurrentRank = $this->points - $currentRankPoints;
-        $pointsNeeded = $this->next_rank_points - $currentRankPoints;
-
-        return min(100, ($pointsInCurrentRank / $pointsNeeded) * 100);
+        return GamificationRankConfig::getProgressToNextRank($this->rank_level, $this->points);
     }
 
     // ==========================================

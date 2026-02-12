@@ -4,6 +4,7 @@ namespace App\Services\Tablo;
 
 use App\Models\TabloGuestSession;
 use App\Models\TabloPointLog;
+use App\Support\GamificationRankConfig;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
@@ -122,25 +123,11 @@ class PointService
     }
 
     /**
-     * Rang szint frissítése pontszám alapján
+     * Rang szint frissitese pontszam alapjan
      */
     protected function updateRankLevel(TabloGuestSession $session): void
     {
-        $ranks = [
-            1 => 0,
-            2 => 25,
-            3 => 100,
-            4 => 250,
-            5 => 500,
-            6 => 1000,
-        ];
-
-        $newRankLevel = 1;
-        foreach ($ranks as $level => $minPoints) {
-            if ($session->points >= $minPoints) {
-                $newRankLevel = $level;
-            }
-        }
+        $newRankLevel = GamificationRankConfig::calculateRankLevel($session->points);
 
         if ($newRankLevel !== $session->rank_level) {
             $session->update(['rank_level' => $newRankLevel]);
