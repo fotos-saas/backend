@@ -6,11 +6,16 @@ use App\Helpers\QueryHelper;
 use App\Models\TabloPerson;
 use App\Models\TabloProject;
 use App\Models\TeacherArchive;
+use App\Services\Teacher\FindDonorPhotoService;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
 class GetTeachersByProjectAction
 {
+    public function __construct(
+        private readonly FindDonorPhotoService $donorService,
+    ) {}
+
     /**
      * Iskolánként csoportosított tanárok lekérdezése.
      *
@@ -66,7 +71,10 @@ class GetTeachersByProjectAction
             ->orderBy('canonical_name')
             ->get();
 
-        // Cross-school sync: partner összes tanárneve akihez VAN fotó (bármely iskolánál)
+        // Batch: linked_group-ok ahol van teacher_photos rekord (O(1) lookup)
+        $linkedGroupsWithPhotos = $this->donorService->getLinkedGroupsWithPhotos($partnerId, $archives);
+
+        // Fallback: canonical_name egyezés (linked_group nélküli tanárokhoz)
         $allNamesWithPhoto = TeacherArchive::forPartner($partnerId)
             ->active()
             ->whereNotNull('active_photo_id')
@@ -112,7 +120,7 @@ class GetTeachersByProjectAction
 
         $allSchools = $groupKeys->map(function ($groupKey) use (
             $projectsByGroup, $archivesByGroup, $schoolNamesByGroup,
-            $teacherPersonSchoolIds, $allNamesWithPhoto, $linkedMap
+            $teacherPersonSchoolIds, $allNamesWithPhoto, $linkedGroupsWithPhotos, $linkedMap
         ) {
             $groupProjects = $projectsByGroup->get($groupKey, collect());
             $groupArchives = $archivesByGroup->get($groupKey, collect());
@@ -144,11 +152,23 @@ class GetTeachersByProjectAction
                 $seenNames[$normalizedName] = true;
 
                 $media = $t->activePhoto;
+                $hasPhoto = $t->photo_thumb_url !== null;
+
+                // hasSyncablePhoto: linked_group-ban van-e fotó VAGY canonical_name fallback
+                $hasSyncable = false;
+                if (!$hasPhoto) {
+                    if ($t->linked_group && $linkedGroupsWithPhotos->has($t->linked_group)) {
+                        $hasSyncable = true;
+                    } elseif ($allNamesWithPhoto->has($normalizedName)) {
+                        $hasSyncable = true;
+                    }
+                }
+
                 $teachers->push([
                     'archiveId' => $t->id,
                     'name' => $t->full_display_name,
-                    'hasPhoto' => $t->photo_thumb_url !== null,
-                    'hasSyncablePhoto' => $t->photo_thumb_url === null && $allNamesWithPhoto->has($normalizedName),
+                    'hasPhoto' => $hasPhoto,
+                    'hasSyncablePhoto' => $hasSyncable,
                     'noPhotoMarked' => $t->notes && str_contains($t->notes, 'Nem találom a képet'),
                     'photoThumbUrl' => $t->photo_thumb_url,
                     'photoUrl' => $t->photo_url,

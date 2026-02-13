@@ -6,25 +6,29 @@ namespace App\Actions\Teacher;
 
 use App\Models\TabloPartner;
 use App\Models\TeacherArchive;
+use App\Services\Teacher\FindDonorPhotoService;
 use Illuminate\Support\Facades\DB;
 
 class SyncTeacherPhotosAction
 {
+    public function __construct(
+        private readonly FindDonorPhotoService $donorService,
+    ) {}
+
     /**
-     * Tanár fotó szinkronizálás végrehajtása — archív cross-school alapon.
+     * Tanár fotó szinkronizálás végrehajtása — linked_group + canonical_name alapon.
      *
-     * Az archívban fotó nélküli tanároknak átmásolja az active_photo_id-t
-     * a más iskolánál megtalált donor archív rekordból.
+     * Az archívban fotó nélküli tanároknak megkeresi a donor fotót:
+     * 1. linked_group → teacher_photos legfrissebb year
+     * 2. Fallback: canonical_name egyezés → active_photo_id
      *
      * @param int[]|null $archiveIds Ha megadva, csak ezeket az archív tanárokat szinkronizálja
      */
     public function execute(int $schoolId, int $partnerId, ?string $classYear = null, ?array $archiveIds = null): array
     {
-        // Összekapcsolt iskolák feloldása
         $tabloPartner = TabloPartner::find($partnerId);
         $linkedSchoolIds = $tabloPartner ? $tabloPartner->getLinkedSchoolIds($schoolId) : [$schoolId];
 
-        // Archív tanárok az összekapcsolt iskolákra
         $archives = TeacherArchive::forPartner($partnerId)
             ->active()
             ->whereIn('school_id', $linkedSchoolIds)
@@ -36,20 +40,28 @@ class SyncTeacherPhotosAction
             return $this->emptyResult(0);
         }
 
-        // Ha archive_ids megadva, csak azokat szinkronizáljuk
         if ($archiveIds !== null) {
             $archives = $archives->whereIn('id', $archiveIds);
         }
 
-        // NÉV alapú deduplikálás (linked iskolák közös tanárai)
+        // Deduplikálás: linked_group VAGY canonical_name alapján
+        $seenLinkedGroups = [];
         $seenNames = [];
         $uniqueArchives = collect();
+
         foreach ($archives as $t) {
-            $normalizedName = mb_strtolower(trim($t->canonical_name));
-            if (isset($seenNames[$normalizedName])) {
-                continue;
+            if ($t->linked_group) {
+                if (isset($seenLinkedGroups[$t->linked_group])) {
+                    continue;
+                }
+                $seenLinkedGroups[$t->linked_group] = true;
+            } else {
+                $normalizedName = mb_strtolower(trim($t->canonical_name));
+                if (isset($seenNames[$normalizedName])) {
+                    continue;
+                }
+                $seenNames[$normalizedName] = true;
             }
-            $seenNames[$normalizedName] = true;
             $uniqueArchives->push($t);
         }
 
@@ -61,17 +73,11 @@ class SyncTeacherPhotosAction
         $noPhoto = 0;
         $details = [];
 
-        DB::transaction(function () use ($uniqueArchives, $partnerId, &$synced, &$noPhoto, &$details) {
+        DB::transaction(function () use ($uniqueArchives, &$synced, &$noPhoto, &$details) {
             foreach ($uniqueArchives as $t) {
-                // Donor keresése: ugyanaz a canonical_name, bármely MÁS archív rekord ami fotóval rendelkezik
-                $donor = TeacherArchive::forPartner($partnerId)
-                    ->active()
-                    ->where('canonical_name', $t->canonical_name)
-                    ->where('id', '!=', $t->id)
-                    ->whereNotNull('active_photo_id')
-                    ->first();
+                $mediaId = $this->donorService->findForTeacher($t);
 
-                if (!$donor) {
+                if (!$mediaId) {
                     $noPhoto++;
                     $details[] = [
                         'archiveId' => $t->id,
@@ -81,8 +87,7 @@ class SyncTeacherPhotosAction
                     continue;
                 }
 
-                // Szinkronizálás: active_photo_id átmásolás
-                $t->active_photo_id = $donor->active_photo_id;
+                $t->active_photo_id = $mediaId;
                 $t->save();
                 $t->load('activePhoto');
 
@@ -92,7 +97,6 @@ class SyncTeacherPhotosAction
                     'archiveId' => $t->id,
                     'personName' => $t->full_display_name,
                     'status' => 'synced',
-                    'sourceSchoolId' => $donor->school_id,
                     'photoUrl' => $t->photo_url,
                     'photoThumbUrl' => $t->photo_thumb_url,
                     'photoFileName' => $media?->file_name,
