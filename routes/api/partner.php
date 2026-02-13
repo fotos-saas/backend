@@ -126,6 +126,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/projects/{projectId}/order-data', [PartnerDashboardController::class, 'getProjectOrderData']);
         Route::post('/projects/{projectId}/order-data/view-pdf', [PartnerDashboardController::class, 'viewProjectOrderPdf']);
         Route::get('/projects/{projectId}/samples', [PartnerProjectController::class, 'projectSamples']);
+        Route::get('/projects/{projectId}/persons', [PartnerProjectController::class, 'projectPersons']);
         Route::get('/projects/{projectId}/missing-persons', [PartnerProjectController::class, 'projectPersons']);
         Route::get('/projects/{projectId}/qr-codes', [PartnerQrController::class, 'getQrCodes']);
         Route::post('/projects/{projectId}/qr-codes', [PartnerQrController::class, 'generateQrCode']);
