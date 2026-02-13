@@ -5,6 +5,7 @@ namespace App\Listeners;
 use App\Models\PartnerAlbum;
 use App\Models\Photo;
 use App\Models\Setting;
+use App\Models\TabloGallery;
 use App\Models\TabloProject;
 use App\Services\WatermarkService;
 use Illuminate\Database\Eloquent\Model;
@@ -28,6 +29,7 @@ class ApplyWatermarkToPreview
             Photo::class,
             PartnerAlbum::class,
             TabloProject::class,
+            TabloGallery::class,
         ];
 
         if (! in_array($event->media->model_type, $allowedModels)) {
@@ -91,6 +93,9 @@ class ApplyWatermarkToPreview
         } elseif ($model instanceof TabloProject) {
             // TabloProject → partner (TabloPartner) → subscriptionPartner
             $partner = $model->partner?->subscriptionPartner;
+        } elseif ($model instanceof TabloGallery) {
+            // TabloGallery → first project → partner (TabloPartner) → subscriptionPartner
+            $partner = $model->projects()->first()?->partner?->subscriptionPartner;
         }
 
         if ($partner
