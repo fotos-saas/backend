@@ -22,6 +22,9 @@ class SyncTeacherPhotosAction
      * 1. linked_group → teacher_photos legfrissebb year
      * 2. Fallback: canonical_name egyezés → active_photo_id
      *
+     * FONTOS: NEM deduplikálunk — ha ugyanaz a tanár több iskolánál is
+     * szerepel (linked_group), mindegyiknek kell az active_photo_id.
+     *
      * @param int[]|null $archiveIds Ha megadva, csak ezeket az archív tanárokat szinkronizálja
      */
     public function execute(int $schoolId, int $partnerId, ?string $classYear = null, ?array $archiveIds = null): array
@@ -44,28 +47,7 @@ class SyncTeacherPhotosAction
             $archives = $archives->whereIn('id', $archiveIds);
         }
 
-        // Deduplikálás: linked_group VAGY canonical_name alapján
-        $seenLinkedGroups = [];
-        $seenNames = [];
-        $uniqueArchives = collect();
-
-        foreach ($archives as $t) {
-            if ($t->linked_group) {
-                if (isset($seenLinkedGroups[$t->linked_group])) {
-                    continue;
-                }
-                $seenLinkedGroups[$t->linked_group] = true;
-            } else {
-                $normalizedName = mb_strtolower(trim($t->canonical_name));
-                if (isset($seenNames[$normalizedName])) {
-                    continue;
-                }
-                $seenNames[$normalizedName] = true;
-            }
-            $uniqueArchives->push($t);
-        }
-
-        if ($uniqueArchives->isEmpty()) {
+        if ($archives->isEmpty()) {
             return $this->emptyResult(0);
         }
 
@@ -73,8 +55,8 @@ class SyncTeacherPhotosAction
         $noPhoto = 0;
         $details = [];
 
-        DB::transaction(function () use ($uniqueArchives, &$synced, &$noPhoto, &$details) {
-            foreach ($uniqueArchives as $t) {
+        DB::transaction(function () use ($archives, &$synced, &$noPhoto, &$details) {
+            foreach ($archives as $t) {
                 $mediaId = $this->donorService->findForTeacher($t);
 
                 if (!$mediaId) {
