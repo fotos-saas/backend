@@ -119,6 +119,8 @@ class PartnerDashboardService
             'tabloStatus',
             'gallery',
             'qrCodes' => fn ($q) => $q->orderBy('created_at', 'desc'),
+            'persons' => fn ($q) => $q->select('id', 'tablo_project_id', 'name', 'type', 'media_id')
+                ->with('photo:id,disk,file_name,conversions_disk'),
         ]);
 
         $project->loadCount([

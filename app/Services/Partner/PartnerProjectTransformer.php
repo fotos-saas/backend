@@ -123,8 +123,37 @@ class PartnerProjectTransformer
             ]),
             'tabloGalleryId' => $project->tablo_gallery_id,
             'galleryPhotosCount' => $project->gallery?->getMedia('photos')->count() ?? 0,
+            ...$this->personsData($project),
             'createdAt' => $project->created_at->toIso8601String(),
             'updatedAt' => $project->updated_at->toIso8601String(),
+        ];
+    }
+
+    /**
+     * Személyek statisztika és preview a részletes nézethez.
+     */
+    private function personsData(TabloProject $project): array
+    {
+        $persons = $project->relationLoaded('persons') ? $project->persons : collect();
+
+        $students = $persons->where('type', 'student');
+        $teachers = $persons->where('type', 'teacher');
+
+        $preview = $students->take(8)->merge($teachers->take(8))->map(fn ($p) => [
+            'id' => $p->id,
+            'name' => $p->name,
+            'type' => $p->type,
+            'hasPhoto' => $p->media_id !== null,
+            'photoThumbUrl' => $p->photo?->getUrl('thumb'),
+        ])->values();
+
+        return [
+            'personsCount' => $persons->count(),
+            'studentsCount' => $students->count(),
+            'teachersCount' => $teachers->count(),
+            'studentsWithPhotoCount' => $students->whereNotNull('media_id')->count(),
+            'teachersWithPhotoCount' => $teachers->whereNotNull('media_id')->count(),
+            'personsPreview' => $preview,
         ];
     }
 
