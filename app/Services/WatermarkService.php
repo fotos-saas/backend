@@ -22,13 +22,13 @@ class WatermarkService
             $width = $image->width();
             $height = $image->height();
 
-            // Responsive font size
-            $fontSize = (int) max(20, min($width, $height) / 18);
+            // Responsive font size – subtle, not overwhelming
+            $fontSize = (int) max(16, min($width, $height) / 25);
             $fontPath = $this->resolveFontPath();
 
-            // Spacing between watermark cells
-            $colSpacing = $fontSize * 5;
-            $rowSpacing = (int) ($fontSize * 3.5);
+            // Spacing between watermark cells – sparse enough to see the photo
+            $colSpacing = $fontSize * 10;
+            $rowSpacing = (int) ($fontSize * 6);
 
             // Because text is rotated -30 degrees, we need extra coverage
             // beyond image boundaries so corners are not left empty.
@@ -62,7 +62,7 @@ class WatermarkService
                     $image->text($text, $rx, $ry, function ($font) use ($fontSize, $fontPath) {
                         $font->file($fontPath);
                         $font->size($fontSize);
-                        $font->color('rgba(255, 255, 255, 0.25)');
+                        $font->color('rgba(255, 255, 255, 0.15)');
                         $font->align('center');
                         $font->valign('middle');
                         $font->angle(-30);
