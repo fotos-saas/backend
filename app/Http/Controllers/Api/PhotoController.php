@@ -207,14 +207,8 @@ class PhotoController extends Controller
             abort(404, 'Image not found');
         }
 
-        // Return appropriate conversion based on width
-        if ($width <= 300) {
-            $conversion = 'thumb';
-        } elseif ($width <= 1200) {
-            $conversion = 'preview';
-        } else {
-            $conversion = 'watermarked';
-        }
+        // thumb (no watermark) for small sizes, preview (watermarked) for larger
+        $conversion = $width <= 300 ? 'thumb' : 'preview';
 
         // Get conversion path
         $path = $media->getPath($conversion);

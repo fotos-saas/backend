@@ -387,7 +387,7 @@ class PhotoResource extends BaseResource
                                 }
 
                                 // Apply watermark
-                                $watermarkService->addCircularWatermark($previewPath, $watermarkText);
+                                $watermarkService->applyTiledWatermark($previewPath, $watermarkText);
 
                                 // Mark as watermarked
                                 $media->setCustomProperty('watermarked', true);
@@ -466,7 +466,7 @@ class PhotoResource extends BaseResource
                                         }
 
                                         // Apply watermark
-                                        $watermarkService->addCircularWatermark($previewPath, $watermarkText);
+                                        $watermarkService->applyTiledWatermark($previewPath, $watermarkText);
 
                                         // Mark as watermarked
                                         $media->setCustomProperty('watermarked', true);

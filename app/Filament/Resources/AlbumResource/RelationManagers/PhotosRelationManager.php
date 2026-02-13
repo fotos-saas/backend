@@ -294,7 +294,7 @@ class PhotosRelationManager extends RelationManager
                             ->acceptedFileTypes(['image/jpeg', 'image/png', 'image/jpg'])
                             ->imagePreviewHeight('150')
                             ->preserveFilenames()
-                            ->helperText('Maximum 4GB képenként. Eredeti minőségben mentve, thumb/preview/watermarked konverziók automatikusan generálva.')
+                            ->helperText('Maximum 4GB képenként. Eredeti minőségben mentve, thumb/preview konverziók automatikusan generálva.')
                             ->required()
                             ->columnSpanFull(),
 
@@ -325,7 +325,7 @@ class PhotosRelationManager extends RelationManager
 
                             Notification::make()
                             ->title('Képek feltöltve')
-                            ->body(count($photos).' kép sikeresen feltöltve és feldolgozva (thumb, preview, watermarked konverziók generálva).')
+                            ->body(count($photos).' kép sikeresen feltöltve és feldolgozva (thumb, preview konverziók generálva).')
                             ->success()
                             ->send();
                         } catch (\Exception $e) {
@@ -550,7 +550,7 @@ class PhotosRelationManager extends RelationManager
                                     }
 
                                     // Apply watermark
-                                    $watermarkService->addCircularWatermark($previewPath, $watermarkText);
+                                    $watermarkService->applyTiledWatermark($previewPath, $watermarkText);
 
                                     // Mark as watermarked
                                     $media->setCustomProperty('watermarked', true);
@@ -691,7 +691,7 @@ class PhotosRelationManager extends RelationManager
                             }
 
                             // Apply watermark
-                            $watermarkService->addCircularWatermark($previewPath, $watermarkText);
+                            $watermarkService->applyTiledWatermark($previewPath, $watermarkText);
 
                             // Mark as watermarked
                             $media->setCustomProperty('watermarked', true);
@@ -1018,7 +1018,7 @@ class PhotosRelationManager extends RelationManager
                                         }
 
                                         // Apply watermark
-                                        $watermarkService->addCircularWatermark($previewPath, $watermarkText);
+                                        $watermarkService->applyTiledWatermark($previewPath, $watermarkText);
 
                                         // Mark as watermarked
                                         $media->setCustomProperty('watermarked', true);

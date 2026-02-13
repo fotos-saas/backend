@@ -59,13 +59,6 @@ class Photo extends Model implements HasMedia
                     ->height(1200)
                     ->sharpen(10)
                     ->nonQueued();
-
-                $this->addMediaConversion('watermarked')
-                    ->width(1200)
-                    ->height(1200)
-                    ->sharpen(10)
-                    ->nonQueued()
-                    ->performOnCollections('photo');
             });
     }
 
@@ -148,16 +141,6 @@ class Photo extends Model implements HasMedia
         $media = $this->getFirstMedia('photo');
 
         return $media?->getUrl('preview');
-    }
-
-    /**
-     * Get watermarked URL (1200x1200 with watermark)
-     */
-    public function getWatermarkedUrl(): ?string
-    {
-        $media = $this->getFirstMedia('photo');
-
-        return $media?->getUrl('watermarked');
     }
 
     /**

@@ -2,42 +2,36 @@
 
 namespace App\Listeners;
 
+use App\Models\PartnerAlbum;
+use App\Models\Photo;
 use App\Models\Setting;
+use App\Models\TabloProject;
 use App\Services\WatermarkService;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Log;
 use Spatie\MediaLibrary\Conversions\Events\ConversionHasBeenCompletedEvent;
 
 class ApplyWatermarkToPreview
 {
-    /**
-     * Create the event listener.
-     */
     public function __construct(
         protected WatermarkService $watermarkService
     ) {}
 
-    /**
-     * Handle the event.
-     *
-     * This listener applies watermark to preview conversions automatically
-     * after they have been completed (both sync and queued conversions).
-     *
-     * NOTE: Only applies to Photo model (album photos), NOT ConversionMedia (image converter).
-     *
-     * @param  ConversionHasBeenCompletedEvent  $event
-     * @return void
-     */
     public function handle(ConversionHasBeenCompletedEvent $event): void
     {
-        // Only react to 'preview' conversions
         if ($event->conversion->getName() !== 'preview') {
             return;
         }
 
-        // Only apply watermark to Photo model (album photos)
-        // Skip ConversionMedia (image converter) - no watermark needed there
-        if ($event->media->model_type !== \App\Models\Photo::class) {
-            Log::debug('Watermark skipped - not a Photo model', [
+        // Only watermark these model types
+        $allowedModels = [
+            Photo::class,
+            PartnerAlbum::class,
+            TabloProject::class,
+        ];
+
+        if (! in_array($event->media->model_type, $allowedModels)) {
+            Log::debug('Watermark skipped - unsupported model type', [
                 'media_id' => $event->media->id,
                 'model_type' => $event->media->model_type,
             ]);
@@ -45,60 +39,74 @@ class ApplyWatermarkToPreview
             return;
         }
 
-        // Check if already watermarked (via custom property)
-        $customProperties = $event->media->custom_properties;
-        if (isset($customProperties['watermarked']) && $customProperties['watermarked'] === true) {
-            Log::debug('Watermark skipped - already watermarked', [
-                'media_id' => $event->media->id,
-            ]);
-
-            return;
-        }
-
-        // Check global watermark settings
         $watermarkEnabled = Setting::get('watermark_enabled', true);
-        $watermarkText = Setting::get('watermark_text', 'Tablokirály');
-
-        if (! $watermarkEnabled || ! $watermarkText) {
-            Log::info('Watermark skipped - disabled in settings', [
-                'media_id' => $event->media->id,
-                'conversion' => 'preview',
-            ]);
-
+        if (! $watermarkEnabled) {
             return;
         }
 
-        // Get preview file path
         $previewPath = $event->media->getPath('preview');
 
         if (! file_exists($previewPath)) {
             Log::warning('Watermark skipped - preview file not found', [
                 'media_id' => $event->media->id,
-                'preview_path' => $previewPath,
             ]);
 
             return;
         }
 
         try {
-            $this->watermarkService->addCircularWatermark($previewPath, $watermarkText);
+            $model = $event->media->model;
+            $text = $model ? $this->resolveWatermarkText($model) : $this->fallbackText();
 
-            // Mark as watermarked in custom properties
-            $event->media->setCustomProperty('watermarked', true);
-            $event->media->save();
+            $this->watermarkService->applyTiledWatermark($previewPath, $text);
 
-            Log::info('Watermark applied successfully via event listener', [
+            Log::info('Tiled watermark applied via listener', [
                 'media_id' => $event->media->id,
-                'preview_path' => $previewPath,
-                'watermark_text' => $watermarkText,
+                'model_type' => $event->media->model_type,
+                'text' => $text,
             ]);
         } catch (\Exception $e) {
-            // Log the error but don't fail the conversion process
-            Log::error('Failed to apply watermark via event listener', [
+            Log::error('Failed to apply watermark via listener', [
                 'media_id' => $event->media->id,
-                'preview_path' => $previewPath,
                 'error' => $e->getMessage(),
             ]);
         }
+    }
+
+    /**
+     * Resolve watermark text based on partner branding.
+     *
+     * Chain: Model → TabloPartner → subscriptionPartner (Partner) → branding (PartnerBranding)
+     */
+    private function resolveWatermarkText(Model $model): string
+    {
+        $partner = null;
+
+        if ($model instanceof Photo) {
+            // Photo → Album → createdBy (User) → tabloPartner → subscriptionPartner
+            $partner = $model->album?->createdBy?->tabloPartner?->subscriptionPartner;
+        } elseif ($model instanceof PartnerAlbum) {
+            // PartnerAlbum → partner (TabloPartner) → subscriptionPartner
+            $partner = $model->partner?->subscriptionPartner;
+        } elseif ($model instanceof TabloProject) {
+            // TabloProject → partner (TabloPartner) → subscriptionPartner
+            $partner = $model->partner?->subscriptionPartner;
+        }
+
+        if ($partner
+            && $partner->hasFeature('branding')
+            && $partner->branding
+            && $partner->branding->is_active
+            && ! empty($partner->branding->brand_name)
+        ) {
+            return $partner->branding->brand_name;
+        }
+
+        return $this->fallbackText();
+    }
+
+    private function fallbackText(): string
+    {
+        return Setting::get('watermark_text', 'Tablóstúdió');
     }
 }

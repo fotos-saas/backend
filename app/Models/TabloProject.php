@@ -545,7 +545,7 @@ class TabloProject extends Model implements HasMedia
     }
 
     /**
-     * Register media conversions (thumbnails)
+     * Register media conversions (thumbnails + preview for watermarking)
      */
     public function registerMediaConversions(?Media $media = null): void
     {
@@ -554,6 +554,13 @@ class TabloProject extends Model implements HasMedia
             ->height(300)
             ->sharpen(10)
             ->nonQueued();
+
+        $this->addMediaConversion('preview')
+            ->width(1200)
+            ->height(1200)
+            ->sharpen(10)
+            ->nonQueued()
+            ->performOnCollections('tablo_photos', 'tablo_pending', 'samples');
     }
 
     /**
