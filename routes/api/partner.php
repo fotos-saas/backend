@@ -19,6 +19,8 @@ use App\Http\Controllers\Api\Partner\PartnerAiSummaryController;
 use App\Http\Controllers\Api\Partner\PartnerSamplePackageController;
 use App\Http\Controllers\Api\Partner\PartnerSchoolController;
 use App\Http\Controllers\Api\Partner\PartnerSchoolLinkingController;
+use App\Http\Controllers\Api\Partner\PartnerStudentController;
+use App\Http\Controllers\Api\Partner\PartnerStudentPhotoController;
 use App\Http\Controllers\Api\Partner\PartnerTeacherController;
 use App\Http\Controllers\Api\Partner\PartnerTeacherLinkingController;
 use App\Http\Controllers\Api\Partner\PartnerTeacherPhotoController;
@@ -223,6 +225,28 @@ Route::middleware('auth:sanctum')->group(function () {
         });
         Route::patch('/teachers/{id}/photos/{photoId}/active', [PartnerTeacherPhotoController::class, 'setActivePhoto']);
         Route::delete('/teachers/{id}/photos/{photoId}', [PartnerTeacherPhotoController::class, 'deletePhoto']);
+
+        // Students management (Diák archívum)
+        Route::get('/students', [PartnerStudentController::class, 'index']);
+        Route::get('/students/by-project', [PartnerStudentController::class, 'byProject']);
+        Route::get('/students/class-years', [PartnerStudentController::class, 'classYears']);
+        Route::post('/students/bulk-import/preview', [PartnerStudentController::class, 'bulkImportPreview']);
+        Route::post('/students/bulk-import/execute', [PartnerStudentController::class, 'bulkImportExecute']);
+        Route::get('/students/export-csv', [PartnerStudentController::class, 'exportCsv']);
+        Route::get('/students/{id}', [PartnerStudentController::class, 'show']);
+        Route::post('/students', [PartnerStudentController::class, 'store']);
+        Route::put('/students/{id}', [PartnerStudentController::class, 'update']);
+        Route::delete('/students/{id}', [PartnerStudentController::class, 'destroy']);
+        Route::get('/students/{id}/changelog', [PartnerStudentController::class, 'getChangelog']);
+        Route::patch('/students/{id}/mark-no-photo', [PartnerStudentController::class, 'markNoPhoto']);
+        Route::patch('/students/{id}/undo-no-photo', [PartnerStudentController::class, 'undoNoPhoto']);
+
+        // Student photo management
+        Route::middleware('throttle:10,1')->group(function () {
+            Route::post('/students/{id}/photos', [PartnerStudentPhotoController::class, 'uploadPhoto']);
+        });
+        Route::patch('/students/{id}/photos/{photoId}/active', [PartnerStudentPhotoController::class, 'setActivePhoto']);
+        Route::delete('/students/{id}/photos/{photoId}', [PartnerStudentPhotoController::class, 'deletePhoto']);
 
         // Contacts management (standalone)
         Route::get('/contacts', [PartnerContactController::class, 'contacts']);

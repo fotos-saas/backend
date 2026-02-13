@@ -8,9 +8,9 @@ use App\Actions\Teacher\BulkImportTeacherExecuteAction;
 use App\Actions\Teacher\BulkImportTeacherPreviewAction;
 use App\Actions\Teacher\CreateTeacherAction;
 use App\Actions\Teacher\ExportTeacherArchiveCsvAction;
-use App\Actions\Teacher\GetTeacherChangelogAction;
+use App\Actions\Archive\GetArchiveChangelogAction;
+use App\Actions\Archive\MarkNoPhotoAction;
 use App\Actions\Teacher\GetTeachersByProjectAction;
-use App\Actions\Teacher\MarkNoPhotoAction;
 use App\Actions\Teacher\PreviewTeacherSyncAction;
 use App\Actions\Teacher\SyncSingleTeacherCrossSchoolAction;
 use App\Actions\Teacher\SyncTeacherPhotosAction;
@@ -178,7 +178,7 @@ class PartnerTeacherController extends Controller
         return $this->successResponse($result, $result['message']);
     }
 
-    public function getChangelog(int $id, Request $request, GetTeacherChangelogAction $action): JsonResponse
+    public function getChangelog(int $id, Request $request, GetArchiveChangelogAction $action): JsonResponse
     {
         $partnerId = $this->getPartnerIdOrFail();
         $teacher = TeacherArchive::forPartner($partnerId)->findOrFail($id);

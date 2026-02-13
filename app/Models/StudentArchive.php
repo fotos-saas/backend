@@ -11,22 +11,20 @@ use Spatie\MediaLibrary\HasMedia;
 use Spatie\MediaLibrary\InteractsWithMedia;
 use Spatie\MediaLibrary\MediaCollections\Models\Media;
 
-class TeacherArchive extends Model implements HasMedia
+class StudentArchive extends Model implements HasMedia
 {
     use HasFactory, InteractsWithMedia, HasArchivePhotos;
 
-    protected $table = 'teacher_archive';
+    protected $table = 'student_archive';
 
     protected $fillable = [
         'partner_id',
         'school_id',
         'canonical_name',
-        'title_prefix',
-        'position',
+        'class_name',
         'notes',
         'is_active',
         'active_photo_id',
-        'linked_group',
     ];
 
     protected $casts = [
@@ -35,7 +33,7 @@ class TeacherArchive extends Model implements HasMedia
 
     public function registerMediaCollections(): void
     {
-        $this->addMediaCollection('teacher_photos');
+        $this->addMediaCollection('student_photos');
     }
 
     public function registerMediaConversions(?Media $media = null): void
@@ -66,17 +64,17 @@ class TeacherArchive extends Model implements HasMedia
 
     public function aliases(): HasMany
     {
-        return $this->hasMany(TeacherAlias::class, 'teacher_id');
+        return $this->hasMany(StudentAlias::class, 'student_id');
     }
 
     public function photos(): HasMany
     {
-        return $this->hasMany(TeacherPhoto::class, 'teacher_id');
+        return $this->hasMany(StudentPhoto::class, 'student_id');
     }
 
     public function changeLogs(): HasMany
     {
-        return $this->hasMany(TeacherChangeLog::class, 'teacher_id');
+        return $this->hasMany(StudentChangeLog::class, 'student_id');
     }
 
     // ============ Scopes ============
@@ -95,40 +93,4 @@ class TeacherArchive extends Model implements HasMedia
     {
         return $query->where('is_active', true);
     }
-
-    public function scopeInLinkedGroup($query, string $linkedGroup)
-    {
-        return $query->where('linked_group', $linkedGroup);
-    }
-
-    // ============ Helpers ============
-
-    /**
-     * Ugyanabban a linked_group-ban lévő tanárok ID-i (saját maga nélkül).
-     */
-    public function getLinkedTeacherIds(): array
-    {
-        if (!$this->linked_group) {
-            return [];
-        }
-
-        return static::where('partner_id', $this->partner_id)
-            ->where('linked_group', $this->linked_group)
-            ->where('id', '!=', $this->id)
-            ->pluck('id')
-            ->toArray();
-    }
-
-    // ============ Accessors ============
-
-    public function getFullDisplayNameAttribute(): string
-    {
-        if ($this->title_prefix) {
-            return $this->title_prefix . ' ' . $this->canonical_name;
-        }
-
-        return $this->canonical_name;
-    }
-
-    // photoThumbUrl és photoUrl accessor-ok a HasArchivePhotos trait-ből
 }
