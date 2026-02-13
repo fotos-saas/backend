@@ -195,7 +195,6 @@ class PartnerDashboardService
             'relations' => [
                 'school' => ['name', 'city'],
                 'contacts' => ['name', 'email'],
-                'persons' => ['name'],
             ],
             'prefixes' => [
                 '@' => ['contacts' => ['name', 'email']],
