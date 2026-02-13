@@ -2,19 +2,25 @@
 
 namespace App\Console\Commands;
 
-use App\Models\Photo;
 use App\Models\Setting;
 use Illuminate\Console\Command;
 use Spatie\MediaLibrary\Conversions\FileManipulator;
+use Spatie\MediaLibrary\MediaCollections\Models\Media;
 
 class ReapplyWatermarksCommand extends Command
 {
     protected $signature = 'watermark:reapply
-                            {--album= : Csak egy adott album fotóit vízjelezi újra}
-                            {--partner= : Egy partner összes fotójának újravízjelezése}
+                            {--model= : Csak egy adott model típus (pl. TabloGallery)}
                             {--dry-run : Csak számol, nem módosít}';
 
     protected $description = 'Meglévő fotók preview konverziójának újragenerálása az új vízjel stílussal';
+
+    private const ALLOWED_MODELS = [
+        'App\\Models\\Photo',
+        'App\\Models\\PartnerAlbum',
+        'App\\Models\\TabloProject',
+        'App\\Models\\TabloGallery',
+    ];
 
     public function handle(FileManipulator $fileManipulator): int
     {
@@ -25,24 +31,23 @@ class ReapplyWatermarksCommand extends Command
             return self::FAILURE;
         }
 
-        $query = Photo::query()->whereHas('media');
+        $query = Media::query()
+            ->whereIn('model_type', self::ALLOWED_MODELS)
+            ->whereJsonContains('generated_conversions->preview', true);
 
-        if ($albumId = $this->option('album')) {
-            $query->where('album_id', (int) $albumId);
-            $this->info("Album szűrés: #{$albumId}");
-        }
+        if ($modelFilter = $this->option('model')) {
+            $fullClass = "App\\Models\\{$modelFilter}";
+            if (! in_array($fullClass, self::ALLOWED_MODELS)) {
+                $this->error("Nem támogatott model: {$modelFilter}");
 
-        if ($partnerId = $this->option('partner')) {
-            $query->whereHas('album', function ($q) use ($partnerId) {
-                $q->whereHas('createdBy', function ($q2) use ($partnerId) {
-                    $q2->where('tablo_partner_id', (int) $partnerId);
-                });
-            });
-            $this->info("Partner szűrés: #{$partnerId}");
+                return self::FAILURE;
+            }
+            $query->where('model_type', $fullClass);
+            $this->info("Model szűrés: {$modelFilter}");
         }
 
         $totalCount = $query->count();
-        $this->info("Összesen {$totalCount} fotó található.");
+        $this->info("Összesen {$totalCount} média preview konverzióval.");
 
         if ($this->option('dry-run')) {
             $this->info('[DRY RUN] Nem történik módosítás.');
@@ -51,7 +56,7 @@ class ReapplyWatermarksCommand extends Command
         }
 
         if ($totalCount === 0) {
-            $this->info('Nincs feldolgozandó fotó.');
+            $this->info('Nincs feldolgozandó média.');
 
             return self::SUCCESS;
         }
@@ -64,43 +69,25 @@ class ReapplyWatermarksCommand extends Command
         $skipped = 0;
         $errors = 0;
 
-        $query->with('media')
-            ->chunkById(100, function ($photos) use ($fileManipulator, &$processed, &$skipped, &$errors, $bar) {
-                foreach ($photos as $photo) {
-                    try {
-                        $media = $photo->getFirstMedia('photo');
-                        if (! $media) {
-                            $skipped++;
-                            $bar->advance();
-                            continue;
-                        }
-
-                        // Clear old watermarked custom property
-                        if ($media->getCustomProperty('watermarked')) {
-                            $media->forgetCustomProperty('watermarked');
-                            $media->save();
-                        }
-
-                        // Regenerate preview conversion using Spatie's FileManipulator
-                        // This recreates preview from original, then the event listener
-                        // (ApplyWatermarkToPreview) applies the new tiled watermark automatically.
-                        $fileManipulator->createDerivedFiles($media, ['preview']);
-
-                        $processed++;
-                    } catch (\Exception $e) {
-                        $errors++;
-                        $this->newLine();
-                        $this->error("Hiba (photo #{$photo->id}): {$e->getMessage()}");
-                    }
-
-                    $bar->advance();
+        $query->chunkById(50, function ($mediaItems) use ($fileManipulator, &$processed, &$skipped, &$errors, $bar) {
+            foreach ($mediaItems as $media) {
+                try {
+                    $fileManipulator->createDerivedFiles($media, ['preview']);
+                    $processed++;
+                } catch (\Exception $e) {
+                    $errors++;
+                    $this->newLine();
+                    $this->error("Hiba (media #{$media->id}): {$e->getMessage()}");
                 }
-            });
+
+                $bar->advance();
+            }
+        });
 
         $bar->finish();
         $this->newLine(2);
 
-        $this->info("Kész! Feldolgozva: {$processed}, Kihagyva: {$skipped}, Hiba: {$errors}");
+        $this->info("Kész! Feldolgozva: {$processed}, Hiba: {$errors}");
 
         return self::SUCCESS;
     }
