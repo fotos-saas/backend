@@ -5,14 +5,16 @@ namespace App\Http\Controllers\Api\Partner;
 use App\Enums\TabloProjectStatus;
 use App\Http\Controllers\Api\Partner\Traits\PartnerAuthTrait;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Api\Partner\OverridePersonPhotoRequest;
 use App\Http\Requests\Api\Partner\StoreProjectRequest;
 use App\Http\Requests\Api\Partner\UpdateProjectRequest;
 use App\Actions\Partner\DeleteProjectAction;
-use App\Models\TeacherArchive;
+use App\Models\TabloPerson;
 use App\Repositories\Contracts\TabloContactRepositoryContract;
 use App\Repositories\Contracts\TabloProjectRepositoryContract;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Spatie\MediaLibrary\MediaCollections\Models\Media;
 
 /**
  * Partner Project Controller - Project CRUD operations for partners.
@@ -187,69 +189,35 @@ class PartnerProjectController extends Controller
 
     /**
      * Get project persons (diákok és tanárok).
-     *
-     * Diákok: TabloPerson.media_id (direkt FK)
-     * Tanárok: TeacherArchive.active_photo_id (canonical_name matching)
+     * Fotó resolution: override → archive.active_photo → legacy media_id
      */
     public function projectPersons(int $projectId, Request $request): JsonResponse
     {
         $project = $this->getProjectForPartner($projectId);
 
-        $allPersons = $project->persons()->orderBy('position')->with('photo')->get();
-
-        // Tanári fotók kikeresése TeacherArchive-ból
-        $teacherArchiveMap = collect();
-        $teachers = $allPersons->where('type', 'teacher');
-        if ($teachers->isNotEmpty() && $project->partner_id) {
-            $teacherNames = $teachers->pluck('name')->filter()->unique()->values()->toArray();
-            $archiveQuery = TeacherArchive::where('partner_id', $project->partner_id)
-                ->whereNotNull('active_photo_id')
-                ->whereIn('canonical_name', $teacherNames)
-                ->with('activePhoto:id,disk,file_name,conversions_disk');
-
-            if ($project->school_id) {
-                $archiveQuery->where('school_id', $project->school_id);
-            }
-
-            $teacherArchiveMap = $archiveQuery->get()->keyBy('canonical_name');
-        }
+        $allPersons = $project->persons()
+            ->orderBy('position')
+            ->with([
+                'photo',
+                'overridePhoto',
+                'teacherArchive.activePhoto',
+                'studentArchive.activePhoto',
+            ])
+            ->get();
 
         $withoutPhoto = $request->boolean('without_photo', false);
 
-        $persons = $allPersons->map(function ($person) use ($teacherArchiveMap) {
-            if ($person->type === 'teacher') {
-                $archive = $teacherArchiveMap->get($person->name);
-                $thumbUrl = null;
-                $fullUrl = null;
-                if ($archive?->activePhoto) {
-                    try {
-                        $thumbUrl = $archive->activePhoto->getUrl('thumb');
-                    } catch (\Throwable) {
-                        $thumbUrl = $archive->activePhoto->getUrl();
-                    }
-                    $fullUrl = $archive->activePhoto->getUrl();
-                }
-                return [
-                    'id' => $person->id,
-                    'name' => $person->name,
-                    'type' => $person->type,
-                    'hasPhoto' => $archive !== null,
-                    'email' => $person->email,
-                    'photoThumbUrl' => $thumbUrl,
-                    'photoUrl' => $fullUrl,
-                ];
-            }
-
-            return [
-                'id' => $person->id,
-                'name' => $person->name,
-                'type' => $person->type,
-                'hasPhoto' => $person->hasPhoto(),
-                'email' => $person->email,
-                'photoThumbUrl' => $person->photo_thumb_url,
-                'photoUrl' => $person->photo_url,
-            ];
-        });
+        $persons = $allPersons->map(fn ($person) => [
+            'id' => $person->id,
+            'name' => $person->name,
+            'type' => $person->type,
+            'hasPhoto' => $person->hasEffectivePhoto(),
+            'email' => $person->email,
+            'photoThumbUrl' => $person->getEffectivePhotoThumbUrl(),
+            'photoUrl' => $person->getEffectivePhotoUrl(),
+            'archiveId' => $person->archive_id,
+            'hasOverride' => $person->override_photo_id !== null,
+        ]);
 
         if ($withoutPhoto) {
             $persons = $persons->filter(fn ($p) => !$p['hasPhoto'])->values();
@@ -260,4 +228,44 @@ class PartnerProjectController extends Controller
         ]);
     }
 
+    /**
+     * Override: projekt-specifikus fotó beállítása/visszaállítása.
+     * PATCH /partner/projects/{projectId}/persons/{personId}/override-photo
+     */
+    public function overridePersonPhoto(
+        OverridePersonPhotoRequest $request,
+        int $projectId,
+        int $personId,
+    ): JsonResponse {
+        $project = $this->getProjectForPartner($projectId);
+
+        $person = $project->persons()->find($personId);
+        if (!$person) {
+            return $this->notFoundResponse('Személy nem található');
+        }
+
+        $photoId = $request->input('photo_id');
+
+        if ($photoId !== null) {
+            $photoId = (int) $photoId;
+            // Ellenőrizzük, hogy a média létezik
+            $media = Media::find($photoId);
+            if (!$media) {
+                return $this->errorResponse('A megadott fotó nem található', 404);
+            }
+        }
+
+        $person->update(['override_photo_id' => $photoId]);
+
+        // Reload relations
+        $person->load(['overridePhoto', 'teacherArchive.activePhoto', 'studentArchive.activePhoto', 'photo']);
+
+        return $this->successResponse([
+            'id' => $person->id,
+            'hasPhoto' => $person->hasEffectivePhoto(),
+            'photoThumbUrl' => $person->getEffectivePhotoThumbUrl(),
+            'photoUrl' => $person->getEffectivePhotoUrl(),
+            'hasOverride' => $person->override_photo_id !== null,
+        ], $photoId ? 'Egyedi fotó beállítva' : 'Visszaállítva az alapértelmezett fotóra');
+    }
 }

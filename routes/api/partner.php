@@ -130,6 +130,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/projects/{projectId}/samples', [PartnerProjectController::class, 'projectSamples']);
         Route::get('/projects/{projectId}/persons', [PartnerProjectController::class, 'projectPersons']);
         Route::get('/projects/{projectId}/missing-persons', [PartnerProjectController::class, 'projectPersons']);
+        Route::patch('/projects/{projectId}/persons/{personId}/override-photo', [PartnerProjectController::class, 'overridePersonPhoto']);
         Route::get('/projects/{projectId}/qr-codes', [PartnerQrController::class, 'getQrCodes']);
         Route::post('/projects/{projectId}/qr-codes', [PartnerQrController::class, 'generateQrCode']);
         Route::delete('/projects/{projectId}/qr-codes/{codeId}', [PartnerQrController::class, 'deactivateQrCode']);

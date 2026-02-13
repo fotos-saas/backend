@@ -117,7 +117,7 @@ PROMPT;
     {
         // Hiányzó személyek az adott projektben
         $persons = $project->persons()
-            ->whereNull('media_id')
+            ->withoutEffectivePhoto()
             ->where('type', $type)
             ->get();
 
@@ -193,7 +193,7 @@ PROMPT;
     {
         // Összes aktív projekt lekérése
         $projects = TabloProject::with('school')
-            ->whereHas('persons', fn ($q) => $q->whereNull('media_id'))
+            ->whereHas('persons', fn ($q) => $q->withoutEffectivePhoto())
             ->get();
 
         if ($projects->isEmpty()) {
@@ -307,7 +307,7 @@ PROMPT;
         return TabloPerson::where('name', $teacherName)
             ->where('type', 'teacher')
             ->where('tablo_project_id', '!=', $excludeProjectId)
-            ->whereNull('media_id')
+            ->withoutEffectivePhoto()
             ->with('project.school')
             ->get();
     }

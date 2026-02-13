@@ -119,13 +119,13 @@ class PartnerDashboardService
             'tabloStatus',
             'gallery',
             'qrCodes' => fn ($q) => $q->orderBy('created_at', 'desc'),
-            'persons' => fn ($q) => $q->select('id', 'tablo_project_id', 'name', 'type', 'media_id')
-                ->with('photo:id,disk,file_name,conversions_disk'),
+            'persons' => fn ($q) => $q->select('id', 'tablo_project_id', 'name', 'type', 'media_id', 'archive_id', 'override_photo_id')
+                ->with(['photo:id,disk,file_name,conversions_disk', 'overridePhoto', 'teacherArchive.activePhoto', 'studentArchive.activePhoto']),
         ]);
 
         $project->loadCount([
             'guestSessions as guests_count' => fn ($q) => $q->where('is_banned', false),
-            'persons as missing_count' => fn ($q) => $q->whereNull('media_id'),
+            'persons as missing_count' => fn ($q) => $q->withoutEffectivePhoto(),
         ]);
 
         return $this->transformer->toDetailResponse($project);
@@ -176,9 +176,9 @@ class PartnerDashboardService
         ])
             ->withCount([
                 'guestSessions as guests_count' => fn ($q) => $q->where('is_banned', false),
-                'persons as missing_count' => fn ($q) => $q->whereNull('media_id'),
-                'persons as missing_students_count' => fn ($q) => $q->whereNull('media_id')->where('type', 'student'),
-                'persons as missing_teachers_count' => fn ($q) => $q->whereNull('media_id')->where('type', 'teacher'),
+                'persons as missing_count' => fn ($q) => $q->withoutEffectivePhoto(),
+                'persons as missing_students_count' => fn ($q) => $q->withoutEffectivePhoto()->where('type', 'student'),
+                'persons as missing_teachers_count' => fn ($q) => $q->withoutEffectivePhoto()->where('type', 'teacher'),
             ])
             ->where('partner_id', $partnerId);
     }

@@ -3,11 +3,16 @@
 namespace App\Actions\Tablo;
 
 use App\Models\TabloProject;
+use App\Services\ArchiveLinkingService;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
 class SyncPersonsAction
 {
+    public function __construct(
+        private readonly ArchiveLinkingService $archiveLinking,
+    ) {}
+
     public function execute(TabloProject $project, Collection $incomingPersons): array
     {
         $added = 0;
@@ -54,13 +59,15 @@ class SyncPersonsAction
                     }
                 } else {
                     // Add new
-                    $project->persons()->create([
+                    $newPerson = $project->persons()->create([
                         'name' => $person['name'],
                         'local_id' => $localId,
                         'note' => $person['note'] ?? null,
                         'position' => $position,
                         'type' => $type,
                     ]);
+                    // Archive link
+                    $this->archiveLinking->linkPerson($newPerson, autoCreate: true);
                     $added++;
                 }
             }

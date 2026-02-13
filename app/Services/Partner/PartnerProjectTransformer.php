@@ -3,7 +3,6 @@
 namespace App\Services\Partner;
 
 use App\Models\TabloProject;
-use App\Models\TeacherArchive;
 
 /**
  * Partner projekt adatok transzformálása API response formátumba.
@@ -132,9 +131,7 @@ class PartnerProjectTransformer
 
     /**
      * Személyek statisztika és preview a részletes nézethez.
-     *
-     * Diákok: TabloPerson.media_id (direkt FK)
-     * Tanárok: TeacherArchive.active_photo_id (canonical_name matching)
+     * Fotó resolution: override → archive.active_photo → legacy media_id
      */
     private function personsData(TabloProject $project): array
     {
@@ -143,60 +140,22 @@ class PartnerProjectTransformer
         $students = $persons->where('type', 'student');
         $teachers = $persons->where('type', 'teacher');
 
-        // Tanári fotók kikeresése TeacherArchive-ból (canonical_name + partner + school)
-        $teacherArchiveMap = collect();
-        if ($teachers->isNotEmpty() && $project->partner_id) {
-            $teacherNames = $teachers->pluck('name')->filter()->unique()->values()->toArray();
-            $archiveQuery = TeacherArchive::where('partner_id', $project->partner_id)
-                ->whereNotNull('active_photo_id')
-                ->whereIn('canonical_name', $teacherNames)
-                ->with('activePhoto:id,disk,file_name,conversions_disk');
+        $studentsWithPhoto = $students->filter(fn ($s) => $s->hasEffectivePhoto())->count();
+        $teachersWithPhoto = $teachers->filter(fn ($t) => $t->hasEffectivePhoto())->count();
 
-            if ($project->school_id) {
-                $archiveQuery->where('school_id', $project->school_id);
-            }
-
-            $teacherArchiveMap = $archiveQuery->get()->keyBy('canonical_name');
-        }
-
-        $teachersWithPhoto = $teachers->filter(
-            fn ($t) => $teacherArchiveMap->has($t->name)
-        )->count();
-
-        $preview = $students->take(8)->merge($teachers->take(8))->map(function ($p) use ($teacherArchiveMap) {
-            if ($p->type === 'teacher') {
-                $archive = $teacherArchiveMap->get($p->name);
-                $thumbUrl = null;
-                if ($archive?->activePhoto) {
-                    try {
-                        $thumbUrl = $archive->activePhoto->getUrl('thumb');
-                    } catch (\Throwable) {
-                        $thumbUrl = $archive->activePhoto->getUrl();
-                    }
-                }
-                return [
-                    'id' => $p->id,
-                    'name' => $p->name,
-                    'type' => $p->type,
-                    'hasPhoto' => $archive !== null,
-                    'photoThumbUrl' => $thumbUrl,
-                ];
-            }
-
-            return [
-                'id' => $p->id,
-                'name' => $p->name,
-                'type' => $p->type,
-                'hasPhoto' => $p->media_id !== null,
-                'photoThumbUrl' => $p->photo?->getUrl('thumb'),
-            ];
-        })->values();
+        $preview = $students->take(8)->merge($teachers->take(8))->map(fn ($p) => [
+            'id' => $p->id,
+            'name' => $p->name,
+            'type' => $p->type,
+            'hasPhoto' => $p->hasEffectivePhoto(),
+            'photoThumbUrl' => $p->getEffectivePhotoThumbUrl(),
+        ])->values();
 
         return [
             'personsCount' => $persons->count(),
             'studentsCount' => $students->count(),
             'teachersCount' => $teachers->count(),
-            'studentsWithPhotoCount' => $students->whereNotNull('media_id')->count(),
+            'studentsWithPhotoCount' => $studentsWithPhoto,
             'teachersWithPhotoCount' => $teachersWithPhoto,
             'personsPreview' => $preview,
         ];

@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Jobs\GenerateMediaThumbnailJob;
 use App\Models\TabloPerson;
 use App\Models\TabloProject;
+use App\Services\ArchiveLinkingService;
 use App\Traits\FileValidation;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Collection;
@@ -38,7 +39,8 @@ class PartnerPhotoService
     private const HIDDEN_PATTERNS = ['__MACOSX', '.DS_Store', 'Thumbs.db', 'desktop.ini'];
 
     public function __construct(
-        protected MetadataReaderService $metadataReader
+        protected MetadataReaderService $metadataReader,
+        protected ArchiveLinkingService $archiveLinking,
     ) {}
 
     /**
@@ -234,7 +236,7 @@ class PartnerPhotoService
     }
 
     /**
-     * Személyhez kép hozzárendelése (verziózással)
+     * Személyhez kép hozzárendelése (archive-ba + verziózással)
      *
      * @param  TabloPerson  $person  Személy
      * @param  UploadedFile  $file  Új kép
@@ -243,20 +245,62 @@ class PartnerPhotoService
     public function uploadPersonPhoto(TabloPerson $person, UploadedFile $file): Media
     {
         return DB::transaction(function () use ($person, $file) {
+            // Archive link biztosítása
+            if (!$person->archive_id) {
+                $this->archiveLinking->linkPerson($person, autoCreate: true);
+                $person->refresh();
+            }
+
             $project = $person->project;
 
             // Régi képek archiválása (ha vannak)
             $this->archiveOldPhotos($person);
 
-            // Új kép feltöltése a tablo_photos collection-be
             $originalName = $file->getClientOriginalName();
             if (class_exists('Normalizer')) {
                 $originalName = \Normalizer::normalize($originalName, \Normalizer::FORM_C);
             }
 
-            // Verziószám meghatározása
             $version = $this->getNextPhotoVersion($person);
 
+            // Ha van archive → archive-ba töltjük
+            if ($person->archive_id) {
+                $archive = $person->type === 'teacher'
+                    ? $person->teacherArchive
+                    : $person->studentArchive;
+
+                if ($archive) {
+                    $collection = $person->type === 'teacher' ? 'teacher_photos' : 'student_photos';
+
+                    $media = $archive
+                        ->addMedia($file)
+                        ->preservingOriginal()
+                        ->usingFileName($this->sanitizeFilename($originalName))
+                        ->withCustomProperties([
+                            'person_id' => $person->id,
+                            'person_name' => $person->name,
+                            'version' => $version,
+                            'is_active' => true,
+                            'uploaded_by' => 'partner',
+                            'uploaded_at' => now()->toIso8601String(),
+                        ])
+                        ->toMediaCollection($collection);
+
+                    // Archive active_photo frissítése
+                    $archive->update(['active_photo_id' => $media->id]);
+
+                    Log::info('PartnerPhoto: Person photo uploaded to archive', [
+                        'person_id' => $person->id,
+                        'archive_id' => $archive->id,
+                        'media_id' => $media->id,
+                        'version' => $version,
+                    ]);
+
+                    return $media;
+                }
+            }
+
+            // Fallback: legacy mód (projekt collection-be)
             $media = $project
                 ->addMedia($file)
                 ->preservingOriginal()
@@ -271,12 +315,10 @@ class PartnerPhotoService
                 ])
                 ->toMediaCollection('tablo_photos');
 
-            // Személy frissítése az új média ID-val
             $person->update(['media_id' => $media->id]);
 
-            Log::info('PartnerPhoto: Person photo uploaded', [
+            Log::info('PartnerPhoto: Person photo uploaded (legacy)', [
                 'person_id' => $person->id,
-                'person_name' => $person->name,
                 'media_id' => $media->id,
                 'version' => $version,
             ]);
@@ -287,6 +329,7 @@ class PartnerPhotoService
 
     /**
      * Képek hozzárendelése személyekhez (bulk)
+     * Archive-ba tölt ha van archive link, különben legacy mód.
      *
      * @param  TabloProject  $project  Projekt
      * @param  array<array{personId: int, mediaId: int}>  $assignments  Párosítások
@@ -303,7 +346,6 @@ class PartnerPhotoService
 
                 $person = $project->persons()->find($personId);
 
-                // Közvetlen DB query - a getMedia() cache problémás
                 $media = Media::where('id', $mediaId)
                     ->where('model_id', $project->id)
                     ->where('model_type', TabloProject::class)
@@ -319,11 +361,36 @@ class PartnerPhotoService
                     continue;
                 }
 
-                // Régi képek archiválása
+                // Archive link biztosítása
+                if (!$person->archive_id) {
+                    $this->archiveLinking->linkPerson($person, autoCreate: true);
+                    $person->refresh();
+                }
+
                 $this->archiveOldPhotos($person);
 
-                // Média áthelyezése és tulajdonságok frissítése
-                // FONTOS: move() új média rekordot hoz létre új ID-val, a régit törli!
+                // Ha van archive → archive collection-be mozgatjuk
+                if ($person->archive_id) {
+                    $archive = $person->type === 'teacher'
+                        ? $person->teacherArchive
+                        : $person->studentArchive;
+
+                    if ($archive) {
+                        $collection = $person->type === 'teacher' ? 'teacher_photos' : 'student_photos';
+                        $media = $media->move($archive, $collection);
+                        $media->setCustomProperty('person_id', $person->id);
+                        $media->setCustomProperty('person_name', $person->name);
+                        $media->setCustomProperty('is_active', true);
+                        $media->setCustomProperty('assigned_at', now()->toIso8601String());
+                        $media->save();
+
+                        $archive->update(['active_photo_id' => $media->id]);
+                        $assigned++;
+                        continue;
+                    }
+                }
+
+                // Fallback: legacy mód
                 $media = $media->move($project, 'tablo_photos');
                 $media->setCustomProperty('person_id', $person->id);
                 $media->setCustomProperty('person_name', $person->name);
@@ -331,7 +398,6 @@ class PartnerPhotoService
                 $media->setCustomProperty('assigned_at', now()->toIso8601String());
                 $media->save();
 
-                // Személy frissítése
                 $person->update(['media_id' => $media->id]);
                 $assigned++;
             }

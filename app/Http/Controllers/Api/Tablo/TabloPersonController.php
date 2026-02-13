@@ -13,6 +13,7 @@ use App\Http\Requests\Api\Tablo\SyncPersonsRequest;
 use App\Http\Requests\Api\Tablo\UpdatePersonRequest;
 use App\Models\TabloPerson;
 use App\Models\TabloProject;
+use App\Services\ArchiveLinkingService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -67,6 +68,9 @@ class TabloPersonController extends Controller
             'local_id' => $request->input('local_id'),
             'note' => $request->input('note'),
         ]);
+
+        // Archive link
+        app(ArchiveLinkingService::class)->linkPerson($person, autoCreate: true);
 
         return response()->json([
             'success' => true,
@@ -197,10 +201,10 @@ class TabloPersonController extends Controller
             ], 404);
         }
 
-        // Only get persons with photos (media_id is not null)
+        // Only get persons with effective photos
         $personsWithPhotos = $project->persons()
-            ->whereNotNull('media_id')
-            ->with('photo')
+            ->withEffectivePhoto()
+            ->with(['photo', 'overridePhoto', 'teacherArchive.activePhoto', 'studentArchive.activePhoto'])
             ->orderBy('name')
             ->get();
 
@@ -213,7 +217,7 @@ class TabloPersonController extends Controller
                     'local_id' => $person->local_id,
                     'name' => $person->name,
                     'type' => $person->type,
-                    'photo_url' => $person->photo?->getUrl(),
+                    'photo_url' => $person->getEffectivePhotoUrl(),
                 ])->toArray(),
             ],
         ]);
