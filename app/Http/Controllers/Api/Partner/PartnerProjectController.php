@@ -7,6 +7,7 @@ use App\Http\Controllers\Api\Partner\Traits\PartnerAuthTrait;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\Partner\StoreProjectRequest;
 use App\Http\Requests\Api\Partner\UpdateProjectRequest;
+use App\Actions\Partner\DeleteProjectAction;
 use App\Repositories\Contracts\TabloContactRepositoryContract;
 use App\Repositories\Contracts\TabloProjectRepositoryContract;
 use Illuminate\Http\JsonResponse;
@@ -129,11 +130,13 @@ class PartnerProjectController extends Controller
     /**
      * Delete a project.
      */
-    public function deleteProject(int $projectId): JsonResponse
+    public function deleteProject(int $projectId, DeleteProjectAction $action): JsonResponse
     {
         $project = $this->getProjectForPartner($projectId);
 
-        $this->projectRepository->delete($project);
+        $this->authorize('delete', $project);
+
+        $action->execute($project);
 
         return response()->json([
             'success' => true,
