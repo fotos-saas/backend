@@ -2,30 +2,22 @@
 
 namespace App\Actions\Student;
 
-use App\Helpers\QueryHelper;
 use App\Models\StudentArchive;
 use App\Models\TabloProject;
+use App\Models\TabloSchool;
 use Illuminate\Support\Collection;
 
 class GetStudentsByProjectAction
 {
     public function execute(int $partnerId, ?string $classYear = null, ?int $schoolId = null, bool $missingOnly = false): array
     {
-        $query = TabloProject::where('partner_id', $partnerId)
-            ->with('school')
-            ->whereNotNull('school_id');
-
-        if ($classYear) {
-            $query->where('class_year', 'ILIKE', QueryHelper::safeLikePattern($classYear));
-        }
+        // Archive-based: iskolák lekérése a StudentArchive táblából (nem TabloProject-ből!)
+        $archiveQuery = StudentArchive::forPartner($partnerId)->active();
         if ($schoolId) {
-            $query->where('school_id', $schoolId);
+            $archiveQuery->where('school_id', $schoolId);
         }
 
-        $query->orderByDesc('class_year')->orderBy('class_name');
-        $projects = $query->get();
-
-        $schoolIds = $projects->pluck('school_id')->filter()->unique()->values()->toArray();
+        $schoolIds = $archiveQuery->distinct()->pluck('school_id')->filter()->toArray();
 
         if (empty($schoolIds)) {
             return [
@@ -34,6 +26,19 @@ class GetStudentsByProjectAction
             ];
         }
 
+        // Iskola adatok lekérése
+        $schools = TabloSchool::whereIn('id', $schoolIds)->get()->keyBy('id');
+
+        // Projektek lekérése (osztály kontextushoz)
+        $projectQuery = TabloProject::where('partner_id', $partnerId)
+            ->whereIn('school_id', $schoolIds)
+            ->whereNotNull('school_id');
+        if ($classYear) {
+            $projectQuery->where('class_year', $classYear);
+        }
+        $projects = $projectQuery->orderByDesc('class_year')->orderBy('class_name')->get();
+
+        // Diákok lekérése
         $archives = StudentArchive::forPartner($partnerId)
             ->active()
             ->whereIn('school_id', $schoolIds)
@@ -45,13 +50,13 @@ class GetStudentsByProjectAction
         $schoolGroups = collect();
 
         foreach ($schoolIds as $sid) {
-            $sidProjects = $projects->where('school_id', $sid);
-            $sidStudents = $archives->where('school_id', $sid);
-
-            $schoolName = $sidProjects->first()?->school?->name;
-            if (!$schoolName || $sidProjects->isEmpty()) {
+            $school = $schools->get($sid);
+            if (!$school) {
                 continue;
             }
+
+            $sidStudents = $archives->where('school_id', $sid);
+            $sidProjects = $projects->where('school_id', $sid);
 
             $students = $sidStudents->map(function ($s) {
                 return [
@@ -84,7 +89,7 @@ class GetStudentsByProjectAction
 
             $schoolGroups->push([
                 'schoolId' => $sid,
-                'schoolName' => $schoolName,
+                'schoolName' => $school->name,
                 'classes' => $classes,
                 'classCount' => count($classes),
                 'studentCount' => $totalCount,
