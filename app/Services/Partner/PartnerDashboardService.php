@@ -204,7 +204,7 @@ class PartnerDashboardService
     }
 
     /**
-     * Szűrők alkalmazása (status, is_aware, has_draft).
+     * Szűrők alkalmazása (status, is_aware, has_draft, graduation_year).
      */
     private function applyFilters($query, Request $request, ?string $status)
     {
@@ -214,6 +214,13 @@ class PartnerDashboardService
 
         if ($request->filled('school_id')) {
             $query->where('school_id', (int) $request->input('school_id'));
+        }
+
+        if ($request->filled('graduation_year')) {
+            $year = (int) $request->input('graduation_year');
+            if ($year >= 2000 && $year <= 2100) {
+                $query->where('class_year', 'LIKE', '%' . $year);
+            }
         }
 
         if ($request->filled('is_aware')) {
