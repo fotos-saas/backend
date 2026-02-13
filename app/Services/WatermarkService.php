@@ -24,7 +24,7 @@ class WatermarkService
 
             // Responsive font size
             $fontSize = (int) max(20, min($width, $height) / 18);
-            $fontPath = '/usr/share/fonts/dejavu/DejaVuSans-Bold.ttf';
+            $fontPath = $this->resolveFontPath();
 
             // Spacing between watermark cells
             $colSpacing = $fontSize * 5;
@@ -70,7 +70,7 @@ class WatermarkService
                 }
             }
 
-            $image->save($imagePath);
+            $image->save($imagePath, quality: 90);
 
             Log::info('Tiled watermark applied', [
                 'image_path' => $imagePath,
@@ -84,5 +84,22 @@ class WatermarkService
 
             throw $e;
         }
+    }
+
+    private function resolveFontPath(): string
+    {
+        $candidates = [
+            '/usr/share/fonts/dejavu/DejaVuSans-Bold.ttf',
+            '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf',
+            base_path('vendor/dompdf/dompdf/lib/fonts/DejaVuSans-Bold.ttf'),
+        ];
+
+        foreach ($candidates as $path) {
+            if (file_exists($path)) {
+                return $path;
+            }
+        }
+
+        throw new \RuntimeException('DejaVuSans-Bold.ttf font not found');
     }
 }
