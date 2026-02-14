@@ -179,13 +179,17 @@ class GenerateGalleryZipAction
             $tempFile = null;
 
             $typeFolder = $person->type === 'teacher' ? 'tanarok' : 'diakok';
-            $filename = $this->sanitizeFolderName($person->name) . ".{$extension}";
 
-            if ($fileNaming === 'student_name_iptc') {
-                $tempFile = tempnam(sys_get_temp_dir(), 'iptc_') . '.' . $extension;
-                copy($originalPath, $tempFile);
-                $this->embedIptcName($tempFile, $person->name);
-                $filePath = $tempFile;
+            if ($fileNaming === 'original') {
+                $filename = $media->file_name;
+            } else {
+                $filename = $this->sanitizeFolderName($person->name) . ".{$extension}";
+                if ($fileNaming === 'student_name_iptc') {
+                    $tempFile = tempnam(sys_get_temp_dir(), 'iptc_') . '.' . $extension;
+                    copy($originalPath, $tempFile);
+                    $this->embedIptcName($tempFile, $person->name);
+                    $filePath = $tempFile;
+                }
             }
 
             $filename = $this->resolveUniqueFilename($filename, $usedFilenames);
