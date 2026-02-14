@@ -19,8 +19,10 @@ use App\Http\Controllers\Api\Partner\PartnerAiSummaryController;
 use App\Http\Controllers\Api\Partner\PartnerSamplePackageController;
 use App\Http\Controllers\Api\Partner\PartnerSchoolController;
 use App\Http\Controllers\Api\Partner\PartnerSchoolLinkingController;
+use App\Http\Controllers\Api\Partner\PartnerStudentBulkPhotoController;
 use App\Http\Controllers\Api\Partner\PartnerStudentController;
 use App\Http\Controllers\Api\Partner\PartnerStudentPhotoController;
+use App\Http\Controllers\Api\Partner\PartnerTeacherBulkPhotoController;
 use App\Http\Controllers\Api\Partner\PartnerTeacherController;
 use App\Http\Controllers\Api\Partner\PartnerTeacherLinkingController;
 use App\Http\Controllers\Api\Partner\PartnerTeacherPhotoController;
@@ -220,6 +222,10 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::delete('/teachers/{id}/unlink', [PartnerTeacherLinkingController::class, 'unlinkTeacher']);
         Route::get('/teachers/linked-groups', [PartnerTeacherLinkingController::class, 'getLinkedGroups']);
 
+        // Teacher bulk photo upload
+        Route::post('/teachers/bulk-photos/match', [PartnerTeacherBulkPhotoController::class, 'match']);
+        Route::post('/teachers/bulk-photos/upload', [PartnerTeacherBulkPhotoController::class, 'upload']);
+
         // Teacher photo management
         Route::middleware('throttle:10,1')->group(function () {
             Route::post('/teachers/{id}/photos', [PartnerTeacherPhotoController::class, 'uploadPhoto']);
@@ -241,6 +247,10 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/students/{id}/changelog', [PartnerStudentController::class, 'getChangelog']);
         Route::patch('/students/{id}/mark-no-photo', [PartnerStudentController::class, 'markNoPhoto']);
         Route::patch('/students/{id}/undo-no-photo', [PartnerStudentController::class, 'undoNoPhoto']);
+
+        // Student bulk photo upload
+        Route::post('/students/bulk-photos/match', [PartnerStudentBulkPhotoController::class, 'match']);
+        Route::post('/students/bulk-photos/upload', [PartnerStudentBulkPhotoController::class, 'upload']);
 
         // Student photo management
         Route::middleware('throttle:10,1')->group(function () {
