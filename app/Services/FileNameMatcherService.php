@@ -6,6 +6,14 @@ namespace App\Services;
 
 class FileNameMatcherService
 {
+    private const MIN_MATCH_THRESHOLD = 50;
+    private const MAX_ALTERNATIVES = 5;
+    private const AMBIGUITY_MARGIN = 10;
+    private const SCORE_EXACT = 100;
+    private const SCORE_WORD_REORDER = 95;
+    private const SCORE_CONTAINS = 80;
+    private const SCORE_WORD_OVERLAP = 75;
+
     /**
      * Fájlnév-lista párosítása név-listához.
      *
@@ -44,7 +52,7 @@ class FileNameMatcherService
 
         foreach ($normalizedNames as $id => $entry) {
             $score = $this->calculateMatchScore($normalizedInput, $entry['normalized']);
-            if ($score >= 50) {
+            if ($score >= self::MIN_MATCH_THRESHOLD) {
                 $candidates[] = [
                     'person_id' => $id,
                     'person_name' => $entry['original'],
@@ -60,9 +68,9 @@ class FileNameMatcherService
         }
 
         $best = $candidates[0];
-        $alternatives = array_slice($candidates, 1, 5);
+        $alternatives = array_slice($candidates, 1, self::MAX_ALTERNATIVES);
 
-        if (count($candidates) > 1 && $candidates[1]['score'] >= $best['score'] - 10) {
+        if (count($candidates) > 1 && $candidates[1]['score'] >= $best['score'] - self::AMBIGUITY_MARGIN) {
             return $this->buildResult(
                 $filename,
                 $best['person_id'],
@@ -86,13 +94,12 @@ class FileNameMatcherService
     /**
      * Fájlnévből név kinyerése.
      * "Kiss_Anna.jpg" -> "Kiss Anna"
-     * "KISS ANNA 12C.jpg" -> "KISS ANNA 12C"
+     * "KISS ANNA 12C.jpg" -> "KISS ANNA"
      */
     private function extractNameFromFilename(string $filename): string
     {
-        $name = pathinfo($filename, PATHINFO_FILENAME);
+        $name = pathinfo(basename($filename), PATHINFO_FILENAME);
         $name = str_replace(['_', '-', '.'], ' ', $name);
-        // Számok és szóközök eltávolítása a végéről (pl. "12C", "2024")
         $name = preg_replace('/\s+\d+[a-zA-Z]?\s*$/', '', $name) ?? $name;
         return trim($name);
     }
@@ -117,10 +124,8 @@ class FileNameMatcherService
             'a' => '[áàâä]',
             'e' => '[éèêë]',
             'i' => '[íìîï]',
-            'o' => '[óòôö]',
-            'u' => '[úùûü]',
-            'u' => '[úùûüű]',
             'o' => '[óòôöő]',
+            'u' => '[úùûüű]',
         ];
 
         foreach ($map as $replacement => $pattern) {
@@ -133,19 +138,19 @@ class FileNameMatcherService
     private function calculateMatchScore(string $input, string $target): int
     {
         if ($input === $target) {
-            return 100;
+            return self::SCORE_EXACT;
         }
 
         // Szavak sorrendjétől független exact match
         $inputWords = $this->sortedWords($input);
         $targetWords = $this->sortedWords($target);
         if ($inputWords === $targetWords) {
-            return 95;
+            return self::SCORE_WORD_REORDER;
         }
 
         // Contains match: az egyik tartalmazza a másikat
         if (str_contains($target, $input) || str_contains($input, $target)) {
-            return 80;
+            return self::SCORE_CONTAINS;
         }
 
         // Szóátfedés vizsgálat
@@ -155,12 +160,19 @@ class FileNameMatcherService
         $total = max(count($inputArr), count($targetArr));
 
         if ($common > 0 && $common >= $total - 1) {
-            return 75;
+            return self::SCORE_WORD_OVERLAP;
         }
 
-        // Levenshtein alapú
-        $maxLen = max(mb_strlen($input), mb_strlen($target));
+        // Levenshtein alapú (byte-szintű, de removeAccents után már ASCII)
+        $inputLen = strlen($input);
+        $targetLen = strlen($target);
+        $maxLen = max($inputLen, $targetLen);
         if ($maxLen === 0) {
+            return 0;
+        }
+
+        // Early exit: ha a hosszkülönbség túl nagy, a score nem érheti el a küszöböt
+        if (abs($inputLen - $targetLen) > $maxLen * 0.5) {
             return 0;
         }
 

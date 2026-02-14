@@ -222,9 +222,11 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::delete('/teachers/{id}/unlink', [PartnerTeacherLinkingController::class, 'unlinkTeacher']);
         Route::get('/teachers/linked-groups', [PartnerTeacherLinkingController::class, 'getLinkedGroups']);
 
-        // Teacher bulk photo upload
-        Route::post('/teachers/bulk-photos/match', [PartnerTeacherBulkPhotoController::class, 'match']);
-        Route::post('/teachers/bulk-photos/upload', [PartnerTeacherBulkPhotoController::class, 'upload']);
+        // Teacher bulk photo upload (rate limited)
+        Route::post('/teachers/bulk-photos/match', [PartnerTeacherBulkPhotoController::class, 'match'])
+            ->middleware('throttle:10,1');
+        Route::post('/teachers/bulk-photos/upload', [PartnerTeacherBulkPhotoController::class, 'upload'])
+            ->middleware('throttle:5,1');
 
         // Teacher photo management
         Route::middleware('throttle:10,1')->group(function () {
@@ -248,9 +250,11 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::patch('/students/{id}/mark-no-photo', [PartnerStudentController::class, 'markNoPhoto']);
         Route::patch('/students/{id}/undo-no-photo', [PartnerStudentController::class, 'undoNoPhoto']);
 
-        // Student bulk photo upload
-        Route::post('/students/bulk-photos/match', [PartnerStudentBulkPhotoController::class, 'match']);
-        Route::post('/students/bulk-photos/upload', [PartnerStudentBulkPhotoController::class, 'upload']);
+        // Student bulk photo upload (rate limited)
+        Route::post('/students/bulk-photos/match', [PartnerStudentBulkPhotoController::class, 'match'])
+            ->middleware('throttle:10,1');
+        Route::post('/students/bulk-photos/upload', [PartnerStudentBulkPhotoController::class, 'upload'])
+            ->middleware('throttle:5,1');
 
         // Student photo management
         Route::middleware('throttle:10,1')->group(function () {

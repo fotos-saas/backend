@@ -4,12 +4,14 @@ declare(strict_types=1);
 
 namespace App\Actions\Student;
 
+use App\Actions\Concerns\BulkUploadsArchivePhotos;
 use App\Models\StudentArchive;
 use Illuminate\Http\UploadedFile;
-use Illuminate\Support\Facades\Log;
 
 class BulkUploadStudentPhotosAction
 {
+    use BulkUploadsArchivePhotos;
+
     private UploadStudentPhotoAction $uploadAction;
 
     public function __construct()
@@ -24,45 +26,11 @@ class BulkUploadStudentPhotosAction
      */
     public function execute(array $assignments, array $fileMap, int $year, bool $setActive = false): array
     {
-        $uploaded = 0;
-        $skipped = 0;
-        $failed = 0;
-        $results = [];
+        return $this->executeBulkUpload($assignments, $fileMap, $year, $setActive, StudentArchive::class, 'Diák', 'student_id');
+    }
 
-        foreach ($assignments as $filename => $studentId) {
-            if (!isset($fileMap[$filename])) {
-                $skipped++;
-                $results[] = ['filename' => $filename, 'status' => 'skipped', 'reason' => 'Fájl nem található'];
-                continue;
-            }
-
-            $student = StudentArchive::find($studentId);
-            if (!$student) {
-                $skipped++;
-                $results[] = ['filename' => $filename, 'status' => 'skipped', 'reason' => 'Diák nem található'];
-                continue;
-            }
-
-            try {
-                $this->uploadAction->execute($student, $fileMap[$filename], $year, $setActive);
-                $uploaded++;
-                $results[] = ['filename' => $filename, 'status' => 'success', 'student_id' => $studentId];
-            } catch (\Throwable $e) {
-                $failed++;
-                Log::error('Bulk photo upload hiba', [
-                    'filename' => $filename,
-                    'student_id' => $studentId,
-                    'error' => $e->getMessage(),
-                ]);
-                $results[] = ['filename' => $filename, 'status' => 'failed', 'reason' => 'Feltöltési hiba'];
-            }
-        }
-
-        return [
-            'uploaded' => $uploaded,
-            'skipped' => $skipped,
-            'failed' => $failed,
-            'results' => $results,
-        ];
+    protected function getUploadAction(): object
+    {
+        return $this->uploadAction;
     }
 }

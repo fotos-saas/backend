@@ -18,8 +18,8 @@ class BulkPhotoUploadRequest extends FormRequest
         return [
             'school_id' => ['required', 'integer', 'exists:tablo_schools,id'],
             'year' => ['required', 'integer', 'min:2000', 'max:2100'],
-            'set_active' => ['sometimes', 'boolean'],
-            'assignments' => ['required', 'string'],
+            'set_active' => ['sometimes', 'string'],
+            'assignments' => ['required', 'string', 'json'],
             'photos' => ['required', 'array', 'min:1', 'max:500'],
             'photos.*' => ['required', 'file', 'image', 'max:20480'],
         ];
@@ -31,6 +31,7 @@ class BulkPhotoUploadRequest extends FormRequest
             'school_id.required' => 'Az iskola kiválasztása kötelező.',
             'year.required' => 'Az évszám megadása kötelező.',
             'assignments.required' => 'A párosítási adatok megadása kötelező.',
+            'assignments.json' => 'A párosítási adatok érvénytelen formátumúak.',
             'photos.required' => 'Legalább egy fotó szükséges.',
             'photos.max' => 'Legfeljebb 500 fotó tölthető fel egyszerre.',
             'photos.*.image' => 'Csak képfájlok tölthetők fel.',
@@ -43,6 +44,6 @@ class BulkPhotoUploadRequest extends FormRequest
      */
     public function getAssignments(): array
     {
-        return json_decode($this->input('assignments'), true) ?? [];
+        return json_decode($this->validated('assignments'), true) ?? [];
     }
 }
