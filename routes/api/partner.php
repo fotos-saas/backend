@@ -192,6 +192,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/schools', [PartnerSchoolController::class, 'storeSchool']);
         Route::put('/schools/{schoolId}', [PartnerSchoolController::class, 'updateSchool']);
         Route::delete('/schools/{schoolId}', [PartnerSchoolController::class, 'deleteSchool']);
+        Route::post('/schools/{schoolId}/download-teacher-photos', [PartnerSchoolController::class, 'downloadTeacherPhotosZip']);
 
         // School linking (Iskola összekapcsolás)
         Route::post('/schools/link', [PartnerSchoolLinkingController::class, 'linkSchools']);

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\Partner;
 
+use App\Actions\Partner\GenerateSchoolTeacherPhotosZipAction;
 use App\Actions\Partner\GetSchoolDetailAction;
 use App\Actions\Partner\ListPartnerSchoolsAction;
 use App\Actions\Partner\StoreSchoolAction;
@@ -17,6 +18,7 @@ use App\Models\TabloSchool;
 use App\Helpers\QueryHelper;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 /**
  * Partner School Controller - School management for partners.
@@ -199,5 +201,29 @@ class PartnerSchoolController extends Controller
             'success' => true,
             'message' => 'Iskola sikeresen törölve',
         ]);
+    }
+
+    /**
+     * Tanári aktív fotók ZIP letöltése iskolához.
+     */
+    public function downloadTeacherPhotosZip(
+        Request $request,
+        int $schoolId,
+        GenerateSchoolTeacherPhotosZipAction $action,
+    ): BinaryFileResponse|JsonResponse {
+        $partnerId = $this->getPartnerIdOrFail();
+
+        $school = TabloSchool::whereHas('partners', fn ($q) => $q->where('partner_schools.partner_id', $partnerId))
+            ->findOrFail($schoolId);
+
+        $fileNaming = $request->input('file_naming', 'student_name');
+
+        $zipPath = $action->execute($schoolId, $partnerId, $school->name, $fileNaming);
+
+        $filename = "tanarok-{$school->id}-" . now()->format('Y-m-d') . '.zip';
+
+        return response()->download($zipPath, $filename, [
+            'Content-Type' => 'application/zip',
+        ])->deleteFileAfterSend(true);
     }
 }
