@@ -95,7 +95,7 @@ class PartnerTeacherController extends Controller
         $partnerId = $this->getPartnerIdOrFail();
 
         $teacher = TeacherArchive::forPartner($partnerId)
-            ->with(['school', 'aliases', 'photos.media', 'activePhoto'])
+            ->with(['school', 'aliases', 'photos.media', 'activePhoto', 'persons.project.school'])
             ->findOrFail($id);
 
         return response()->json([
@@ -292,6 +292,18 @@ class PartnerTeacherController extends Controller
                 'thumbUrl' => $p->media?->getUrl('thumb'),
                 'fileName' => $p->media?->file_name,
             ])->toArray(),
+            'projects' => $teacher->persons
+                ->filter(fn ($p) => $p->project !== null)
+                ->map(fn ($person) => [
+                    'projectId' => $person->project->id,
+                    'className' => $person->project->class_name,
+                    'classYear' => $person->project->class_year,
+                    'schoolName' => $person->project->school?->name,
+                ])
+                ->unique('projectId')
+                ->sortByDesc('classYear')
+                ->values()
+                ->toArray(),
             'createdAt' => $teacher->created_at->toIso8601String(),
             'updatedAt' => $teacher->updated_at->toIso8601String(),
         ];

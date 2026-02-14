@@ -85,6 +85,15 @@ class TeacherArchive extends Model implements HasMedia
         return $this->hasMany(TeacherChangeLog::class, 'teacher_id');
     }
 
+    /**
+     * Tablo person rekordok ahol ez a tanár szerepel (type=teacher, archive_id=this.id)
+     */
+    public function persons(): HasMany
+    {
+        return $this->hasMany(TabloPerson::class, 'archive_id')
+            ->where('type', 'teacher');
+    }
+
     // ============ Scopes ============
 
     public function scopeForPartner($query, int $partnerId)
