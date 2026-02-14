@@ -19,15 +19,6 @@ class ListPartnerSchoolsAction
                 'projects as projects_count' => fn ($q) => $q->where('tablo_projects.partner_id', $partnerId),
                 'projects as active_projects_count' => fn ($q) => $q->where('tablo_projects.partner_id', $partnerId)
                     ->whereNotIn('tablo_projects.status', ['done', 'in_print']),
-            ])
-            ->addSelect([
-                'latest_class_year' => DB::table('tablo_projects')
-                    ->whereColumn('tablo_projects.school_id', 'tablo_schools.id')
-                    ->where('tablo_projects.partner_id', $partnerId)
-                    ->whereNotNull('tablo_projects.class_year')
-                    ->orderByDesc('tablo_projects.class_year')
-                    ->limit(1)
-                    ->select('tablo_projects.class_year'),
             ]);
 
         if ($search) {
@@ -74,7 +65,6 @@ class ListPartnerSchoolsAction
                 'projectsCount' => $school->projects_count ?? 0,
                 'activeProjectsCount' => $school->active_projects_count ?? 0,
                 'hasActiveProjects' => ($school->active_projects_count ?? 0) > 0,
-                'latestClassYear' => $school->latest_class_year,
                 'linkedGroup' => $linkedGroup,
                 'linkedSchools' => $linkedSchools,
             ];
