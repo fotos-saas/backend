@@ -148,7 +148,13 @@ class GenerateGalleryZipAction
     }
 
     /**
-     * Flat ZIP: csak effektív fotók, nincs mappastruktúra.
+     * Flat ZIP: csak effektív fotók, tanárok/diákok mappával.
+     *
+     * Struktúra:
+     *   diakok/
+     *     Személy Név.jpg
+     *   tanarok/
+     *     Tanár Név.jpg
      */
     private function buildFlatZip(ZipArchive $zip, Collection $persons, string $fileNaming): int
     {
@@ -170,26 +176,20 @@ class GenerateGalleryZipAction
             $filePath = $originalPath;
             $tempFile = null;
 
-            switch ($fileNaming) {
-                case 'student_name':
-                case 'student_name_iptc':
-                    $filename = $this->sanitizeFolderName($person->name) . ".{$extension}";
-                    if ($fileNaming === 'student_name_iptc') {
-                        $tempFile = tempnam(sys_get_temp_dir(), 'iptc_') . '.' . $extension;
-                        copy($originalPath, $tempFile);
-                        $this->embedIptcName($tempFile, $person->name);
-                        $filePath = $tempFile;
-                    }
-                    break;
-                default:
-                    $filename = $this->sanitizeFolderName($person->name) . ".{$extension}";
-                    break;
+            $folder = $person->type === 'teacher' ? 'tanarok' : 'diakok';
+            $filename = $this->sanitizeFolderName($person->name) . ".{$extension}";
+
+            if ($fileNaming === 'student_name_iptc') {
+                $tempFile = tempnam(sys_get_temp_dir(), 'iptc_') . '.' . $extension;
+                copy($originalPath, $tempFile);
+                $this->embedIptcName($tempFile, $person->name);
+                $filePath = $tempFile;
             }
 
             $filename = $this->resolveUniqueFilename($filename, $usedFilenames);
             $usedFilenames[] = $filename;
 
-            $zip->addFile($filePath, $filename);
+            $zip->addFile($filePath, "{$folder}/{$filename}");
 
             if ($tempFile) {
                 $this->tempFiles[] = $tempFile;
