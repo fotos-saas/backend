@@ -45,6 +45,7 @@ class GenerateGalleryZipAction
         string $zipContent = 'all',
         string $fileNaming = 'original',
         ?string $excelPath = null,
+        ?string $personType = null,
     ): string {
         $zip = new ZipArchive;
         $timestamp = now()->format('Y-m-d-His');
@@ -66,6 +67,10 @@ class GenerateGalleryZipAction
 
             if ($personIds !== null && count($personIds) > 0) {
                 $personsQuery->whereIn('id', $personIds);
+            }
+
+            if ($personType !== null) {
+                $personsQuery->where('type', $personType);
             }
 
             $persons = $personsQuery->get();

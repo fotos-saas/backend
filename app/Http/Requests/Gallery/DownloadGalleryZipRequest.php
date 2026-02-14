@@ -21,6 +21,7 @@ class DownloadGalleryZipRequest extends FormRequest
             'zip_content' => ['required', 'in:retouch_only,tablo_only,all,retouch_and_tablo'],
             'file_naming' => ['required', 'in:original,student_name,student_name_iptc'],
             'include_excel' => ['sometimes', 'boolean'],
+            'person_type' => ['sometimes', 'nullable', 'in:student,teacher'],
         ];
     }
 

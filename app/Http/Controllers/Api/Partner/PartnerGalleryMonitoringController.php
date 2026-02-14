@@ -118,6 +118,7 @@ class PartnerGalleryMonitoringController extends Controller
         $zipContent = $request->input('zip_content', 'all');
         $fileNaming = $request->input('file_naming', 'original');
         $includeExcel = (bool) $request->input('include_excel', false);
+        $personType = $request->input('person_type');
 
         // Ha Excel mellékelés kell, először generáljuk azt
         $excelPath = null;
@@ -132,6 +133,7 @@ class PartnerGalleryMonitoringController extends Controller
             $zipContent,
             $fileNaming,
             $excelPath,
+            $personType,
         );
 
         // Excel temp fájl takarítás
