@@ -46,6 +46,7 @@ class GenerateGalleryZipAction
         string $fileNaming = 'original',
         ?string $excelPath = null,
         ?string $personType = null,
+        bool $effectiveOnly = false,
     ): string {
         $zip = new ZipArchive;
         $timestamp = now()->format('Y-m-d-His');
@@ -58,10 +59,9 @@ class GenerateGalleryZipAction
         }
 
         try {
-            $projectFolder = $this->sanitizeFolderName($project->name) . " ({$project->id})";
             $addedCount = 0;
 
-            // Személyek és progress adatok lekérése
+            // Személyek lekérése
             $personsQuery = TabloPerson::where('tablo_project_id', $project->id)
                 ->orderBy('name');
 
@@ -75,48 +75,54 @@ class GenerateGalleryZipAction
 
             $persons = $personsQuery->get();
 
-            $progressRecords = TabloUserProgress::where('tablo_gallery_id', $galleryId)
-                ->get()
-                ->keyBy('user_id');
+            if ($effectiveOnly) {
+                // Flat mód: csak effektív fotók, mappa nélkül
+                $addedCount = $this->buildFlatZip($zip, $persons, $fileNaming);
+            } else {
+                // Eredeti mód: mappastruktúrás monitoring export
+                $projectFolder = $this->sanitizeFolderName($project->name) . " ({$project->id})";
 
-            $guestSessions = TabloGuestSession::where('tablo_project_id', $project->id)
-                ->where('verification_status', TabloGuestSession::VERIFICATION_VERIFIED)
-                ->whereNotNull('tablo_person_id')
-                ->get()
-                ->keyBy('tablo_person_id');
+                $progressRecords = TabloUserProgress::where('tablo_gallery_id', $galleryId)
+                    ->get()
+                    ->keyBy('user_id');
 
-            $gallery = $project->gallery;
+                $guestSessions = TabloGuestSession::where('tablo_project_id', $project->id)
+                    ->where('verification_status', TabloGuestSession::VERIFICATION_VERIFIED)
+                    ->whereNotNull('tablo_person_id')
+                    ->get()
+                    ->keyBy('tablo_person_id');
 
-            foreach ($persons as $person) {
-                $session = $guestSessions->get($person->id);
-                $progress = $this->findProgress($session, $progressRecords);
+                $gallery = $project->gallery;
 
-                $personFolder = "{$projectFolder}/" . $this->sanitizeFolderName($person->name);
+                foreach ($persons as $person) {
+                    $session = $guestSessions->get($person->id);
+                    $progress = $this->findProgress($session, $progressRecords);
 
-                if ($progress) {
-                    // Galéria workflow képek (claimed, retouch, tablo)
-                    $added = $this->addPersonPhotos(
-                        $zip, $gallery, $progress, $person, $personFolder,
-                        $zipContent, $fileNaming,
-                    );
-                    $addedCount += $added;
-                } else {
-                    // Nincs galéria progress → effektív fotó (archive/override/legacy)
-                    $addedCount += $this->addEffectivePhoto(
-                        $zip, $person, $personFolder, $fileNaming,
-                    );
+                    $personFolder = "{$projectFolder}/" . $this->sanitizeFolderName($person->name);
+
+                    if ($progress) {
+                        $added = $this->addPersonPhotos(
+                            $zip, $gallery, $progress, $person, $personFolder,
+                            $zipContent, $fileNaming,
+                        );
+                        $addedCount += $added;
+                    } else {
+                        $addedCount += $this->addEffectivePhoto(
+                            $zip, $person, $personFolder, $fileNaming,
+                        );
+                    }
+                }
+
+                // Excel mellékelés
+                $hasExcel = $excelPath && file_exists($excelPath);
+                if ($hasExcel) {
+                    $zip->addFile($excelPath, "{$projectFolder}/export.xlsx");
                 }
             }
 
-            // Excel mellékelés
-            $hasExcel = $excelPath && file_exists($excelPath);
-            if ($hasExcel) {
-                $zip->addFile($excelPath, "{$projectFolder}/export.xlsx");
-            }
-
-            // Ha nincs egyetlen fájl sem, üres ZIP nem jön létre → info fájlt adunk
-            if ($addedCount === 0 && !$hasExcel) {
-                $zip->addFromString("{$projectFolder}/info.txt", 'Nincsenek letölthető képek a kiválasztott feltételekkel.');
+            // Ha nincs egyetlen fájl sem → info fájlt adunk
+            if ($addedCount === 0) {
+                $zip->addFromString('info.txt', 'Nincsenek letölthető képek a kiválasztott feltételekkel.');
             }
 
             $zip->close();
@@ -126,6 +132,7 @@ class GenerateGalleryZipAction
                 'project_id' => $project->id,
                 'persons' => $persons->count(),
                 'added_files' => $addedCount,
+                'effective_only' => $effectiveOnly,
                 'zip_path' => $zipPath,
             ]);
 
@@ -138,6 +145,60 @@ class GenerateGalleryZipAction
             }
             throw $e;
         }
+    }
+
+    /**
+     * Flat ZIP: csak effektív fotók, nincs mappastruktúra.
+     */
+    private function buildFlatZip(ZipArchive $zip, Collection $persons, string $fileNaming): int
+    {
+        $addedCount = 0;
+        $usedFilenames = [];
+
+        foreach ($persons as $person) {
+            $media = $this->resolveEffectiveMedia($person);
+            if (!$media) {
+                continue;
+            }
+
+            $originalPath = $media->getPath();
+            if (!file_exists($originalPath)) {
+                continue;
+            }
+
+            $extension = pathinfo($media->file_name, PATHINFO_EXTENSION) ?: 'jpg';
+            $filePath = $originalPath;
+            $tempFile = null;
+
+            switch ($fileNaming) {
+                case 'student_name':
+                case 'student_name_iptc':
+                    $filename = $this->sanitizeFolderName($person->name) . ".{$extension}";
+                    if ($fileNaming === 'student_name_iptc') {
+                        $tempFile = tempnam(sys_get_temp_dir(), 'iptc_') . '.' . $extension;
+                        copy($originalPath, $tempFile);
+                        $this->embedIptcName($tempFile, $person->name);
+                        $filePath = $tempFile;
+                    }
+                    break;
+                default:
+                    $filename = $this->sanitizeFolderName($person->name) . ".{$extension}";
+                    break;
+            }
+
+            $filename = $this->resolveUniqueFilename($filename, $usedFilenames);
+            $usedFilenames[] = $filename;
+
+            $zip->addFile($filePath, $filename);
+
+            if ($tempFile) {
+                $this->tempFiles[] = $tempFile;
+            }
+
+            $addedCount++;
+        }
+
+        return $addedCount;
     }
 
     /**

@@ -22,6 +22,7 @@ class DownloadGalleryZipRequest extends FormRequest
             'file_naming' => ['required', 'in:original,student_name,student_name_iptc'],
             'include_excel' => ['sometimes', 'boolean'],
             'person_type' => ['sometimes', 'nullable', 'in:student,teacher'],
+            'effective_only' => ['sometimes', 'boolean'],
         ];
     }
 

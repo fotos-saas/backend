@@ -119,6 +119,7 @@ class PartnerGalleryMonitoringController extends Controller
         $fileNaming = $request->input('file_naming', 'original');
         $includeExcel = (bool) $request->input('include_excel', false);
         $personType = $request->input('person_type');
+        $effectiveOnly = (bool) $request->input('effective_only', false);
 
         // Ha Excel mellékelés kell, először generáljuk azt
         $excelPath = null;
@@ -134,6 +135,7 @@ class PartnerGalleryMonitoringController extends Controller
             $fileNaming,
             $excelPath,
             $personType,
+            $effectiveOnly,
         );
 
         // Excel temp fájl takarítás
