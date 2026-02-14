@@ -104,8 +104,19 @@ class GenerateGalleryZipAction
             }
 
             // Excel mellékelés
-            if ($excelPath && file_exists($excelPath)) {
+            $hasExcel = $excelPath && file_exists($excelPath);
+            if ($hasExcel) {
                 $zip->addFile($excelPath, "{$projectFolder}/export.xlsx");
+            }
+
+            // Ha nincs egyetlen fájl sem, üres ZIP-et nem generálunk
+            if ($addedCount === 0 && !$hasExcel) {
+                $zip->close();
+                $this->cleanupTempFiles();
+                if (file_exists($zipPath)) {
+                    unlink($zipPath);
+                }
+                throw new \RuntimeException('Nincsenek letölthető képek a kiválasztott feltételekkel.');
             }
 
             $zip->close();
