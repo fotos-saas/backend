@@ -109,18 +109,16 @@ class GenerateGalleryZipAction
                 $zip->addFile($excelPath, "{$projectFolder}/export.xlsx");
             }
 
+            $zip->close();
+            $this->cleanupTempFiles();
+
             // Ha nincs egyetlen fájl sem, üres ZIP-et nem generálunk
             if ($addedCount === 0 && !$hasExcel) {
-                $zip->close();
-                $this->cleanupTempFiles();
                 if (file_exists($zipPath)) {
                     unlink($zipPath);
                 }
                 throw new \RuntimeException('Nincsenek letölthető képek a kiválasztott feltételekkel.');
             }
-
-            $zip->close();
-            $this->cleanupTempFiles();
 
             Log::info('GenerateGalleryZipAction: ZIP létrehozva', [
                 'project_id' => $project->id,
@@ -130,6 +128,9 @@ class GenerateGalleryZipAction
             ]);
 
             return $zipPath;
+        } catch (\RuntimeException $e) {
+            // Üres ZIP eset - már lezártuk, csak továbbdobjuk
+            throw $e;
         } catch (\Exception $e) {
             $zip->close();
             $this->cleanupTempFiles();
