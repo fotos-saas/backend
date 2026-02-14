@@ -25,7 +25,7 @@ class ListPartnerSchoolsAction
         if ($graduationYear) {
             $query->whereHas('projects', fn ($q) => $q
                 ->where('tablo_projects.partner_id', $partnerId)
-                ->where('tablo_projects.graduation_year', $graduationYear)
+                ->where('tablo_projects.class_year', $graduationYear)
             );
         }
 
