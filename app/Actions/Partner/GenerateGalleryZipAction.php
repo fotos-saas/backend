@@ -91,16 +91,21 @@ class GenerateGalleryZipAction
                 $session = $guestSessions->get($person->id);
                 $progress = $this->findProgress($session, $progressRecords);
 
-                if (!$progress) {
-                    continue;
-                }
-
                 $personFolder = "{$projectFolder}/" . $this->sanitizeFolderName($person->name);
-                $added = $this->addPersonPhotos(
-                    $zip, $gallery, $progress, $person, $personFolder,
-                    $zipContent, $fileNaming,
-                );
-                $addedCount += $added;
+
+                if ($progress) {
+                    // Galéria workflow képek (claimed, retouch, tablo)
+                    $added = $this->addPersonPhotos(
+                        $zip, $gallery, $progress, $person, $personFolder,
+                        $zipContent, $fileNaming,
+                    );
+                    $addedCount += $added;
+                } else {
+                    // Nincs galéria progress → effektív fotó (archive/override/legacy)
+                    $addedCount += $this->addEffectivePhoto(
+                        $zip, $person, $personFolder, $fileNaming,
+                    );
+                }
             }
 
             // Excel mellékelés
@@ -289,6 +294,80 @@ class GenerateGalleryZipAction
         if ($content !== false) {
             @file_put_contents($filePath, $content);
         }
+    }
+
+    /**
+     * Effektív fotó hozzáadása (archive/override/legacy) ha nincs galéria progress.
+     */
+    private function addEffectivePhoto(
+        ZipArchive $zip,
+        TabloPerson $person,
+        string $personFolder,
+        string $fileNaming,
+    ): int {
+        $media = $this->resolveEffectiveMedia($person);
+        if (!$media) {
+            return 0;
+        }
+
+        $originalPath = $media->getPath();
+        if (!file_exists($originalPath)) {
+            return 0;
+        }
+
+        $extension = pathinfo($media->file_name, PATHINFO_EXTENSION) ?: 'jpg';
+        $filePath = $originalPath;
+        $tempFile = null;
+
+        switch ($fileNaming) {
+            case 'student_name':
+                $filename = "{$person->name}.{$extension}";
+                break;
+            case 'student_name_iptc':
+                $filename = $media->file_name;
+                $tempFile = tempnam(sys_get_temp_dir(), 'iptc_') . '.' . $extension;
+                copy($originalPath, $tempFile);
+                $this->embedIptcName($tempFile, $person->name);
+                $filePath = $tempFile;
+                break;
+            default:
+                $filename = $media->file_name;
+                break;
+        }
+
+        $zip->addFile($filePath, "{$personFolder}/{$filename}");
+
+        if ($tempFile) {
+            $this->tempFiles[] = $tempFile;
+        }
+
+        return 1;
+    }
+
+    /**
+     * Effektív Media objektum lekérése: override → archive.active_photo → legacy media_id
+     */
+    private function resolveEffectiveMedia(TabloPerson $person): ?Media
+    {
+        if ($person->override_photo_id) {
+            return $person->overridePhoto;
+        }
+
+        if ($person->archive_id) {
+            $archive = $person->type === 'teacher'
+                ? $person->teacherArchive
+                : $person->studentArchive;
+
+            if ($archive?->active_photo_id) {
+                return $archive->activePhoto;
+            }
+        }
+
+        if ($person->media_id) {
+            return $person->photo;
+        }
+
+        return null;
     }
 
     private function findProgress(?TabloGuestSession $session, Collection $progressRecords): ?TabloUserProgress
