@@ -21,11 +21,12 @@ class ListPartnerSchoolsAction
                     ->whereNotIn('tablo_projects.status', ['done', 'in_print']),
             ]);
 
-        // Évfolyam szűrő: csak azok az iskolák, amiknek van ilyen évfolyamú projektje
+        // Évfolyam szűrő: class_year tartomány string (pl. "2021 - 2026"), az utolsó 4 számjegy a végzés éve
         if ($graduationYear) {
+            $yearStr = (string) $graduationYear;
             $query->whereHas('projects', fn ($q) => $q
                 ->where('tablo_projects.partner_id', $partnerId)
-                ->where('tablo_projects.class_year', $graduationYear)
+                ->whereRaw("RIGHT(REGEXP_REPLACE(tablo_projects.class_year, '[^0-9]', '', 'g'), 4) = ?", [$yearStr])
             );
         }
 
