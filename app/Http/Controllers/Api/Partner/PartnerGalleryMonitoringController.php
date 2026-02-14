@@ -126,23 +126,15 @@ class PartnerGalleryMonitoringController extends Controller
             $excelPath = $this->excelAction->execute($project->id, $project->tablo_gallery_id);
         }
 
-        try {
-            $zipPath = $this->zipAction->execute(
-                $project,
-                $project->tablo_gallery_id,
-                $personIds,
-                $zipContent,
-                $fileNaming,
-                $excelPath,
-                $personType,
-            );
-        } catch (\RuntimeException $e) {
-            // Excel temp fájl takarítás hiba esetén is
-            if ($excelPath && file_exists($excelPath)) {
-                unlink($excelPath);
-            }
-            return response()->json(['message' => $e->getMessage()], 422);
-        }
+        $zipPath = $this->zipAction->execute(
+            $project,
+            $project->tablo_gallery_id,
+            $personIds,
+            $zipContent,
+            $fileNaming,
+            $excelPath,
+            $personType,
+        );
 
         // Excel temp fájl takarítás
         if ($excelPath && file_exists($excelPath)) {
