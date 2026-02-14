@@ -217,8 +217,9 @@ class PartnerSchoolController extends Controller
             ->findOrFail($schoolId);
 
         $fileNaming = $request->input('file_naming', 'student_name');
+        $allProjects = (bool) $request->input('all_projects', false);
 
-        $zipPath = $action->execute($schoolId, $partnerId, $school->name, $fileNaming);
+        $zipPath = $action->execute($schoolId, $partnerId, $school->name, $fileNaming, $allProjects);
 
         $filename = "tanarok-{$school->id}-" . now()->format('Y-m-d') . '.zip';
 
