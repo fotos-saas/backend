@@ -9,7 +9,7 @@ use Illuminate\Support\Facades\DB;
 
 class ListPartnerSchoolsAction
 {
-    public function execute(int $partnerId, ?string $search, int $perPage): array
+    public function execute(int $partnerId, ?string $search, int $perPage, ?int $graduationYear = null): array
     {
         $tabloPartner = TabloPartner::find($partnerId);
 
@@ -21,9 +21,18 @@ class ListPartnerSchoolsAction
                     ->whereNotIn('tablo_projects.status', ['done', 'in_print']),
             ]);
 
+        // Évfolyam szűrő: csak azok az iskolák, amiknek van ilyen évfolyamú projektje
+        if ($graduationYear) {
+            $query->whereHas('projects', fn ($q) => $q
+                ->where('tablo_projects.partner_id', $partnerId)
+                ->where('tablo_projects.graduation_year', $graduationYear)
+            );
+        }
+
         if ($search) {
             $query = app(SearchService::class)->apply($query, $search, [
                 'columns' => ['name', 'city'],
+                'id_column' => 'tablo_schools.id',
             ]);
         }
 

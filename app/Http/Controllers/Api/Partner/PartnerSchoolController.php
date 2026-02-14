@@ -38,7 +38,9 @@ class PartnerSchoolController extends Controller
         $partnerId = $this->getPartnerIdOrFail();
         $perPage = min((int) $request->input('per_page', 18), 50);
 
-        $response = $action->execute($partnerId, $request->input('search'), $perPage);
+        $graduationYear = $request->filled('graduation_year') ? (int) $request->input('graduation_year') : null;
+
+        $response = $action->execute($partnerId, $request->input('search'), $perPage, $graduationYear);
 
         return response()->json($response);
     }
