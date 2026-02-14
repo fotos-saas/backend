@@ -32,6 +32,7 @@ class SearchAllTeachersAction
             'fullDisplayName' => $t->full_display_name,
             'schoolId' => $t->school_id,
             'photoThumbUrl' => $t->photo_thumb_url,
+            'photoMiniThumbUrl' => $t->photo_mini_thumb_url,
         ]);
     }
 }

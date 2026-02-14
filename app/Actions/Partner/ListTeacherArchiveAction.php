@@ -58,6 +58,7 @@ class ListTeacherArchiveAction
             'schoolName' => $t->school?->name,
             'isActive' => $t->is_active,
             'photoThumbUrl' => $t->photo_thumb_url,
+            'photoMiniThumbUrl' => $t->photo_mini_thumb_url,
             'photoUrl' => $t->photo_url,
             'aliasesCount' => $t->aliases_count ?? 0,
             'photosCount' => $t->photos_count ?? 0,

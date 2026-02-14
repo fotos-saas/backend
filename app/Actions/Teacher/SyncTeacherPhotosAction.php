@@ -81,6 +81,7 @@ class SyncTeacherPhotosAction
                     'status' => 'synced',
                     'photoUrl' => $t->photo_url,
                     'photoThumbUrl' => $t->photo_thumb_url,
+                    'photoMiniThumbUrl' => $t->photo_mini_thumb_url,
                     'photoFileName' => $media?->file_name,
                     'photoTakenAt' => $media?->getCustomProperty('photo_taken_at'),
                 ];

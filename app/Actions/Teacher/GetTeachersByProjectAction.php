@@ -171,6 +171,7 @@ class GetTeachersByProjectAction
                     'hasSyncablePhoto' => $hasSyncable,
                     'noPhotoMarked' => $t->notes && str_contains($t->notes, 'Nem találom a képet'),
                     'photoThumbUrl' => $t->photo_thumb_url,
+                    'photoMiniThumbUrl' => $t->photo_mini_thumb_url,
                     'photoUrl' => $t->photo_url,
                     'photoFileName' => $media?->file_name,
                     'photoTakenAt' => $media?->getCustomProperty('photo_taken_at'),

@@ -158,6 +158,7 @@ class PartnerTeacherLinkingController extends Controller
                     'fullDisplayName' => $t->full_display_name,
                     'schoolName' => $t->school?->name,
                     'photoThumbUrl' => $t->photo_thumb_url,
+                    'photoMiniThumbUrl' => $t->photo_mini_thumb_url,
                 ])->values()->toArray(),
             ])
             ->values()

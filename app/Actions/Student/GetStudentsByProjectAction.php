@@ -66,6 +66,7 @@ class GetStudentsByProjectAction
                     'hasPhoto' => $s->photo_thumb_url !== null,
                     'noPhotoMarked' => $s->notes && str_contains($s->notes, 'Nem találom a képet'),
                     'photoThumbUrl' => $s->photo_thumb_url,
+                    'photoMiniThumbUrl' => $s->photo_mini_thumb_url,
                     'photoUrl' => $s->photo_url,
                 ];
             });

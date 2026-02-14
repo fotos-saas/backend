@@ -45,6 +45,12 @@ class TeacherArchive extends Model implements HasMedia
             ->height(200)
             ->sharpen(10)
             ->nonQueued();
+
+        $this->addMediaConversion('mini-thumb')
+            ->width(80)
+            ->height(80)
+            ->sharpen(5)
+            ->nonQueued();
     }
 
     // ============ Relationships ============

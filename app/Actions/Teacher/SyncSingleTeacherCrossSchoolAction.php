@@ -45,6 +45,7 @@ class SyncSingleTeacherCrossSchoolAction
             'success' => true,
             'message' => 'Fotó sikeresen szinkronizálva.',
             'photoThumbUrl' => $teacher->photo_thumb_url,
+            'photoMiniThumbUrl' => $teacher->photo_mini_thumb_url,
             'photoUrl' => $teacher->photo_url,
         ];
     }

@@ -43,6 +43,7 @@ class ListStudentArchiveAction
             'schoolName' => $s->school?->name,
             'isActive' => $s->is_active,
             'photoThumbUrl' => $s->photo_thumb_url,
+            'photoMiniThumbUrl' => $s->photo_mini_thumb_url,
             'photoUrl' => $s->photo_url,
             'aliasesCount' => $s->aliases_count ?? 0,
             'photosCount' => $s->photos_count ?? 0,
