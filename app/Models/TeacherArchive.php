@@ -27,6 +27,7 @@ class TeacherArchive extends Model implements HasMedia
         'is_active',
         'active_photo_id',
         'linked_group',
+        'external_id',
     ];
 
     protected $casts = [
