@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 namespace App\Services\Teacher;
 
+use App\Models\TabloPartner;
 use App\Models\TeacherArchive;
 use App\Models\TeacherChangeLog;
 use App\Services\ClaudeService;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
@@ -34,9 +36,12 @@ class TeacherAutoLinkService
             ? TeacherArchive::forPartner($partnerId)->with('school:id,name')->get()
             : $teachers;
 
+        // Összekapcsolt iskolák map: school_id → logikai csoport ID
+        $schoolGroupMap = $this->buildSchoolGroupMap($partnerId);
+
         $onProgress && $onProgress('deterministic', "Determinisztikus matching ({$teachers->count()} tanár)...");
 
-        $deterministicGroups = $this->deterministicMatch($teachers, $allTeachers);
+        $deterministicGroups = $this->deterministicMatch($teachers, $allTeachers, $schoolGroupMap);
 
         // Kik maradtak linkeletlen a determinisztikus fázis után?
         $linkedIds = collect($deterministicGroups)->flatMap(fn ($g) => $g['teacher_ids'])->toArray();
@@ -155,9 +160,10 @@ class TeacherAutoLinkService
     // ============================================================
 
     /**
+     * @param  array<int, string>  $schoolGroupMap  school_id → logikai csoport ID
      * @return array [{teacher_ids: [], reason: '', confidence: 'high', source: 'deterministic'}]
      */
-    private function deterministicMatch(Collection $teachers, Collection $allTeachers): array
+    private function deterministicMatch(Collection $teachers, Collection $allTeachers, array $schoolGroupMap): array
     {
         $groups = [];
 
@@ -168,16 +174,18 @@ class TeacherAutoLinkService
             $normalizedMap[$normalized][] = $teacher;
         }
 
-        // Szabály 1: Exact normalized match + különböző iskola
+        // Szabály 1: Exact normalized match + különböző LOGIKAI iskola
         $processedIds = [];
         foreach ($normalizedMap as $normalized => $matchingTeachers) {
             if (count($matchingTeachers) < 2) {
                 continue;
             }
 
-            // Iskolánként csoportosítás - ha egy iskolában 2+ azonos → skip az egészet
-            $bySchool = collect($matchingTeachers)->groupBy('school_id');
-            $hasDuplicateInSchool = $bySchool->contains(fn ($group) => $group->count() > 1);
+            // Logikai iskolánként csoportosítás — összekapcsolt iskolák = egy csoport
+            $byLogicalSchool = collect($matchingTeachers)->groupBy(
+                fn ($t) => $schoolGroupMap[$t->school_id] ?? "s_{$t->school_id}"
+            );
+            $hasDuplicateInSchool = $byLogicalSchool->contains(fn ($group) => $group->count() > 1);
 
             if ($hasDuplicateInSchool) {
                 continue; // AI-ra hagyjuk
@@ -195,7 +203,6 @@ class TeacherAutoLinkService
             // Ne duplikáljunk már feldolgozott tanárokat
             $newIds = array_diff($ids, $processedIds);
             if (count($newIds) < 2 && count(array_intersect($ids, $processedIds)) > 0) {
-                // Már van csoport ezeknek, skip
                 continue;
             }
 
@@ -213,7 +220,7 @@ class TeacherAutoLinkService
         sort($normalizedNames);
 
         foreach ($normalizedNames as $i => $shorter) {
-            if (isset($processedIds) && ! empty(array_intersect(
+            if (! empty(array_intersect(
                 collect($normalizedMap[$shorter])->pluck('id')->toArray(),
                 $processedIds
             ))) {
@@ -235,8 +242,10 @@ class TeacherAutoLinkService
                     continue;
                 }
 
-                // Különböző iskola kell
-                if ($shorterTeachers[0]->school_id === $longerTeachers[0]->school_id) {
+                // Különböző LOGIKAI iskola kell (összekapcsolt iskolák = ugyanaz)
+                $shorterGroup = $schoolGroupMap[$shorterTeachers[0]->school_id] ?? "s_{$shorterTeachers[0]->school_id}";
+                $longerGroup = $schoolGroupMap[$longerTeachers[0]->school_id] ?? "s_{$longerTeachers[0]->school_id}";
+                if ($shorterGroup === $longerGroup) {
                     continue;
                 }
 
@@ -319,29 +328,33 @@ class TeacherAutoLinkService
             ])->values()->toArray())
             ->toArray();
 
+        // Összekapcsolt iskolák info az AI promptba
+        $partnerId = $allTeachers->first()?->partner_id;
+        $schoolGroupMap = $partnerId ? $this->buildSchoolGroupMap($partnerId) : [];
+
         foreach ($bySchool as $schoolId => $schoolTeachers) {
             $processed++;
             $onProgress && $onProgress('ai_batch', "AI batch {$processed}/{$schoolCount} (iskola #{$schoolId})");
 
             if ($schoolTeachers->count() < 2) {
-                // Egyetlen tanár → cross-school matching
-                $crossSchoolResult = $this->aiCrossSchoolMatch($schoolTeachers, $allTeachers, $existingLinkedGroups);
+                $crossSchoolResult = $this->aiCrossSchoolMatch($schoolTeachers, $allTeachers, $existingLinkedGroups, $schoolGroupMap);
                 $allGroups = array_merge($allGroups, $crossSchoolResult);
 
                 continue;
             }
 
-            $batchResult = $this->aiBatchForSchool($schoolTeachers, $allTeachers, $existingLinkedGroups);
+            $batchResult = $this->aiBatchForSchool($schoolTeachers, $allTeachers, $existingLinkedGroups, $schoolGroupMap);
             $allGroups = array_merge($allGroups, $batchResult);
         }
 
         return $allGroups;
     }
 
-    private function aiBatchForSchool(Collection $schoolTeachers, Collection $allTeachers, array $existingLinkedGroups): array
+    private function aiBatchForSchool(Collection $schoolTeachers, Collection $allTeachers, array $existingLinkedGroups, array $schoolGroupMap): array
     {
         $schoolName = $schoolTeachers->first()?->school?->name ?? 'Ismeretlen iskola';
         $schoolId = $schoolTeachers->first()?->school_id;
+        $myLogicalGroup = $schoolGroupMap[$schoolId] ?? "s_{$schoolId}";
 
         // Az adott iskola tanárai
         $teacherList = $schoolTeachers->map(fn ($t) => [
@@ -351,9 +364,9 @@ class TeacherAutoLinkService
             'position' => $t->position,
         ])->values()->toArray();
 
-        // Más iskolák tanárai (potenciális cross-school match-ek)
+        // Más LOGIKAI iskolák tanárai (összekapcsolt iskolák = ugyanaz → kizárva)
         $otherSchoolTeachers = $allTeachers
-            ->where('school_id', '!=', $schoolId)
+            ->filter(fn ($t) => ($schoolGroupMap[$t->school_id] ?? "s_{$t->school_id}") !== $myLogicalGroup)
             ->whereNull('linked_group')
             ->map(fn ($t) => [
                 'id' => $t->id,
@@ -396,7 +409,7 @@ class TeacherAutoLinkService
         }
     }
 
-    private function aiCrossSchoolMatch(Collection $singleTeachers, Collection $allTeachers, array $existingLinkedGroups): array
+    private function aiCrossSchoolMatch(Collection $singleTeachers, Collection $allTeachers, array $existingLinkedGroups, array $schoolGroupMap): array
     {
         $teacher = $singleTeachers->first();
         if (! $teacher) {
@@ -404,14 +417,19 @@ class TeacherAutoLinkService
         }
 
         $normalized = $this->normalizeName($teacher->canonical_name);
+        $myLogicalGroup = $schoolGroupMap[$teacher->school_id] ?? "s_{$teacher->school_id}";
 
-        // Keresés hasonló nevű tanárok más iskolákban
-        $candidates = $allTeachers->filter(function ($t) use ($teacher, $normalized) {
+        // Keresés hasonló nevű tanárok más LOGIKAI iskolákban
+        $candidates = $allTeachers->filter(function ($t) use ($teacher, $normalized, $myLogicalGroup, $schoolGroupMap) {
             if ($t->id === $teacher->id) {
                 return false;
             }
+            // Összekapcsolt iskolák = ugyanaz a logikai iskola → skip
+            $otherGroup = $schoolGroupMap[$t->school_id] ?? "s_{$t->school_id}";
+            if ($otherGroup === $myLogicalGroup) {
+                return false;
+            }
             $otherNorm = $this->normalizeName($t->canonical_name);
-            // Levenshtein < 4 VAGY prefix match
             return levenshtein($normalized, $otherNorm) <= 3
                 || str_starts_with($otherNorm, $normalized)
                 || str_starts_with($normalized, $otherNorm);
@@ -470,7 +488,9 @@ FIGYELJ EZEKRE:
 - Ékezet hiba: "Kovacs" vs "Kovács" → UGYANAZ
 - Elgépelés: kisebb eltérések → VIZSGÁLD
 
-KRITIKUS SZABÁLY: Ha egy iskolában KÉT AZONOS NEVŰ tanár van, NE linkeld őket automatikusan! Ez két különböző személy lehet.
+KRITIKUS SZABÁLYOK:
+- Ha egy iskolában KÉT AZONOS NEVŰ tanár van, NE linkeld őket automatikusan! Ez két különböző személy lehet.
+- ÖSSZEKAPCSOLT ISKOLÁK: Egyes iskolák össze vannak kapcsolva (pl. "Batthyány Kázmér Gimnázium" és "Szigetszentmiklósi Batthyányi Kázmér Gimnázium" = ugyanaz). Az összekapcsolt iskolákban lévő azonos nevű tanárokat IGENIS linkeld — ők ugyanaz a személy!
 
 A pozíció (tantárgy) segíthet a döntésben: ha két hasonló nevű tanár ugyanazt tanítja, nagyobb a valószínűség.
 
@@ -547,6 +567,33 @@ PROMPT;
         }
 
         return $groups;
+    }
+
+    // ============================================================
+    // Iskola csoportok
+    // ============================================================
+
+    /**
+     * Összekapcsolt iskolák map-je: school_id → logikai csoport ID.
+     * Ha két iskola össze van kapcsolva (partner_schools.linked_group),
+     * ugyanazt a csoport ID-t kapják → az auto-linker egy iskolaként kezeli őket.
+     *
+     * @return array<int, string> school_id → group identifier
+     */
+    private function buildSchoolGroupMap(int $partnerId): array
+    {
+        $rows = DB::table('partner_schools')
+            ->where('partner_id', $partnerId)
+            ->whereNotNull('linked_group')
+            ->select('school_id', 'linked_group')
+            ->get();
+
+        $map = [];
+        foreach ($rows as $row) {
+            $map[$row->school_id] = $row->linked_group;
+        }
+
+        return $map;
     }
 
     // ============================================================
