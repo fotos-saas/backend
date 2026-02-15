@@ -174,20 +174,19 @@ class TeacherAutoLinkService
             $normalizedMap[$normalized][] = $teacher;
         }
 
-        // Szabály 1: Exact normalized match + különböző LOGIKAI iskola
+        // Szabály 1: Exact normalized match + különböző iskola (vagy linked school)
         $processedIds = [];
         foreach ($normalizedMap as $normalized => $matchingTeachers) {
             if (count($matchingTeachers) < 2) {
                 continue;
             }
 
-            // Logikai iskolánként csoportosítás — összekapcsolt iskolák = egy csoport
-            $byLogicalSchool = collect($matchingTeachers)->groupBy(
-                fn ($t) => $schoolGroupMap[$t->school_id] ?? "s_{$t->school_id}"
-            );
-            $hasDuplicateInSchool = $byLogicalSchool->contains(fn ($group) => $group->count() > 1);
+            // RAW school_id alapú duplikáció check: ha egyetlen iskolában 2+ ugyanolyan nevű
+            // tanár van, az valóban két különböző személy → AI-ra hagyjuk
+            $byRawSchool = collect($matchingTeachers)->groupBy('school_id');
+            $hasDuplicateInRawSchool = $byRawSchool->contains(fn ($group) => $group->count() > 1);
 
-            if ($hasDuplicateInSchool) {
+            if ($hasDuplicateInRawSchool) {
                 continue; // AI-ra hagyjuk
             }
 
@@ -242,10 +241,8 @@ class TeacherAutoLinkService
                     continue;
                 }
 
-                // Különböző LOGIKAI iskola kell (összekapcsolt iskolák = ugyanaz)
-                $shorterGroup = $schoolGroupMap[$shorterTeachers[0]->school_id] ?? "s_{$shorterTeachers[0]->school_id}";
-                $longerGroup = $schoolGroupMap[$longerTeachers[0]->school_id] ?? "s_{$longerTeachers[0]->school_id}";
-                if ($shorterGroup === $longerGroup) {
+                // Különböző raw school_id kell (linked school is OK — az is más school_id)
+                if ($shorterTeachers[0]->school_id === $longerTeachers[0]->school_id) {
                     continue;
                 }
 
